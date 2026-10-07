@@ -1,0 +1,4 @@
+{
+  "gtfs": {"repo": "Neo2308/indianrailways-gtfs", "sha": "b340b7048e99c18330ad333e8210d61161ac7a43", "path": "gtfs/gtfs.zip", "distance_unit": "km"},
+  "datameet": {"repo": "datameet/railways", "sha": "e0c538a1e41ae5eace454d2818902e1065608e16", "path": "stations.json"}
+}
