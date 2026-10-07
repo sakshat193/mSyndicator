@@ -1,0 +1,12 @@
+# Implementation
+- Follow docs/superpowers/plans/2026-10-07-live-train-tracker.md; tests first.
+- One task per session unless the user explicitly asks to continue.
+- Verify with `uv run pytest -q`; offline subset: `uv run pytest -q -m "not db"`.
+- Web checks: `npm --prefix web test`.
+- Never set MSYND_LIVE or contact NTES/etrain enquiry endpoints.
+- Use stdlib or installed dependencies first; no speculative abstractions.
+- Mark deliberate ceilings with a `# ponytail:` comment and upgrade path.
+- Spec and plan edits belong to the monitor's housekeeping/progress tasks only.
+- Commit as `task NN: title`.
+- Undecided material choices: stop with `BLOCKED:`.
+- Keep this file under 40 lines.
