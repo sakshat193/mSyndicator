@@ -121,6 +121,32 @@ def test_empty_refreshes_session_once_then_retries_once(db_url):
     asyncio.run(run())
 
 
+def test_empty_session_recovery_does_not_recurse(db_url):
+    async def run():
+        requests, refreshes = [], []
+
+        def handle(request):
+            requests.append(request)
+            if len(requests) > 10:
+                raise AssertionError("session recovery recursed")
+            return httpx.Response(200)
+
+        d = dispatcher(db_url, FakeClock(), handle)
+
+        async def refresh():
+            refreshes.append(1)
+            await d.request("session", "GET", "https://h/")
+
+        d.on_empty = refresh
+        await d.start()
+        try:
+            result = await asyncio.wait_for(d.request("status", "GET", "https://h/x"), timeout=5)
+            assert result.outcome == "empty" and len(requests) == 4 and refreshes == [1]
+        finally:
+            await d.close()
+    asyncio.run(run())
+
+
 def test_every_request_logged_with_outcome(db_url):
     async def run():
         script = iter([httpx.ReadTimeout("timeout"), httpx.Response(200, content=b"ok")])

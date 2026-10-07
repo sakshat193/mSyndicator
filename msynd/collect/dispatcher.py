@@ -62,6 +62,7 @@ class Dispatcher:
         self.state = "ok"
         self.outcomes = deque()
         self.pause_until = 0.0
+        self._recovering_session = False
 
     async def start(self):
         if self.conn is not None:
@@ -156,8 +157,12 @@ class Dispatcher:
             result, retry_after = await self._attempt(purpose, method, url, key, run_id, httpx_kwargs)
             if result.outcome == "empty" and not refreshed:
                 refreshed = True
-                if self.on_empty is not None:
-                    await self.on_empty()
+                if self.on_empty is not None and not self._recovering_session:
+                    self._recovering_session = True
+                    try:
+                        await self.on_empty()
+                    finally:
+                        self._recovering_session = False
                 continue
             if result.outcome != "transport_error" or attempt == 4:
                 return result
