@@ -7,6 +7,7 @@ import hashlib
 import io
 import json
 import math
+import re
 from pathlib import Path
 import tempfile
 import urllib.request
@@ -24,6 +25,8 @@ class ImportReport:
     versions_dup: int
     stations: int
     missing_coords: int
+    calendar_from_id: int = 0
+    skipped_no_calendar: int = 0
     skipped_trips: list[dict] = field(default_factory=list)
 
 
@@ -60,6 +63,27 @@ def content_hash(value):
     return hashlib.sha256(json.dumps(value, separators=(",", ":"), ensure_ascii=True).encode()).digest()
 
 
+def calendar_from_service_id(service_id):
+    match = re.fullmatch(r"((?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)(?:-(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun))*)_([0-9]{8})-([0-9]{8})", service_id)
+    if match is None:
+        return None
+    days, first, last = match.groups()
+    try:
+        date.fromisoformat(first)
+        date.fromisoformat(last)
+    except ValueError:
+        return None
+    weekdays = days.split("-")
+    if len(weekdays) != len(set(weekdays)):
+        return None
+    return {"service_id": service_id, "start_date": first, "end_date": last} | {
+        name: str(int(short in weekdays)) for short, name in zip(
+            ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
+            ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"),
+        )
+    }
+
+
 def import_gtfs(conn, gtfs_dir):
     folder = Path(gtfs_dir)
     routes = {r["route_id"]: r for r in read_csv(folder / "routes.txt")}
@@ -85,6 +109,7 @@ def import_gtfs(conn, gtfs_dir):
         stops[row["stop_id"]] = (code, coords)
         conn.execute("insert into ref.station(code,name,lat,lon) values (%s,%s,%s,%s) on conflict(code) do update set name=excluded.name,lat=coalesce(excluded.lat,ref.station.lat),lon=coalesce(excluded.lon,ref.station.lon)", (code, row["stop_name"], *(coords or (None, None))))
     new, dup, numbers, skipped = 0, 0, set(), []
+    decoded, skipped_no_calendar = 0, 0
     for trip in trips:
         route = routes[trip["route_id"]]
         number = route.get("route_short_name") or route["route_id"]
@@ -92,6 +117,14 @@ def import_gtfs(conn, gtfs_dir):
         name = route.get("route_long_name") or number
         conn.execute("insert into ref.train(number,name,class) values (%s,%s,%s) on conflict(number) do update set name=excluded.name,class=excluded.class", (number, name, train_class(number, name)))
         calendar = calendars.get(trip["service_id"])
+        if calendar is None:
+            # ponytail: decode missing calendars from service IDs; upgrade: an upstream calendar fix.
+            calendar = calendar_from_service_id(trip["service_id"])
+            if calendar is not None:
+                calendars[trip["service_id"]] = calendar
+                decoded += 1
+            else:
+                skipped_no_calendar += 1
         if calendar is None or calendar["start_date"] > calendar["end_date"]:
             skipped.append({"trip_id": trip["trip_id"], "reason": "missing_calendar" if calendar is None else "inverted_calendar"})
             continue
@@ -138,7 +171,7 @@ def import_gtfs(conn, gtfs_dir):
             rows.append((day, holidays.get(str(day)), day.month == 12 or day.month == 1 or (day.month == 2 and day.day <= 15)))
             day += timedelta(days=1)
         cursor.executemany("insert into ref.calendar values (%s,%s,%s) on conflict(day) do update set holiday=excluded.holiday,fog_north=excluded.fog_north", rows)
-    return ImportReport(len(numbers), new, dup, len(stops), missing, skipped)
+    return ImportReport(len(numbers), new, dup, len(stops), missing, decoded, skipped_no_calendar, skipped)
 
 
 def download(source):

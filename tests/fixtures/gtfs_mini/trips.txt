@@ -1,4 +1,4 @@
 route_id,service_id,trip_id
 R1,S1,T1
 R2,S1,T2
-R3,S2,T3
+R3,Mon-Wed_20250101-20271231,T3

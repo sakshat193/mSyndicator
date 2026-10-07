@@ -1,5 +1,6 @@
 from pathlib import Path
 import shutil
+from datetime import date
 
 import pytest
 
@@ -42,6 +43,12 @@ def test_days_of_run_bits(db):
     assert db.execute("select fog_north from ref.calendar where day='2026-02-16'").fetchone() == (False,)
 
 
+def test_missing_calendar_decoded_from_service_id(db):
+    report = import_gtfs(db, FIXTURE)
+    assert report.calendar_from_id == 1 and report.skipped_no_calendar == 0
+    assert db.execute("select days_of_run,valid_from,valid_to from ref.schedule_version where train='01234'").fetchone() == (5, date(2025, 1, 1), date(2027, 12, 31))
+
+
 def test_class_mapping():
     cases = [("1", "RAJDHANI", "RAJ"), ("1", "SHATABDI", "SHT"), ("1", "VANDE BHARAT", "VB"), ("1", "DURONTO", "DRNT"), ("1", "SUPERFAST", "SF"), ("1", "MAIL", "MEX"), ("1", "EXP", "EXP"), ("1", "MEMU", "PASS"), ("01234", "EXP", "SPL"), ("1", "SPECIAL", "SPL"), ("1", "TRAIN", "UNKNOWN")]
     for number, name, expected in cases:
@@ -60,7 +67,10 @@ def test_missing_or_inverted_calendar_is_reported_without_inventing_days(db, tmp
     shutil.copytree(FIXTURE, tmp_path / "feed")
     path = tmp_path / "feed/calendar.txt"
     path.write_text("service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,start_date,end_date\nS1,1,0,0,1,0,0,0,20270101,20260101\n")
+    trips = tmp_path / "feed/trips.txt"
+    trips.write_text(trips.read_text().replace("Mon-Wed_20250101-20271231", "unparseable"))
     report = import_gtfs(db, tmp_path / "feed")
     assert report.trains == 3 and report.versions_new == 0
     assert len(report.skipped_trips) == 3
+    assert report.calendar_from_id == 0 and report.skipped_no_calendar == 1
     assert db.execute("select count(*) from ref.schedule_version").fetchone() == (0,)
