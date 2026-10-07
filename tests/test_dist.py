@@ -111,7 +111,7 @@ def test_extreme_level_and_tails_finite():
 
 def test_deep_overflow_tail_window_sampling():
     m = np.zeros(SIGNED_NB); m[-1] = 1
-    tau, width, mass = 7.0, 14.0, 1e-9
+    tau, width, mass = 7.0, 14.0, 1e-13
     e = eff(m, tau_hi=tau)
     survival_lo = mass / -np.expm1(-width/tau)
     lo = 240 - tau*np.log(survival_lo)
