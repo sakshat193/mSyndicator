@@ -20,7 +20,7 @@ def run_key(v_hash, run_id, replicate=0):
     return splitmix64(splitmix64(np.uint64(v_hash) ^ np.uint64(run_id)) ^ np.uint64(replicate))
 
 
-@njit
+@njit("float64(uint64,int64,int64,int64)")
 def uniform(key, particle, event_idx, attempt):
     if particle < 0 or particle > 0xFFFFFFFF or event_idx < 0 or event_idx > 0xFFFFFF or attempt < 0 or attempt > 255:
         raise ValueError("RNG counter out of range")

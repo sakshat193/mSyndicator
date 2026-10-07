@@ -72,7 +72,8 @@ class Eff:
         below = np.cumsum(m, axis=1)
         above = np.cumsum(m[:, ::-1], axis=1)[:, ::-1].copy()
         self.masses = m
-        self.args = (m,below,above,self.signed,self.tau_lo,self.tau_hi,self.j,self.w,self.b,self.a,self.f,self.c,self.s)
+        j, w = (self.j+1, 0.0) if self.w == 1 else (self.j, self.w)
+        self.args = (m,below,above,self.signed,self.tau_lo,self.tau_hi,j,w,self.b,self.a,self.f,self.c,self.s)
 
 
 @njit
@@ -119,6 +120,10 @@ def _cdf(e, x):
     if y <= e[10]:
         return 0.0, 1.0
     target = (y-e[11])/e[12]
+    if target <= _raw_interp(e,0.0,False):
+        return 0.0, 1.0
+    if target >= _raw_interp(e,0.0,True):
+        return 1.0, 0.0
     m, below, above, signed, lo, hi, j, w, b, a, f, c, s = e
     other = j+1 if w > 0 else j
     # Joint exponential tails have an exact inverse in their stable coordinate.
@@ -128,10 +133,12 @@ def _cdf(e, x):
         survival = math.exp((anchor-target)/hi)
         return 1-survival, survival
     lower_mass = min(m[j,0],m[other,0]) if signed else 0.0
-    if lower_mass > 0 and target <= _raw_interp(e,lower_mass,False):
+    if lower_mass > 0:
         anchor = -60-lo*((1-w)*math.log(m[j,0])+w*math.log(m[other,0]))
-        cdf = math.exp((target-anchor)/lo)
-        return cdf, 1-cdf
+        # Use the tail's left limit, not the quantile after a possible support gap.
+        if target <= anchor+lo*math.log(lower_mass):
+            cdf = math.exp((target-anchor)/lo)
+            return cdf, 1-cdf
     upper = target > _raw_interp(e,.5,False)
     left, right = 0.0, .5
     for _ in range(60):

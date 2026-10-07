@@ -21,3 +21,10 @@ def test_chi_square_uniformity():
 
     samples = np.array([uniform(np.uint64(1234567), i, 7, 0) for i in range(100000)])
     assert chisquare(np.histogram(samples, bins=20, range=(0, 1))[0]).pvalue > 1e-4
+
+
+def test_boxed_uint64_keys_across_signed_boundary():
+    uniform(np.uint64(1), 0, 0, 0)
+    for key in (2**63-1, 2**63, 2**64-1):
+        value = uniform(key, 0, 0, 0)
+        assert 0 < value < 1 and value == uniform(np.uint64(key), 0, 0, 0)
