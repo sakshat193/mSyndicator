@@ -4,7 +4,7 @@ import math
 from numba import njit
 import numpy as np
 
-from msynd.dist import Eff, _cdf, _raw_q, _sample
+from msynd.dist import Eff, LEVELS, _cdf, _raw_q, _sample, level_weight
 
 
 @njit
@@ -120,3 +120,59 @@ def test_sample_uses_precomputed_window_cdf_and_mass():
     e = Eff(m, False, 1, 1, 0, 0, 0, 1, 5, 0, 1)
     assert _sample(e.args, 5, 6, .7, (0., 1.), .6) == 5
     np.testing.assert_allclose(_sample(e.args, 5, 6, .95, (0., 1.), .6), 5.7, atol=1e-12)
+
+
+def test_interpolated_cdf_matches_frozen_solver_in_tails_and_support_gaps():
+    rng = np.random.default_rng(107)
+    for number in range(240):
+        signed = number % 3 != 0
+        m = rng.exponential(size=(16, 302 if signed else 181))
+        m[rng.random(m.shape) < .85] = 0
+        if number % 4 == 0:
+            m[:, [0, -1]] = 0
+        if number % 6 == 0:
+            m[:] = 0
+            m[::2, 61], m[::2, 131] = .2, .8
+            m[1::2, 20], m[1::2, -1] = .7, .3
+        m /= m.sum(axis=1, keepdims=True)
+        level = int(rng.integers(15))
+        delay = LEVELS[level]+rng.uniform(.05, .95)*(LEVELS[level+1]-LEVELS[level])
+        j, w = level_weight(delay)
+        e = Eff(m, signed, *rng.uniform(.5, 20, 2), j, w,
+                rng.uniform(-100, 100), rng.uniform(.1, 2), -math.inf,
+                rng.uniform(-20, 30), rng.uniform(.1, 3))
+        assert 0 < e.w < 1
+        low, high = (-60, 240) if signed else (0, 180)
+        targets = [low-100, low-1, low, high, high+1, high+100,
+                   *rng.uniform(low, high, 12)]
+        for upper in (False, True):
+            cumulative = e.args[2 if upper else 1][j:j+2]
+            knots = cumulative.ravel()[rng.integers(cumulative.size, size=12)]
+            for p in (.001, .25, .49, *knots):
+                p = np.clip(p, 1e-12, 1-1e-12)
+                before = _old_raw_interp(e.args, max(1e-15, p-1e-12), upper)
+                after = _old_raw_interp(e.args, min(1-1e-15, p+1e-12), upper)
+                targets.extend((before, after, (before+after)/2))
+        for target in targets:
+            x = e.b+e.a*(e.c+e.s*target)
+            np.testing.assert_allclose(_cdf(e.args, x), _old_cdf(e.args, x),
+                                       atol=1e-9, rtol=0,
+                                       err_msg=f"Eff {number}, w={w}, target={target}")
+
+
+def test_interpolated_linear_piece_needs_few_quantile_evaluations(monkeypatch):
+    from msynd import dist
+
+    m = np.zeros((2, 302))
+    m[0, 61], m[1, 71] = 1, 1
+    e = Eff(m, True, 4, 7, 0, .3, 0, 1, -math.inf, 0, 1)
+    calls = []
+    raw_interp = dist._raw_interp
+
+    def counted(*args):
+        calls.append(1)
+        return raw_interp(*args)
+
+    monkeypatch.setattr(dist, "_raw_interp", counted)
+    np.testing.assert_allclose(dist._cdf.py_func(e.args, 3.2), (.2, .8), atol=1e-12, rtol=0)
+    assert len(calls) <= 8

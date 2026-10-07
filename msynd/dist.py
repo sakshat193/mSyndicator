@@ -171,15 +171,40 @@ def _cdf(e, x):
     coordinate = 1 if upper else 0
     left = max(0.0, min(first[coordinate], second[coordinate]))
     right = min(.5, max(first[coordinate], second[coordinate]))
+    if right-left <= 1e-15:
+        p = (left+right)/2
+        return (1-p,p) if upper else (p,1-p)
+    direction = -1.0 if upper else 1.0
+    gl = direction*(_raw_interp(e,left,upper)-target)
+    gr = direction*(_raw_interp(e,right,upper)-target)
+    # A support gap can put the inverse exactly at a bracket endpoint.
+    if gl >= 0:
+        return (1-left,left) if upper else (left,1-left)
+    if gr <= 0:
+        return (1-right,right) if upper else (right,1-right)
+    side = 0
     for _ in range(60):
-        mid = (left+right)/2
-        if mid == left or mid == right:
+        if right-left <= 1e-15:
             break
-        q = _raw_interp(e,mid,upper)
-        if (q < target) != upper:
-            left = mid
+        p = left+(right-left)*(-gl)/(gr-gl) if math.isfinite(gl) and math.isfinite(gr) else (left+right)/2
+        if not left < p < right:
+            p = (left+right)/2
+        # Quantile jumps at support gaps can stall Illinois near one endpoint.
+        if side != 0 and not left+.25*(right-left) < p < right-.25*(right-left):
+            p = (left+right)/2
+        g = direction*(_raw_interp(e,p,upper)-target)
+        if abs(g) <= 1e-12*(1+abs(target)):
+            return (1-p,p) if upper else (p,1-p)
+        if g < 0:
+            left, gl = p, g
+            if side == -1:
+                gr *= .5
+            side = -1
         else:
-            right = mid
+            right, gr = p, g
+            if side == 1:
+                gl *= .5
+            side = 1
     p = (left+right)/2
     return (1-p,p) if upper else (p,1-p)
 
