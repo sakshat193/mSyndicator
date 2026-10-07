@@ -107,3 +107,22 @@ def test_extreme_level_and_tails_finite():
     expected = 1e-12 * -np.expm1(-1/7)
     assert eff_window_mass(e, lo, lo+1) == pytest.approx(expected, rel=1e-6, abs=0)
     assert np.isfinite(eff_sample_window(e, lo, lo+1, .9))
+
+
+def test_deep_overflow_tail_window_sampling():
+    m = np.zeros(SIGNED_NB); m[-1] = 1
+    tau, width, mass = 7.0, 14.0, 1e-9
+    e = eff(m, tau_hi=tau)
+    survival_lo = mass / -np.expm1(-width/tau)
+    lo = 240 - tau*np.log(survival_lo)
+    hi = lo + width
+    assert eff_window_mass(e, lo, hi) == pytest.approx(mass, rel=1e-6, abs=0)
+    # Midpoint uniforms isolate numerical sampling error from Monte Carlo noise.
+    uniforms = (np.arange(100000)+.5)/100000
+    xs = np.array([eff_sample_window(e, lo, hi, u) for u in uniforms])
+    endpoints = [eff_sample_window(e, lo, hi, u) for u in (0, np.nextafter(1.0, 0.0))]
+    assert np.all(np.isfinite(xs)) and np.all((lo <= xs) & (xs < hi))
+    assert all(lo <= x < hi for x in endpoints)
+    expected_excess = tau - width/np.expm1(width/tau)
+    assert xs.mean() == pytest.approx(lo+expected_excess, rel=1e-6, abs=0)
+    assert (xs-lo).mean() == pytest.approx(expected_excess, rel=1e-6, abs=0)
