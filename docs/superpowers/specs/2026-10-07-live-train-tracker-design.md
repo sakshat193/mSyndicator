@@ -1133,6 +1133,7 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
 - **Models:** LightGBM on the VM always. A neural candidate on Kaggle only if G1/G6 pass and it wins the promotion test.
 - **Backup:** off-site to Oracle Object Storage. Kaggle is not a backup.
 - **Phase 0 outcomes:** *to be appended here (G1–G8 results and decisions).*
+  - **G7 (2026-10-07): pass.** All 13 cases plus both A4 sensitivity variants within A8 tolerance at N = 10k and 100k (`docs/gates/G7.md`). A7 accepted: P10/P50/P90 error ≤ 0.49 min against a 2 min limit, so passes stay in conditioning. A second pass chains from the previous pass (remainder anchored at Pᵢ; formula in G7.md).
 
 ---
 
