@@ -196,15 +196,15 @@ kaggle/kernel.py (Phase 6 only)
 - Produces `msynd.db.connect(url=None) -> psycopg.Connection` and the pytest fixtures `db` (one connection per test, inside a transaction that is rolled back) and `db_url` (a fresh database per session, migrated).
 
 Steps:
-- [ ] `pyproject.toml`: project `msynd`, `requires-python = ">=3.12,<3.13"`, the runtime dependencies from Global Constraints, optional groups `ops` and `import`, dev `pytest`, and pytest markers `db`, `slow`, `live`. Run `uv python install 3.12 && uv sync`.
-- [ ] `.gitignore`: `.venv/ __pycache__/ .codex-runs/ web/node_modules/ web/dist/ data/replay_days/ *.pmtiles .env`.
-- [ ] `compose.yaml`: service `db` from `postgres:16` with env `POSTGRES_USER/PASSWORD/DB=msynd`, port `55432:5432`, and a named volume.
-- [ ] `tests/conftest.py`:
+- [x] `pyproject.toml`: project `msynd`, `requires-python = ">=3.12,<3.13"`, the runtime dependencies from Global Constraints, optional groups `ops` and `import`, dev `pytest`, and pytest markers `db`, `slow`, `live`. Run `uv python install 3.12 && uv sync`.
+- [x] `.gitignore`: `.venv/ __pycache__/ .codex-runs/ web/node_modules/ web/dist/ data/replay_days/ *.pmtiles .env`.
+- [x] `compose.yaml`: service `db` from `postgres:16` with env `POSTGRES_USER/PASSWORD/DB=msynd`, port `55432:5432`, and a named volume.
+- [x] `tests/conftest.py`:
   - `MSYND_TEST_DSN` defaults to `postgresql://msynd:msynd@localhost:55432/postgres`;
   - the session fixture creates the database `msynd_test_<pid>`, runs `migrate.apply(url)` (stubbed until Task 2) and drops it at the end;
   - the `db` fixture yields a connection inside a rolled-back transaction;
   - auto-skip `live` tests unless `MSYND_LIVE=1`.
-- [ ] `AGENTS.md` (≤ 40 lines) states:
+- [x] `AGENTS.md` (≤ 40 lines) states:
   - one task per session; tests first;
   - commands `uv run pytest -q`, `uv run pytest -q -m "not db"`, `npm --prefix web test`;
   - never set `MSYND_LIVE` and never contact NTES or etrain;
@@ -212,9 +212,9 @@ Steps:
   - never edit the spec or the plan;
   - commit as `task NN: title`;
   - stop with `BLOCKED:` on any undecided choice.
-- [ ] `tests/test_smoke.py`: `@pytest.mark.db def test_db(db): assert db.execute("select 1").fetchone() == (1,)`.
-- [ ] Verify: `docker compose up -d db; uv run pytest -q` passes.
-- [ ] Commit `task 01: project skeleton and test db harness`.
+- [x] `tests/test_smoke.py`: `@pytest.mark.db def test_db(db): assert db.execute("select 1").fetchone() == (1,)`.
+- [x] Verify: `docker compose up -d db; uv run pytest -q` passes.
+- [x] Commit `task 01: project skeleton and test db harness`.
 
 ### Task 2: Schema migration 0001 (spec §6 + A3, A5, A9, A11)
 
@@ -226,14 +226,14 @@ Steps:
 - `tests/helpers.py`: `make_run(db, train='12951', start='2026-10-07', halts=[('MMCT',None,0,0),('BRC',300,305,392),('NDLS',940,None,1384)]) -> run_id`, `insert_fetch(db, **kw) -> id`, `insert_event(db, run_id, station, occ, kind, actual, received, fetch_id=None) -> id`.
 
 Steps:
-- [ ] Write `0001_init.sql`: §6 verbatim, with these changes:
+- [x] Write `0001_init.sql`: §6 verbatim, with these changes:
   - every `REFERENCES obs.fetch` becomes `REFERENCES obs.fetch ON DELETE SET NULL`;
   - `obs.fetch.outcome` gets `CHECK (outcome IN ('inflight','ok','empty','invalid','transport_error','challenge'))`;
   - add `CREATE SEQUENCE obs.dirty_seq` and `obs.dirty_run.ver bigint NOT NULL DEFAULT nextval('obs.dirty_seq')`;
   - add `sim.forecast_issue.b2 real[] NOT NULL` and `cold_start boolean NOT NULL DEFAULT false`;
   - add `ref.route_version.dist_src text NOT NULL CHECK (dist_src IN ('gtfs','gc','ntes'))`, which is part of the route content hash;
   - add comments on `ntes_eta_rev` (A3) and `ml.model.tail` (A1).
-- [ ] Write the tests first:
+- [x] Write the tests first:
 
 ```python
 pytestmark = pytest.mark.db
@@ -262,8 +262,8 @@ def test_event_kind_order(db):
 def test_one_active_model_per_role(db): ...  # second active row for role 'run' raises UniqueViolation
 def test_outcome_check(db): ...             # outcome 'weird' raises CheckViolation
 ```
-- [ ] Run them; expect failures. Implement. Run them again; expect a pass.
-- [ ] Commit `task 02: schema migration 0001`.
+- [x] Run them; expect failures. Implement. Run them again; expect a pass.
+- [x] Commit `task 02: schema migration 0001`.
 
 ### Task 3: Dispatcher, the single HTTP owner per host (spec §7.1, A11)
 
@@ -298,7 +298,7 @@ Rules (spec §7.1):
 - Set the UA header.
 
 Steps:
-- [ ] Write the tests (fake clock: `monotonic()` and `async sleep(dt)` advance a counter; `ListLog` or the DB fixture records rows):
+- [x] Write the tests (fake clock: `monotonic()` and `async sleep(dt)` advance a counter; `ListLog` or the DB fixture records rows):
 
 ```python
 async def test_starts_spaced_with_tokens_retries_sessions(db_url):
@@ -320,8 +320,8 @@ async def test_every_request_logged_with_outcome(db_url): ...  # no row left 'in
 def test_real_transport_requires_live_flag(monkeypatch): ...   # RuntimeError without MSYND_LIVE=1
 async def test_restart_respects_last_start(db_url): ...        # row started 0.2 s ago -> first start waits 0.8 s
 ```
-- [ ] Run them; expect failures. Implement. Run them again; expect a pass.
-- [ ] Commit `task 03: dispatcher`.
+- [x] Run them; expect failures. Implement. Run them again; expect a pass.
+- [x] Commit `task 03: dispatcher`.
 
 ### Task 4: GTFS static import (spec §3.1, §7.6; Phase 1)
 
@@ -345,7 +345,7 @@ Rules:
 - Station coordinates come from GTFS, with gaps filled from datameet `stations.json`.
 
 Steps:
-- [ ] Tests on `gtfs_mini`:
+- [x] Tests on `gtfs_mini`:
   - `test_gc_distance_fallback` (fixture without `shape_dist_traveled` → `dist_src='gc'`, km is monotone and ≤ the hand-computed haversine sum + 1e-6);
   - `test_versions_dedup_by_hash` (importing twice → `versions_new == 0`);
   - `test_gtfs_times_past_24h` (a stop at `26:10:00` → `arr_off == 1570.0`);
@@ -353,8 +353,8 @@ Steps:
   - `test_days_of_run_bits` (Mon+Thu → `0b0001001`);
   - `test_class_mapping`;
   - `test_route_version_is_halts_only_and_immutable`.
-- [ ] Implement; tests pass. Then the monitor runs the real import once and records the report counts in `docs/gates/phase1.md`.
-- [ ] Commit `task 04: gtfs static import`.
+- [x] Implement; tests pass. Then the monitor runs the real import once and records the report counts in `docs/gates/phase1.md`.
+- [x] Commit `task 04: gtfs static import`.
 
 ### Task 5: Segments, overrides, network export, Phase 1 report (spec §3.1, §7.6, §10)
 
@@ -366,12 +366,12 @@ Steps:
 - `python -m msynd.static.export report` prints the share of trains with a schedule version and drawable geometry (straight lines count), plus the confidence histogram.
 
 Steps:
-- [ ] Tests:
+- [x] Tests:
   - `test_segment_undirected_shared_by_reverse_route`;
   - `test_route_segment_forward_flag`;
   - `test_override_applied_and_versioned_by_file_hash`;
   - `test_export_etag_stable_for_same_content`.
-- [ ] Implement; tests pass. Commit `task 05: segments and network export`.
+- [x] Implement; tests pass. Commit `task 05: segments and network export`.
 
 ---
 
@@ -381,8 +381,8 @@ Steps:
 
 **Files:** create `docs/sources.md`.
 
-- [ ] Codex (network allowed, terms pages only; no enquiry endpoints) records, for each source, the URL, retrieval date and quoted relevant terms: NTES (including the Disclaimer page), etrain (Tripozo terms), the GTFS repo licence, OSM ODbL, Protomaps and datameet. Each is mapped against four uses: automated collection, model training, export to Kaggle, portfolio display. Unknowns are marked "unclear", never assumed.
-- [ ] Commit `task 06: G1 data-use draft`.
+- [x] Codex (network allowed, terms pages only; no enquiry endpoints) records, for each source, the URL, retrieval date and quoted relevant terms: NTES (including the Disclaimer page), etrain (Tripozo terms), the GTFS repo licence, OSM ODbL, Protomaps and datameet. Each is mapped against four uses: automated collection, model training, export to Kaggle, portfolio display. Unknowns are marked "unclear", never assumed.
+- [x] Commit `task 06: G1 data-use draft`.
 - [ ] **🛑 CP-1 (user):** decide G1 per use and record it in spec §18. Explicitly approve:
   - (a) protocol discovery and fixture capture, ≈ 150 requests at ≤ 0.3 req/s;
   - (b) the 7-day G2 pilot at ≤ 0.3 req/s;
@@ -511,7 +511,7 @@ Validation rules (spec §7.1): the train and start date must match the request; 
 
 **Interfaces:** `run_label(dep_delay_a, arr_delay_b) -> float` (Δrun); `dwell(sched_dwell, arr_delay, dep_delay) -> float`; `origin_residual(sched_dep, resched_min, actual_dep) -> float`; `composite(dwell_delta, run_delta) -> float`; `build_live_labels(conn, matured_before) -> pyarrow.Table` (runs completed or expired, events ≥ 6 h old, current revisions only, never `obs.history_daily`).
 
-- [ ] Tests:
+- [x] Tests:
 ```python
 def test_clock_counterexample():                       # spec §3.2 regression
     assert run_label(dep_delay_a=15, arr_delay_b=20) == 5
@@ -522,7 +522,7 @@ def test_resched_negative(): assert origin_residual(100, 60, 150) == -10      # 
 def test_history_never_label(db): ...   # rows only in obs.history_daily -> build_live_labels is empty
 def test_labels_only_matured(db): ...   # event 5 h old excluded; 7 h old on completed run included
 ```
-- [ ] Implement; commit `task 12: clock contract labels`.
+- [x] Implement; commit `task 12: clock contract labels`.
 
 ### Task 13: Counter RNG (spec §9.3)
 
@@ -537,13 +537,13 @@ def uniform(key: uint64, particle: int, event_idx: int, attempt: int) -> float64
     # pack = (event_idx << 40) | (attempt << 32) | particle ; u = ((splitmix64(key ^ pack) >> 11) + 0.5) * 2**-53  ∈ (0,1)
 def v_hash(versions: dict) -> uint64   # blake2b-8 of canonical JSON (sorted keys)
 ```
-- [ ] Tests:
+- [x] Tests:
   - known-answer `splitmix64(0) == 0xE220A8397B1DCDAF`;
   - `uniform` is never 0 or 1;
   - same inputs give the same output;
   - batch independence (computing a 1000-particle array in one call or in two halves gives identical values);
   - a χ² uniformity smoke test over 1e5 draws (p > 1e-4).
-- [ ] Implement; commit `task 13: counter rng`.
+- [x] Implement; commit `task 13: counter rng`.
 
 ### Task 14: Distribution format and effective distribution (spec §3.4, A1, A2)
 
@@ -572,7 +572,7 @@ Implementation notes:
 - Tails use the closed form; in the joint overflow tail `Qd(u) = A + B·(−ln(1−u))` with `B = (1−w)τ_j + wτ_{j+1}`.
 - `Qd⁻¹` uses 60-step bisection in the CDF coordinate below `Qd(0.5)` and in the survival coordinate above it.
 
-- [ ] Tests (write first; all must fail before implementation):
+- [x] Tests (write first; all must fail before implementation):
 ```python
 def test_rare_window_conditional_uniform():                       # R3-1 witness
     m = np.zeros(SIGNED_NB); m[1 + 60] = 5e-7; m[1 + 110] = 1 - 5e-7   # bin [0,1) and bin [50,51)
@@ -596,7 +596,7 @@ def test_negative_origin_residual_supported(): # O masses centred at -10, b=100,
 def test_level_interpolation_same_u():        # Qd(u) == (1-w)Qj(u) + wQj+1(u); d=700 uses level 600 only
 def test_extreme_level_and_tails_finite():    # RF5: d=5000, d=-500, mass 1e-12 far tail -> finite, rel err < 1e-6 vs closed form
 ```
-- [ ] Implement; tests pass. Commit `task 14: distribution format and effective distribution`.
+- [x] Implement; tests pass. Commit `task 14: distribution format and effective distribution`.
 
 ### Task 15: `pos()` and its shared fixture (spec §9.2, §11 parity)
 
@@ -604,7 +604,7 @@ def test_extreme_level_and_tails_finite():    # RF5: d=5000, d=-500, mass 1e-12 
 
 **Interface:** `pos(t, t_dep_a, anchor_t, anchor_km, t_arr_b, km_a, km_b, pattern: list[tuple[float,float]] | None) -> float` (km along the route). `pattern` holds the scheduled (time fraction, km fraction) points from the anchor to B; `None` means straight in distance.
 
-- [ ] Fixture cases:
+- [x] Fixture cases:
   - before departure → `km_a`;
   - exactly at `t_dep_a`;
   - midpoint with a straight pattern;
@@ -615,7 +615,7 @@ def test_extreme_level_and_tails_finite():    # RF5: d=5000, d=-500, mass 1e-12 
   - multi-day t > 2880;
   - a zero-length segment;
   - `anchor_t == t_arr_b`, which must not divide by zero.
-- [ ] Implement; commit `task 15: pos and fixture`.
+- [x] Implement; commit `task 15: pos and fixture`.
 
 ### Task 16: Evidence assembly (spec §3.3, §9.4 step 1, A6)
 
@@ -637,7 +637,7 @@ def canonical_events(route_stops) -> tuple[RouteEvent, ...]   # origin dep only,
 - `asof=None` means current truth (`obs.event`). Otherwise use `obs.event_asof(asof)`, pending and exceptions with `received_at ≤ asof`, and `resched_min` from the latest exception revision received before the actual origin departure was received (spec §3.2).
 - Apply A6. Order by `route_idx`, then kind.
 
-- [ ] Tests:
+- [x] Tests:
   - `test_actual_overrides_pending`;
   - `test_latest_pending_only_across_sources` (markers at r=2 and r=3 → one marker, r=3);
   - `test_asof_excludes_later_received` (event at 10:00 received 10:20 is absent at 10:15);
@@ -645,7 +645,7 @@ def canonical_events(route_stops) -> tuple[RouteEvent, ...]   # origin dep only,
   - `test_late_event_equals_fresh_assembly` (RF4: an earlier-route event inserted last gives a result identical to a fresh load);
   - `test_route_rebind_keeps_keys` (a new route version with a passing station leaves the halt event keys unchanged);
   - `test_part_cancelled_tail_sets_stop_event`.
-- [ ] Implement; commit `task 16: evidence assembly`.
+- [x] Implement; commit `task 16: evidence assembly`.
 
 ### Task 17: Replay kernel, block-wise SIR (spec §4.1, §9.2–9.4, A2, A6, A7, A11)
 
@@ -695,7 +695,7 @@ forward-draw nxt .. (stop_event or last) without weights; outputs from all N row
 
 Log-weights use log-sum-exp. Display paths use strided rows `j*N//K`.
 
-- [ ] Tests (small N = 2,000 for speed; synthetic `ModelTables`):
+- [x] Tests (small N = 2,000 for speed; synthetic `ModelTables`):
   - `test_invariants` (monotone along route; dwell ≥ 0; running ≥ floor wherever not an observed override);
   - `test_actual_window_all_particles_inside` (every row has event e in [m, m+1));
   - `test_infeasible_evidence_flagged_no_nan` (an actual faster than V_MAX → `data_invariant`, all finite);
@@ -704,7 +704,7 @@ Log-weights use log-sum-exp. Display paths use strided rows `j*N//K`.
   - `test_outputs_shapes_and_strided_paths`;
   - `test_extreme_delay_replay_no_nan` (RF5: an origin delay of 900 min);
   - `test_surprise_flag` (an actual at PIT < 0.001 → `surprise` is True).
-- [ ] Implement; commit `task 17: replay kernel`.
+- [x] Implement; commit `task 17: replay kernel`.
 
 ### Task 18: G7 conditioning suite → 🛑 G7 gate (spec §15 G7, A2, A6–A8)
 
@@ -729,9 +729,9 @@ Cases, each a 2–4 segment model with 2–5 outcome bins per draw:
 
 Every case runs at N = 10k and 100k, with the A8 tolerance.
 
-- [ ] Write the reference and the tests. Run `uv run pytest -q -m slow tests/g7`.
-- [ ] Commit `task 18: g7 suite`.
-- [ ] **🛑 G7 gate (monitor):** all cases pass; `docs/gates/G7.md` records the per-case numbers and the A7 pass-approximation verdict; the result goes into spec §18. If anything fails, fix the engine (Task 14 or 17 follow-up) before Task 31.
+- [x] Write the reference and the tests. Run `uv run pytest -q -m slow tests/g7`.
+- [x] Commit `task 18: g7 suite`.
+- [x] **🛑 G7 gate (monitor):** all cases pass; `docs/gates/G7.md` records the per-case numbers and the A7 pass-approximation verdict; the result goes into spec §18. If anything fails, fix the engine (Task 14 or 17 follow-up) before Task 31.
 
 ### Task 19: Engine bench (G8 prototype, spec §9.4 cost, §9.7)
 
@@ -739,8 +739,8 @@ Every case runs at N = 10k and 100k, with the A8 tolerance.
 
 **Interface:** `python -m msynd.engine.bench --runs 2500 --workers 4 --n 10000` builds synthetic runs (40 segments, LightGBM-shaped masses, evidence on the first half) and reports per-run replay p50/p95/p99, the full rebuild wall time, and msgpack frame build size and time. It writes `docs/gates/G8-local.md`.
 
-- [ ] Smoke test: `--runs 20 --n 1000` finishes, and the JSON output has every field.
-- [ ] Commit `task 19: engine bench`. The monitor runs it locally now and on the VM at CP-3.
+- [x] Smoke test: `--runs 20 --n 1000` finishes, and the JSON output has every field.
+- [x] Commit `task 19: engine bench`. The monitor runs it locally now and on the VM at CP-3.
 
 ---
 
@@ -901,11 +901,11 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 
 **Interfaces:** `train_lgbm(X, y, role) -> ModelArtifact` (9 quantile boosters plus τ per class fitted on training labels); `predict_masses(artifact, Xq: shared features × 16 levels) -> np.ndarray[n, 16, B]` via `dist.from_quantiles`; save and load through `ml.model.path`.
 
-- [ ] Tests:
+- [x] Tests:
   - `test_quantile_reproduction_half_bin` (synthetic data);
   - `test_signed_o_negative_labels_roundtrip`;
   - `test_noncrossing_after_sort`.
-- [ ] Implement; commit `task 28: lightgbm models`.
+- [x] Implement; commit `task 28: lightgbm models`.
 
 ### Task 29: Evaluation harness, baselines, promotion, N-curve (spec §8.6, §4.2, §3.4)
 
@@ -956,7 +956,7 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
   - a full frame every 5 min; prune `sim.frame` older than 15 min;
   - on `model_changed` or a new bias generation: `mark_dirty(all active)`.
 
-- [ ] Tests:
+- [x] Tests:
 ```python
 def test_dirty_race_never_loses_rows(db_url):      # spec §14 Dirty set; A9
     # thread A: 300× (insert evidence for random run; mark_dirty; commit) at random intervals
@@ -971,7 +971,7 @@ def test_replay_exception_acked_with_error_state(db_url): ...
 def test_tombstone_for_retired_run(db_url): ...
 def test_late_event_frame_equals_fresh_replay(db_url): ...    # RF4
 ```
-- [ ] Implement; commit `task 31: engine loop and frames`.
+- [x] Implement; commit `task 31: engine loop and frames`.
 
 ### Task 32: Poll priorities and issued forecasts (spec §7.2 priority, §9.5, A3)
 
@@ -1009,7 +1009,7 @@ def test_late_event_frame_equals_fresh_replay(db_url): ...    # RF4
 - `/api/static/network` serves the export with its ETag.
 - `/api/health` reports dispatcher state per host (read from `sim.metric` rows the collector writes), active models, dirty backlog, and the last frame's `gen` and age.
 
-- [ ] Tests (FastAPI TestClient):
+- [x] Tests (FastAPI TestClient):
   - `test_gap_triggers_full_resync`;
   - `test_slow_client_coalesces_to_full`;
   - `test_tombstone_forwarded`;
@@ -1017,7 +1017,7 @@ def test_late_event_frame_equals_fresh_replay(db_url): ...    # RF4
   - `test_run_endpoint_all_remaining_halts_and_eta_age`;
   - `test_replay_window_max_24h`;
   - `test_static_etag_304`.
-- [ ] Implement; commit `task 34: api`.
+- [x] Implement; commit `task 34: api`.
 
 ### Task 35: Web scaffold, frame client, `position.ts` parity (spec §11)
 
