@@ -16,5 +16,5 @@ def pos(t, t_dep_a, anchor_t, anchor_km, t_arr_b, km_a, km_b,
         i = bisect_right(pattern, fraction, key=lambda point: point[0])
         t0, k0 = pattern[i-1] if i else (0, 0)
         t1, k1 = pattern[i] if i < len(pattern) else (1, 1)
-        fraction = k0 + (k1-k0)*(fraction-t0)/(t1-t0)
+        fraction = k1 if t1 == t0 else k0 + (k1-k0)*(fraction-t0)/(t1-t0)
     return anchor_km + (km_b-anchor_km)*fraction

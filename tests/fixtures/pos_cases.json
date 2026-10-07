@@ -12,5 +12,6 @@
   {"name":"anchor equals arrival","input":{"t":30,"t_dep_a":10,"anchor_t":30,"anchor_km":140,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":null},"expected":200},
   {"name":"before anchor clamps","input":{"t":15,"t_dep_a":10,"anchor_t":20,"anchor_km":140,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":null},"expected":140},
   {"name":"pattern with implicit endpoints","input":{"t":25,"t_dep_a":10,"anchor_t":10,"anchor_km":100,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":[[0.5,0.25]]},"expected":162.5},
-  {"name":"empty pattern is straight","input":{"t":20,"t_dep_a":10,"anchor_t":10,"anchor_km":100,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":[]},"expected":150}
+  {"name":"empty pattern is straight","input":{"t":20,"t_dep_a":10,"anchor_t":10,"anchor_km":100,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":[]},"expected":150},
+  {"name":"duplicate pattern fraction","input":{"t":20,"t_dep_a":10,"anchor_t":10,"anchor_km":100,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":[[0.5,0.25],[0.5,0.5]]},"expected":150}
 ]
