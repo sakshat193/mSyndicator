@@ -34,7 +34,7 @@ def fixture(passes=()):
 def test_invariants():
     ev, models, params = fixture()
     # Large negative R residuals exercise the physical floor.
-    models.r[:] = 0; models.r[:, :, 1] = 1
+    models.r[:] = 0; models.r[:, :, 0] = 1
     out = replay(ev, models, params, 7)
     assert np.all(np.diff(out.paths, axis=1) >= 0)
     assert np.all(out.paths[:, 2] >= out.paths[:, 1])
