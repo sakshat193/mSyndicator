@@ -1,0 +1,350 @@
+{
+  "review_date_IST": "2026-10-07",
+  "compiled_at_UTC": "2026-10-07T09:10:59.122740+00:00",
+  "scope": "Public page spot checks, not a 72-hour data-quality pilot. CSRF values and cookies are not retained in this evidence summary. Saved response hashes are recorded before temporary snapshots are removed.",
+  "request_ledger": [
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/",
+      "status": 200,
+      "final_url": "https://enquiry.indianrail.gov.in/mntes/",
+      "bytes": 58580,
+      "path": "docs\\superpowers\\reviews\\2026-10-07-live-train-tracker-evidence\\source-00.txt"
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/javascripts/mntes.js",
+      "status": 200,
+      "final_url": "https://enquiry.indianrail.gov.in/mntes/javascripts/mntes.js",
+      "bytes": 55827,
+      "path": "docs\\superpowers\\reviews\\2026-10-07-live-train-tracker-evidence\\source-01.txt"
+    },
+    {
+      "url": "https://etrain.info/train-history?train=12951",
+      "status": 200,
+      "final_url": "https://etrain.info/train-history?train=12951",
+      "bytes": 30401,
+      "path": "docs\\superpowers\\reviews\\2026-10-07-live-train-tracker-evidence\\source-02.txt"
+    },
+    {
+      "url": "https://arxiv.org/abs/1806.02825",
+      "status": 200,
+      "final_url": "https://arxiv.org/abs/1806.02825",
+      "bytes": 39879,
+      "path": "docs\\superpowers\\reviews\\2026-10-07-live-train-tracker-evidence\\source-03.txt"
+    },
+    {
+      "url": "https://arxiv.org/abs/2510.01262",
+      "status": 200,
+      "final_url": "https://arxiv.org/abs/2510.01262",
+      "bytes": 44045,
+      "path": "docs\\superpowers\\reviews\\2026-10-07-live-train-tracker-evidence\\source-04.txt"
+    },
+    {
+      "url": "https://arxiv.org/abs/2510.09350",
+      "status": 200,
+      "final_url": "https://arxiv.org/abs/2510.09350",
+      "bytes": 44644,
+      "path": "docs\\superpowers\\reviews\\2026-10-07-live-train-tracker-evidence\\source-05.txt"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Neo2308/indianrailways-gtfs/main/README.md",
+      "status": 200,
+      "final_url": "https://raw.githubusercontent.com/Neo2308/indianrailways-gtfs/main/README.md",
+      "bytes": 2371,
+      "path": "docs\\superpowers\\reviews\\2026-10-07-live-train-tracker-evidence\\source-06.txt"
+    },
+    {
+      "url": "https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm",
+      "status": 200,
+      "final_url": "https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm",
+      "bytes": 53761,
+      "path": "docs\\superpowers\\reviews\\2026-10-07-live-train-tracker-evidence\\source-07.txt"
+    },
+    {
+      "url": "https://www.postgresql.org/docs/16/sql-notify.html",
+      "status": 200,
+      "final_url": "https://www.postgresql.org/docs/16/sql-notify.html",
+      "bytes": 22613,
+      "path": "docs\\superpowers\\reviews\\2026-10-07-live-train-tracker-evidence\\source-08.txt"
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/javascripts/mntes_utility.js?v=3",
+      "status": 200,
+      "final_url": "https://enquiry.indianrail.gov.in/mntes/javascripts/mntes_utility.js?v=3",
+      "bytes": 6050,
+      "path": "docs\\superpowers\\reviews\\2026-10-07-live-train-tracker-evidence\\source-09.txt"
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/javascripts/LibraryFunctions.js?v=2",
+      "status": 200,
+      "final_url": "https://enquiry.indianrail.gov.in/mntes/javascripts/LibraryFunctions.js?v=2",
+      "bytes": 5058,
+      "path": "docs\\superpowers\\reviews\\2026-10-07-live-train-tracker-evidence\\source-10.txt"
+    },
+    {
+      "url": "https://etrain.info/jscss/etrain.v3.4.11.0.js",
+      "status": 200,
+      "final_url": "https://etrain.info/jscss/etrain.v3.4.11.0.js",
+      "bytes": 87087,
+      "path": "docs\\superpowers\\reviews\\2026-10-07-live-train-tracker-evidence\\source-11.txt"
+    },
+    {
+      "url": "https://www.postgresql.org/docs/16/sql-listen.html",
+      "status": 200,
+      "final_url": "https://www.postgresql.org/docs/16/sql-listen.html",
+      "bytes": 18078,
+      "path": "docs\\superpowers\\reviews\\2026-10-07-live-train-tracker-evidence\\source-12.txt"
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/",
+      "status": 200,
+      "final_url": "https://enquiry.indianrail.gov.in/mntes/",
+      "bytes": 58580
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/GetCSRFToken",
+      "status": 200,
+      "final_url": "https://enquiry.indianrail.gov.in/mntes/GetCSRFToken",
+      "bytes": 82
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/q?opt=MainMenu&subOpt=liveStation&excpType=",
+      "status": 200,
+      "final_url": "https://enquiry.indianrail.gov.in/mntes/q?opt=MainMenu&subOpt=liveStation&excpType=",
+      "bytes": 60602
+    },
+    {
+      "url": "https://etrain.info/ajax.php?q=trnsuggst&term=12951",
+      "status": 200,
+      "final_url": "https://etrain.info/ajax.php?q=trnsuggst&term=12951",
+      "bytes": 45
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/",
+      "status": 200,
+      "bytes": 58585
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/GetCSRFToken",
+      "status": 200,
+      "bytes": 82
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/q?opt=LiveStation&subOpt=show",
+      "status": 200,
+      "bytes": 619079
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/q?opt=LiveStation&subOpt=show",
+      "status": 200,
+      "bytes": 0
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/tr?opt=TrainRunning&subOpt=FindRunningInstance",
+      "status": 200,
+      "bytes": 0
+    },
+    {
+      "url": "https://etrain.info/train/Mumbai-Rajdhani-12951/history?d=1y",
+      "status": 200,
+      "final_url": "https://etrain.info/train/Mumbai-Rajdhani-12951/history?d=1y",
+      "bytes": 67000
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/",
+      "status": 200,
+      "bytes": 58629
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/GetCSRFToken",
+      "status": 200,
+      "bytes": 83
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/q?opt=LiveStation&subOpt=show",
+      "status": 200,
+      "bytes": 408119
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/GetCSRFToken",
+      "status": 200,
+      "bytes": 84
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/tr?opt=TrainRunning&subOpt=FindRunningInstance",
+      "status": 200,
+      "bytes": 1424007
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/",
+      "status": 200,
+      "bytes": 58601
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/GetCSRFToken",
+      "status": 200,
+      "bytes": 84
+    },
+    {
+      "url": "https://enquiry.indianrail.gov.in/mntes/TrnMap?opt=map&subOpt=spot&trainNo=12449&jStation=MAO&jDate=07-Oct-2026&arrDepFlag=D&from=N",
+      "status": 200,
+      "bytes": 31015
+    }
+  ],
+  "saved_response_hashes": {
+    "0": {
+      "saved_bytes": 58580,
+      "sha256_of_saved_response": "5057639750df4bef9a6da857559f1eeeb8310bd1b444016ccfbdf838a45ab569"
+    },
+    "1": {
+      "saved_bytes": 55827,
+      "sha256_of_saved_response": "ee8faa881e8a5353a32e324b37f64036b63bbf00d7d9a98ef102b897ed2e8a2c"
+    },
+    "2": {
+      "saved_bytes": 30401,
+      "sha256_of_saved_response": "38ee3abc3b0eb45417628279a18e7648d241192f03433e808d9fa3e3d87ba6c5"
+    },
+    "3": {
+      "saved_bytes": 39879,
+      "sha256_of_saved_response": "2c16bb87fd2b3beff7ec0f7e9fd83ce30b5618795a199f96f16ad10022fd1d23"
+    },
+    "4": {
+      "saved_bytes": 44045,
+      "sha256_of_saved_response": "c983bf5d92f48d27e763515639e51470c207a9df016e83980c3427487b4fe406"
+    },
+    "5": {
+      "saved_bytes": 44644,
+      "sha256_of_saved_response": "1534b5a8c5932e7a3bd339521f92a6e60ec5cdf111e379450927a8f1e9c11130"
+    },
+    "6": {
+      "saved_bytes": 2371,
+      "sha256_of_saved_response": "52f284a17e05ee66dd235cbe0a0e2ae52aee9b973b6f7cdfdb92adbfb64d38a0"
+    },
+    "7": {
+      "saved_bytes": 53761,
+      "sha256_of_saved_response": "c7f9be4d8dbfe96060dd0fa128f236a0f819bc5b0acdf4b4c753f6c3857c56d6"
+    },
+    "8": {
+      "saved_bytes": 22613,
+      "sha256_of_saved_response": "7990da8c5ccc6ebd65951b5eaaee261f4359174d6b9ccadc37102dee11fe6ab4"
+    },
+    "9": {
+      "saved_bytes": 6050,
+      "sha256_of_saved_response": "67e5abff82551615551d8a40a5d8621e5db89b83ae3a1874d1d139b16af1ef96"
+    },
+    "10": {
+      "saved_bytes": 5058,
+      "sha256_of_saved_response": "e650170d1153a79d233e4b090d206587b49c1acc3140c682fa64520689184dc7"
+    },
+    "11": {
+      "saved_bytes": 87087,
+      "sha256_of_saved_response": "db004d7e302eedd7e9fac1d0cd49b47dad5af2d7f0fad1abc617158835d9496e"
+    },
+    "12": {
+      "saved_bytes": 18078,
+      "sha256_of_saved_response": "c70fef777d8f10944706ecff64a720fb475ad9220d3b3a5f37eaae5661c4b8c7"
+    },
+    "13": {
+      "saved_bytes": 62443,
+      "sha256_of_saved_response": "3e84267fd80cd28b5f4e4a1278fdef6251c5da21d0dec4857e8726067275193a"
+    },
+    "14": {
+      "saved_bytes": 45,
+      "sha256_of_saved_response": "3b620a83dff5f881aeb2ea93d9c16bb0636a2419afcdab884396c8896a16fc6b"
+    },
+    "15": {
+      "saved_bytes": 632336,
+      "sha256_of_saved_response": "8260bd323dee36a00b0019135d8ba65a91d4e4355d02b96ef1aa9db078431332"
+    },
+    "16": {
+      "saved_bytes": 0,
+      "sha256_of_saved_response": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "17": {
+      "saved_bytes": 0,
+      "sha256_of_saved_response": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "18": {
+      "saved_bytes": 67992,
+      "sha256_of_saved_response": "cac6096a1d4c230d82b6b3531020f385841b5b96cc26ad61440c8ef117b443e0"
+    },
+    "19": {
+      "saved_bytes": 416812,
+      "sha256_of_saved_response": "25971e3cc451c14a487f2485abce78b61b09bc0d3ca3018298da7aed354e16f6"
+    },
+    "20": {
+      "saved_bytes": 1466640,
+      "sha256_of_saved_response": "1250e980d6887d68f639bddcc8b5499e4f4eca603ec2ba1e010cf09019c2d833"
+    },
+    "21": {
+      "saved_bytes": 32022,
+      "sha256_of_saved_response": "7bf8ded88ed65592a7d1d414440a55ce09cd7e04b30eaaa78e56c5a63ec4b441"
+    }
+  },
+  "excerpts": {
+    "ntes_endpoints": [
+      "var queryStr = \"q?opt=TrainServiceSchedule&subOpt=main&trainNo=\"+trainNoValue;",
+      "var queryStr = \"q?opt=TrainServiceSchedule&subOpt=show&trainNo=\"+trainNoValue;",
+      "var queryStr = \"tr?opt=TrainRunning&subOpt=ShowRunCStn\";",
+      "var queryStr = \"tr?opt=TrainRunning&subOpt=ShowRunCStn\";",
+      "var queryStr = \"tr?opt=TrainRunning&subOpt=ShowRunCStn&refDate=\"+startDate;",
+      "var queryStr = \"q?opt=LiveStation&subOpt=show\";",
+      "var queryStr = \"q?opt=LiveStation&subOpt=show\";",
+      "var queryStr = \"q?opt=ExcpTrains&subOpt=show\";",
+      "var queryStr = \"TrnMap?opt=map&subOpt=spot\";",
+      "var queryStr = \"TrnMap?opt=map&subOpt=spot&trainNo=\"+trainNo+\"&jStation=\"+jStation+\"&jDate=\"+jDate+\"&arrDepFlag=\"+arrDepFlag+\"&from=N\";"
+    ],
+    "csrf_submit_function": "function submitForm(frm,queryStr,waitCnt,params,pop) {\n\t\n\n\t\n\t//fnPleaseWait(waitCnt);\n\t//hideBackContent();\n\t/*\n\tsetTimeout(function() {\n\t\tfrm.action = queryStr;\n\t\tfrm.submit();\n\t}, 100);*/\n\t//if(queryStr.indexOf(\"q?type=TrainRunning&subOpt=ShowRunC\") != -1) { // In case of train running data only. \n\t\t$.ajax({url:\"GetCSRFToken?t=\" + new Date().getTime(), success:function(str){\n\t\t\ttry {\n\t\t\t\t//console.log(str);\n\t\t\t\t//alert(str);\n\t\t\t\t$(frm).append(str);\n\t\t\t/*\tvar prm = \"csrfToken=\" + eval(str);\n\t\t\t\tif(queryStr.indexOf(\"?\") == -1) {\n\t\t\t\t\tqueryStr += \"?\" + prm;\n\t\t\t\t}\n\t\t\t\telse {\n\t\t\t\t\tqueryStr += \"&\" + prm;\n\t\t\t\t}*/\n\t\t\t\tsetTimeout(function() {\n\t\t\t\t\tfrm.action = queryStr;\n\t\t\t\t\tif(pop){\n\t\t\t\t\t\tnewWindow = window.open('test.html', 'formresult', params);\n\t\t\t\t\t\tfrm.target=\"formresult\";\n\t\t\t\t\t}\n\t\t\t\t\tfrm.submit();\t\t\t\t\t\n\t\t\t\t}, 100);\n\t\t\t} catch(ex){ }\n\t\t}, error:function(){document.location='https://enquiry.indianrail.gov.in';}, async:true});\n\t/*}\n\telse {\n\t\tsetTimeout(function() {\n\t\t\tfrm.action = queryStr;\n\t\t\tfrm.submit();\n\t\t}, 100);\n\t}*/\n\treturn true;\n}\n/* Ends */\n\n",
+    "etrain_history_redirect_result": {
+      "title": "Train Running History / Statistics",
+      "tooltipData_present": false,
+      "history_form_present": true
+    },
+    "etrain_train_search_response": [
+      {
+        "number": "12951",
+        "name": "MUMBAI RAJDHANI"
+      }
+    ],
+    "etrain_history": {
+      "dated_row_count": 365,
+      "first_date_JS": "2025,9,01",
+      "last_date_JS": "2026,8,30",
+      "station_labels": [
+        "MMCT",
+        "BVI",
+        "ST",
+        "BRC",
+        "RTM",
+        "NAD",
+        "KOTA",
+        "NDLS"
+      ]
+    },
+    "ndls_board_text": "NTES\nX\nNTES\nIndian Railways\nNational Train Enquiry System\nSpot Your Train\nLive Station\nTrain Schedule\nTrains B/w Stations\nTrain Exception Info\nMore Info\nStation Time Table\nParcel Special Trains\nAverage Delay\nHeritage Trains\nUseful Links\nPNR Status\nSeat Availability\nTicket Booking\nFreight Business\nMumbai Suburban(Western)\nMumbai Suburban (Central and Harbour)\nGet Mobile App\nAndroid\niOS\nComplaints\nLanguage:   English\nDisclaimer\n×\nDownload NTES Android App\nScan QR or Download from Play Store\n×\nSelect Language\n1. English\n2. हिन्दी\n3. தமிழ்\n4. తెలుగు\n5. বাংলা\n6. मराठी\n7. ਪੰਜਾਬੀ\n8. ଓଡିଆ\n9. മലയാളം\n×\nDownload NTES iOS App\nScan QR or Download from App Store\nAccessibility Tools\nDark Mode\nA\n+\nLarge Font\nA\n-\nSmall Font\nA\nNormal Font\nText Spacing\nLine Height\nInvert Color\nScreen Reader\nBig Cursor\nHighlight Links\nNational Train Enquiry System\nLive Station\nStation\n*\nTo Station\n*\nTrains in Next\n*\n2 Hours\n4 Hours\n8 Hours\n99 Trains departing from/arriving at\nNDLS- NEW DELHI\nin next 8 Hrs.\nSr.\nTrain No./Name\nArrival\nDeparture\nPlatform\n1\n12621\n|\nTAMILNADU SF EXP\n(MAS-NDLS) SUPERFAST\n1A,2A,3A,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\n14:28\n07:58 Hrs.\n06:30\nDestination\n3\n2\n12057\n|\nJANSHATABDI EXP\n(NDLS-DLPC) JAN SHATABDI\nCC,2S\nSee Train Status >>\nTrain Schedule >>\nSource\n14:35*\nOn Time\n14:35\n2*\nCoach Position\n3\n14003\n|\nMLDT NDLS EXP\n(MLDT-NDLS) MAIL EXPRESS\n1A,2A,3A,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\n14:48*\n18 Mins.\n14:30\nDestination\n1*\nCoach Position\n4\n64434\n|\nDLI-GZB EMU\n(DLI-GZB) EMU\nGEN\nSee Train Status >>\nTrain Schedule >>\n14:48*\n02:50 Hrs.\n11:58\n14:49*\n02:49 Hrs.\n12:00\n-\nCoach Position\n5\n04071\n|\nSOU NDLS SPL\n(SOU-NDLS) TRAIN ON DEMAND\nSee Train Status >>\nTrain Schedule >>\n15:00*\nOn Time\n15:00\nDestination\n-\nCoach Position\n6\n12419\n|\nGOMTI EXPRESS\n(LKO-NDLS) SUPERFAST\n1A,2A,CC,2S,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\n15:00*\nOn Time\n15:00\nDestination\n6*\nCoach Position\n7\n22416\n|\nVANDE BHARAT EXP\n(NDLS-BSB) VANDE BHARAT\nCC\nSee Train Status >>\nTrain Schedule >>\nSource\n15:00*\nOn Time\n15:00\n12*\nCoach Position\n8\n64016\n|\nSSB-MTJ EMU\n(SSB-MTJ) EMU\nSee Train Status >>\nTrain Schedule >>\n15:08*\nOn Time\n15:08\n15:10*\nOn Time\n15:10\n1*\nCoach Position\n9\n12055\n|\nDDN JANSHTBDI\n(NDLS-DDN) JAN SHATABDI\nCC,2S\nSee Train Status >>\nTrain Schedule >>\nSource\n15:20*\nOn Time\n15:20\n9*\nCoach Position\n10\n12449\n|\nGOA SMPRK K\n(MAO-CDG) SUPERFAST\n1A,2A,3A,3E,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\n15:24*\n01:14 Hrs.\n14:10\n15:29*\n01:04 Hrs.\n14:25\n4*\nCoach Position\n11\n82502\n|\nIRCTC TEJAS EXP\n(NDLS-LJN) TEJAS\nEC,CC\nSee Train Status >>\nTrain Schedule >>\nSource\n15:30*\nOn Time\n15:30\n11*\nCoach Position\n12\n12034\n|\nNDLS CNB SHT\n(NDLS-CNB) SHATABDI\nEC,CC\nSee Train Status >>\nTrain Schedule >>\nSource\n15:40*\nOn Time\n15:40\n10*\nCoach Position\n13\n12561\n|\nSWATANTRA S EXP\n(JYG-NDLS) SUPERFAST\n1A,2A,3A,3E,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\n15:45*\nOn Time\n15:45\nDestination\n12*\nCoach Position\n14\n15306\n|\nROK NDLS EXP\n(ROK-NDLS) MAIL EXPRESS\nSee Train Status >>\nTrain Schedule >>\n15:45*\nOn Time\n15:45\nDestination\n7*\n15\n12724\n|\nTELANGANA EXP\n(NDLS-HYB) SUPERFAST\n1A,2A,3A,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\nSource\n16:00*\nOn Time\n16:00\n5*\nCoach Position\n16\n64419\n|\nNZM-GZB EMU\n(NZM-GZB) EMU\nGEN\nSee Train Status >>\nTrain Schedule >>\n16:03*\nOn Time\n16:03\n16:05*\nOn Time\n16:05\n10*\nCoach Position\n17\n12616\n|\nGRAND TRUNK EXP\n(NDLS-MAS) SUPERFAST\n1A,2A,3A,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\nSource\n16:10*\nOn Time\n16:10\n4*\nCoach Position\n18\n20408\n|\nRNC RAJDHANI\n(NDLS-RNC) RAJDHANI\n1A,2A,3A\nSee Train Status >>\nTrain Schedule >>\nSource\n16:10*\nOn Time\n16:10\n14*\nCoach Position\n19\n12424\n|\nDBRT RAJDHANI\n(NDLS-DBRG) RAJDHANI\n1A,2A,3A\nSee Train Status >>\nTrain Schedule >>\nSource\n16:20*\nOn Time\n16:20\n15*\nCoach Position\n20\n12013\n|\nAMRITSAR SHTABDI\n(NDLS-ASR) SHATABDI\nEC,CC\nSee Train Status >>\nTrain Schedule >>\nSource\n16:30*\nOn Time\n16:30\n1*\nCoach Position\n21\n12314\n|\nSEALDAH RAJDHNI\n(NDLS-SDAH) RAJDHANI\n1A,2A,3A\nSee Train Status >>\nTrain Schedule >>\nSource\n16:30*\nOn Time\n16:30\n13*\nCoach Position\n22\n64015\n|\nPWL-SSB EMU\n(PWL-SSB) EMU\nSee Train Status >>\nTrain Schedule >>\nCancelled\n--\n16:30\nCancelled\n--\n16:34\nTrain Cancelled\n23\n15304\n|\nINTERCITY EXP\n(NDLS-KSJ) MAIL EXPRESS\nSee Train Status >>\nTrain Schedule >>\nSource\n16:35*\nOn Time\n16:35\n8*\nCoach Position\n24\n12302\n|\nHWH RAJDHANI\n(NDLS-HWH) RAJDHANI\n1A,2A,3A\nSee Train Status >>\nTrain Schedule >>\nSource\n16:50*\nOn Time\n16:50\n14*\nCoach Position\n25\n04097\n|\nDBG SSB SPL\n(DBG-SSB) TRAIN ON DEMAND\nSee Train Status >>\nTrain Schedule >>\n16:40*\nOn Time\n16:40\n16:50*\nOn Time\n16:50\n-\nCoach Position\n26\n12952\n|\nMMCT TEJAS RAJ\n(NDLS-MMCT) RAJDHANI\n1A,2A,3A\nSee Train Status >>\nTrain Schedule >>\nSource\n16:55*\nOn Time\n16:55\n3*\nCoach Position\n27\n22824\n|\nBBS TEJAS RAJ\n(NDLS-BBS) RAJDHANI\n1A,2A,3A\nSee Train Status >>\nTrain Schedule >>\nSource\n17:00*\nOn Time\n17:00\n11*\nCoach Position\n28\n12310\n|\nRJPB TEJAS RAJ\n(NDLS-RJPB) RAJDHANI\n1A,2A,3A\nSee Train Status >>\nTrain Schedule >>\nSource\n17:10*\nOn Time\n17:10\n9*\nCoach Position\n29\n64904\n|\nGZB-MTJ EMU\n(GZB-MTJ) EMU\nGEN\nSee Train Status >>\nTrain Schedule >>\n17:08*\nOn Time\n17:08\n17:10*\nOn Time\n17:10\n3*\n30\n12005\n|\nKALKA SHTBDI EX\n(NDLS-KLK) SHATABDI\nEC,CC\nSee Train Status >>\nTrain Schedule >>\nSource\n17:15*\nOn Time\n17:15\n1*\nCoach Position\n31\n20807\n|\nHIRAKUD EXPRESS\n(VSKP-ASR) SUPERFAST\n2A,3A,3E,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\n17:14*\n02:44 Hrs.\n14:30\n17:19*\n02:34 Hrs.\n14:45\n6*\nCoach Position\n32\n64429\n|\nGZB-NDLS EMU\n(GZB-NDLS) EMU\nGEN\nSee Train Status",
+    "bpl_board_text": "NTES\nX\nNTES\nIndian Railways\nNational Train Enquiry System\nSpot Your Train\nLive Station\nTrain Schedule\nTrains B/w Stations\nTrain Exception Info\nMore Info\nStation Time Table\nParcel Special Trains\nAverage Delay\nHeritage Trains\nUseful Links\nPNR Status\nSeat Availability\nTicket Booking\nFreight Business\nMumbai Suburban(Western)\nMumbai Suburban (Central and Harbour)\nGet Mobile App\nAndroid\niOS\nComplaints\nLanguage:   English\nDisclaimer\n×\nDownload NTES Android App\nScan QR or Download from Play Store\n×\nSelect Language\n1. English\n2. हिन्दी\n3. தமிழ்\n4. తెలుగు\n5. বাংলা\n6. मराठी\n7. ਪੰਜਾਬੀ\n8. ଓଡିଆ\n9. മലയാളം\n×\nDownload NTES iOS App\nScan QR or Download from App Store\nAccessibility Tools\nDark Mode\nA\n+\nLarge Font\nA\n-\nSmall Font\nA\nNormal Font\nText Spacing\nLine Height\nInvert Color\nScreen Reader\nBig Cursor\nHighlight Links\nNational Train Enquiry System\nLive Station\nStation\n*\nTo Station\n*\nTrains in Next\n*\n2 Hours\n4 Hours\n8 Hours\n46 Trains departing from/arriving at\nBPL- BHOPAL JN\nin next 8 Hrs.\nSr.\nTrain No./Name\nArrival\nDeparture\nPlatform\n1\n12198\n|\nBPL INTERCITY\n(GWL-BPL) SUPERFAST\nSee Train Status >>\nTrain Schedule >>\nCancelled\n--\n14:35\nDestination\nTrain Cancelled\n2\n20104\n|\nGKP LTT SF EXP\n(GKP-LTT) SUPERFAST\n2A,3A,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\n14:35*\nOn Time\n14:35\n14:45*\nOn Time\n14:45\n1*\nCoach Position\n3\n22538\n|\nKUSHINAGAR EXP\n(LTT-GKP) SUPERFAST\n1A,2A,3A,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\n14:55*\n10 Mins.\n14:45\n14:56*\n6 Mins.\n14:50\n2*\nCoach Position\n4\n12197\n|\nGWL INTERCITY\n(BPL-GWL) SUPERFAST\nSee Train Status >>\nTrain Schedule >>\nSource\nCancelled\n--\n15:10\nTrain Cancelled\n5\n12804\n|\nVSKP S JYANTI\n(NZM-VSKP) SUPERFAST\n1A,2A,3A,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\n15:15*\nOn Time\n15:15\n15:20*\nOn Time\n15:20\n1*\nCoach Position\n6\n12001\n|\nNDLS SHATABDI\n(RKMP-NDLS) SHATABDI\nEC,CC\nSee Train Status >>\nTrain Schedule >>\n15:22*\nOn Time\n15:22\n15:25*\nOn Time\n15:25\n2*\n7\n11057\n|\nCSMT ASR EXPRESS\n(CSMT-ASR) MAIL EXPRESS\n2A,3E,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\n15:25*\nOn Time\n15:25\n15:30*\nOn Time\n15:30\n3*\nCoach Position\n8\n12708\n|\nNZM TPTY SF EXP\n(NZM-TPTY) SUPERFAST\n1A,2A,3A,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\n15:30*\nOn Time\n15:30\n15:40*\nOn Time\n15:40\n1*\nCoach Position\n9\n12854\n|\nAMARKANTAK EXP\n(BPL-DURG) SUPERFAST\n1A,2A,3A,3E,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\nSource\n16:00*\nOn Time\n16:00\n4*\n10\n22583\n|\nCPR-LTT ANTYODAYA SUP\n(CPR-LTT) SUPERFAST\nGEN,PWD\nSee Train Status >>\nTrain Schedule >>\n15:55*\nOn Time\n15:55\n16:05*\nOn Time\n16:05\n1*\nCoach Position\n11\n19339\n|\nDHD BPL EXP\n(DHD-BPL) MAIL EXPRESS\nCC,2S,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\n16:10*\nOn Time\n16:10\nDestination\n4*\nCoach Position\n12\n12618\n|\nMANGLADWEEP EXP\n(NZM-ERS) SUPERFAST\n2A,3A,3E,SL,2S,GEN\nSee Train Status >>\nTrain Schedule >>\nUA*\nDiverted\n--\n16:20\nUA*\nDiverted\n--\n16:25\n1*\n13\n19712\n|\nBPL KWP EXP\n(BPL-KWP) MAIL EXPRESS\n1A,2A,3A,3E,SL,GEN\nSee Train Status >>\nTrain Schedule >>\nSource\n16:30*\nOn Time\n16:30\n5*\n14\n14814\n|\nBPL JU EXPRESS\n(BPL-JU) MAIL EXPRESS\n2A,3A,3E,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\nSource\n16:40*\nOn Time\n16:40\n6*\n15\n12138\n|\nPUNJAB MAIL\n(FZR-CSMT) SUPERFAST\n1A,2A,3A,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\n16:35*\nOn Time\n16:35\n16:40*\nOn Time\n16:40\n1*\nCoach Position\n16\n20423\n|\nPATALKOT SF EXP\n(SEY-FZR) SUPERFAST\n2A,3A,3E,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\n16:45*\nOn Time\n16:45\n16:50*\nOn Time\n16:50\n2*\n17\n18236\n|\nBSP-BPL\n(BSP-BPL) MAIL EXPRESS\nSee Train Status >>\nTrain Schedule >>\nCancelled\n--\n17:00\nDestination\nCancelled Due to Short Termination\n18\n12648\n|\nKONGU SF EXP\n(NZM-CBE) SUPERFAST\n2A,3A,SL,GEN\nSee Train Status >>\nTrain Schedule >>\n17:00*\nOn Time\n17:00\n17:05*\nOn Time\n17:05\n1*\nCoach Position\n19\n19324\n|\nDADN INTERCITY\n(BPL-DADN) MAIL EXPRESS\nCC,2S,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\nSource\n17:10*\nOn Time\n17:10\n4*\n20\n12721\n|\nDAKSHIN SF EXP\n(HYB-NZM) SUPERFAST\n2A,3A,SL,GEN,PWD\nSee Train Status >>\nTrain Schedule >>\n17:10*\nOn Time\n17:10\n17:15*\nOn Time\n17:15\n2*\nCoach Position\n21\n01925\n|\nCNB MDU SPECIAL\n(CNB-MDU) TRAIN ON DEMAND\nSee Train Status >>\nTrain Schedule >>\nCancelled\n--\n17:20\nCancelled\n--\n17:25\nTrain Cancelled\n22\n22161\n|\nRAJYARANI EXP\n(BPL-DMO) SUPERFAST\n",
+    "running_status_nonstopping_stations_present": true,
+    "running_status_last_report_excerpt": [
+      "Departed from ADAVALI(ADVI) at 14:19 07-Oct",
+      "Departed from ADAVALI (ADVI) on 07-Oct-2026 14:19"
+    ],
+    "map_station_marker_lines": [
+      "var cStn = [\"ADVI\",\"Departed from Adavali at 07-Oct-2026 14:19. 207 Kms. ahead of Madgaon Jn.\",\"Departed from Adavali at 07-Oct-2026 14:19. 207 Kms. ahead of Madgaon Jn. Upcoming station is Nivasar (non-stopping). Next stoppage station is Ratnagiri.\"];",
+      "latLngArrC[0] = getStnLatLng(cStn[0]);",
+      "var markerC=new L.marker(new L.LatLng(parseFloat(latLngArrC[0][0]),parseFloat(latLngArrC[0][1])),"
+    ],
+    "gtfs_generation_date": [
+      "**Data generated**: Around 9th Nov 2025"
+    ],
+    "paper_abstracts": {
+      "3": "Abstract: India runs the fourth largest railway transport network size carrying over 8 billion passengers per year. However, the travel experience of passengers is frequently marked by delays, i.e., late arrival of trains at stations, causing inconvenience. In a first, we study the systemic delays in train arrivals using n-order Markov frameworks and experiment with two regression based models. Using train running-status data collected for two years, we report on an efficient algorithm for estimating delays at railway stations with near accurate results. This work can help railways to manage their resources, while also helping passengers and businesses served by them to efficiently plan their activities.",
+      "4": "Abstract: Accurate prediction of train delays is critical for efficient railway operations. While earlier approaches have largely focused on forecasting the exact delays of individual trains, studies on station-level delay prediction are somewhat sparse. To address this gap, we propose the Railway-centric Spatio-Temporal Graph Convolutional Network (RSTGCN), designed to forecast average arrival delays of all the incoming trains at a particular station for a particular time period. Our approach incorporates several architectural innovations and novel feature integrations, including train frequency-aware spatial attention, which significantly enhance predictive performance. To support this effort, we curate and release a comprehensive dataset for the entire Indian Railway Network (IRN), spanning 4,735 stations across 17 zones - the largest and most diverse railway network studied to date. We conduct extensive experiments using multiple state-of-the-art baselines, demonstrating consistent improvements across standard metrics. Specifically, RSTGCN outperforms the best baseline by 18% in MAE, 14% in MAPE, and 1-8% in RMSE on the IRN.",
+      "5": "Abstract: The operational efficiency of railway networks, a cornerstone of modern economies, is persistently undermined by the cascading effects of train delays. Accurately forecasting this delay propagation is a critical challenge for real-time traffic management. While recent research has leveraged Graph Neural Networks (GNNs) to model the network structure of railways, a significant gap remains in developing frameworks that provide multi-step autoregressive forecasts at a network-wide scale, while simultaneously offering the live, interpretable explanations needed for decision support. This paper addresses this gap by developing and evaluating a novel XGeoAI framework for live, explainable, multi-step train delay forecasting. The core of this work is a two-stage, autoregressive Graph Attention Network (GAT) model, trained on a real-world dataset covering over 40% of the Dutch railway network. The model represents the system as a spatio-temporal graph of operational events (arrivals and departures) and is enriched with granular features, including platform and station congestion. To test its viability for live deployment, the model is rigorously evaluated using a sequential, k-step-ahead forecasting protocol that simulates real-world conditions where prediction errors can compound. The results demonstrate that while the proposed GATv2 model is challenged on pure error metrics (MAE) by a simpler Persistence baseline, it achieves consistently higher precision in classifying delay events -- a crucial advantage for a reliable decision support tool."
+    },
+    "oracle_idle_rule": "",
+    "postgres_listen_selected_quotes": [
+      "Whenever the command  NOTIFY   channel    is invoked, either by this session or another one connected to the same database, all the sessions currently listening on that notification channel are notified, and each will in turn notify its connected client application.",
+      "A session can be unregistered for a given notification channel with the  UNLISTEN  command. A session's listen registrations are automatically cleared when the session ends.",
+      "There is a race condition when first setting up a listening session: if concurrently-committing transactions are sending notify events, exactly which of those will the newly listening session receive? The answer is that the session will receive all events committed after an instant during the transaction's commit step. But that is slightly later than any database state that the transaction could have observed in queries. This leads to the following rule for using  LISTEN : first execute (and commit!) that command, then in a new transaction inspect the database state as needed by the application logic, then rely on notifications to find out about subsequent changes to the database state. The first few received notifications might refer to updates already observed in the initial database inspection, but this is usually harmless."
+    ]
+  }
+}
