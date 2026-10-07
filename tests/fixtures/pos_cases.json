@@ -1,0 +1,16 @@
+[
+  {"name":"before departure","input":{"t":9,"t_dep_a":10,"anchor_t":10,"anchor_km":100,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":null},"expected":100},
+  {"name":"at departure","input":{"t":10,"t_dep_a":10,"anchor_t":10,"anchor_km":100,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":null},"expected":100},
+  {"name":"straight midpoint","input":{"t":20,"t_dep_a":10,"anchor_t":10,"anchor_km":100,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":null},"expected":150},
+  {"name":"nonlinear first interval","input":{"t":15,"t_dep_a":10,"anchor_t":10,"anchor_km":100,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":[[0,0],[0.5,0.25],[1,1]]},"expected":112.5},
+  {"name":"nonlinear later interval","input":{"t":25,"t_dep_a":10,"anchor_t":10,"anchor_km":100,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":[[0,0],[0.5,0.25],[1,1]]},"expected":162.5},
+  {"name":"after pass anchor","input":{"t":25,"t_dep_a":10,"anchor_t":20,"anchor_km":140,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":null},"expected":170},
+  {"name":"at arrival","input":{"t":30,"t_dep_a":10,"anchor_t":10,"anchor_km":100,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":null},"expected":200},
+  {"name":"after arrival clamps","input":{"t":40,"t_dep_a":10,"anchor_t":10,"anchor_km":100,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":null},"expected":200},
+  {"name":"multi-day run clock","input":{"t":3010,"t_dep_a":3000,"anchor_t":3000,"anchor_km":100,"t_arr_b":3020,"km_a":100,"km_b":200,"pattern":null},"expected":150},
+  {"name":"zero-length segment","input":{"t":20,"t_dep_a":10,"anchor_t":10,"anchor_km":100,"t_arr_b":30,"km_a":100,"km_b":100,"pattern":null},"expected":100},
+  {"name":"anchor equals arrival","input":{"t":30,"t_dep_a":10,"anchor_t":30,"anchor_km":140,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":null},"expected":200},
+  {"name":"before anchor clamps","input":{"t":15,"t_dep_a":10,"anchor_t":20,"anchor_km":140,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":null},"expected":140},
+  {"name":"pattern with implicit endpoints","input":{"t":25,"t_dep_a":10,"anchor_t":10,"anchor_km":100,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":[[0.5,0.25]]},"expected":162.5},
+  {"name":"empty pattern is straight","input":{"t":20,"t_dep_a":10,"anchor_t":10,"anchor_km":100,"t_arr_b":30,"km_a":100,"km_b":200,"pattern":[]},"expected":150}
+]
