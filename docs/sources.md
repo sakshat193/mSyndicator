@@ -77,3 +77,7 @@ This covers the repository's stations, trains and schedules data, not third-part
 ## CP-1 decision
 
 The user chose **“Change to a permitted live source”** after reviewing the NTES restriction. NTES protocol discovery, fixture capture and the seven-day pilot are not approved. etrain backfill and Kaggle export remain unapproved. Research a provider with an explicit API/data-use grant before replacing the source-specific client/parser contracts. Offline implementation may continue.
+
+The user subsequently chose a **RailRadar sandbox integration, offline only**: client/parser against documented shapes with MockTransport fixtures, behind `MSYND_LIVE`; no account creation or API requests. The monitor revises Tasks 7–11 and 20–25. [Integration details](railradar-sandbox.md).
+
+RailRadar's https://railradar.in/docs explicitly advertises developer REST API integration with a free 1,000-request/month sandbox and Bearer authentication. https://railradar.in/terms describes an independent crowd-powered service and GPS telemetry grants from contributors to RailRadar. These terms do not explicitly grant API consumers historical retention, model training or Kaggle export; those uses remain unclear. The API's `/trains/{number}/live` documentation specifies `date` as the journey start date in IST. It offers `authoritative=true` to bypass caches; the prepared client uses `false`. No API request was made to verify runtime response quality or coverage.

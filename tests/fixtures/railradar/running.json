@@ -1,0 +1,20 @@
+{
+  "success": true,
+  "data": {
+    "trainNumber": "12919",
+    "trainName": "Malwa SF Express",
+    "startDate": "2026-10-07",
+    "lastUpdatedAt": "2026-10-08T02:00:00+05:30",
+    "status": "running",
+    "delayMinutes": 12,
+    "isLive": true,
+    "currentLocation": {"stationCode": "UJN", "sequence": 2, "status": "departed", "isActualPosition": true, "segmentProgress": 0.45, "speedKmh": 65.5},
+    "route": [
+      {"sequence": 1, "stationCode": "INDB", "stationName": "Indore Junction", "isHalt": true, "scheduledArrival": null, "scheduledDeparture": "2026-10-07T23:55:00+05:30", "actualArrival": null, "actualDeparture": "2026-10-08T00:07:00+05:30", "delayArrival": null, "delayDeparture": 12, "status": "departed", "distance": 0},
+      {"sequence": 2, "stationCode": "UJN", "stationName": "Ujjain Junction", "isHalt": true, "scheduledArrival": "2026-10-08T00:55:00+05:30", "scheduledDeparture": "2026-10-08T01:00:00+05:30", "actualArrival": "2026-10-08T01:07:00+05:30", "actualDeparture": "2026-10-08T01:12:00+05:30", "delayArrival": 12, "delayDeparture": 12, "status": "departed", "distance": 55},
+      {"sequence": 3, "stationCode": "MKSM", "stationName": "Maksi", "isHalt": true, "scheduledArrival": "2026-10-08T02:10:00+05:30", "scheduledDeparture": "2026-10-08T02:12:00+05:30", "actualArrival": null, "actualDeparture": null, "delayArrival": null, "delayDeparture": null, "status": "upcoming", "distance": 96}
+    ],
+    "exceptions": []
+  },
+  "meta": {"traceId": "offline-fixture", "timestamp": "2026-10-08T02:00:00+05:30", "executionTime": 38, "source": "database"}
+}
