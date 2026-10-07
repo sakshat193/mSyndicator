@@ -40,6 +40,13 @@ def test_latest_pending_only_across_sources(db):
     assert load_run_evidence(db, run).evidence == (Evidence(1, False, 3, "ntes_board"),)
 
 
+def test_pending_tie_prefers_ntes_status(db):
+    run = make_run(db)
+    pending(db, run, 3, "ntes_board")
+    pending(db, run, 3, "ntes_status")
+    assert load_run_evidence(db, run).evidence == (Evidence(1, False, 3, "ntes_status"),)
+
+
 def test_asof_excludes_later_received(db):
     run = make_run(db)
     insert_event(db, run, "BRC", 1, "arr", at(600), at(620))
