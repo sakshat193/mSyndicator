@@ -1,8 +1,14 @@
 # m-syndicator — Live All-India Train Tracker: Design Spec (v2)
 
 - **Date:** 2026-10-07
-- **Status:** Draft v2, awaiting review
+- **Status:** Draft v2.1, awaiting review
 - **What changed from v1:** this version answers [the adversarial review](../reviews/2026-10-07-live-train-tracker-adversarial-review.md). §19 maps each review finding to the section that resolves it.
+- **What changed in v2.1** (second review, five blockers):
+  - "exact conditioning" became block-wise weighted conditioning with a validation gate (§4.1, G7)
+  - "not reported" evidence became a soft publication-lag likelihood (§3.3)
+  - the as-of query now filters before picking the latest revision, and NTES ETAs record confirmations (§6)
+  - O is now a residual against the rescheduled departure (§3.2)
+  - frames are published right after each replay (§9.5)
 - **Scope:** every long-distance Indian Railways passenger train. Mumbai suburban is covered by a separate, later spec (§17).
 
 ---
@@ -23,10 +29,10 @@ On a map, each train appears as a cloud of glowing streaks. The timeline covers 
   - departure delay at the origin.
 
   All three are trained on delays collected live. Retraining is weekly; the GPU part runs on Kaggle only if the data-use gate passes (§15, G1).
-- **Monte Carlo.** Each train is simulated as 10,000 independent "ghost trains".
-  - Every station report fixes the ghosts' time exactly at that event.
-  - "Not yet arrived as of the last check" is enforced by sampling only futures consistent with it.
-  - Under the model, this is exact conditioning. It is the particle filter's "kill inconsistent ghosts, resample" step done analytically: there are no weights, no degeneracy and no resets (§4).
+- **Monte Carlo.** Each train is simulated as 10,000 "ghost trains".
+  - At each station report, the ghosts are weighted by how well they explain the report, then resampled. Ghosts consistent with the report survive, along with their guesses about the unreported stretch before it.
+  - "Not reported as of the last check" is soft evidence: it lowers the weight of ghosts that should already have been reported, using the measured publication-lag distribution.
+  - A report fixes the train's state, so weights only live within the stretch between two reports. Degeneracy is limited to that stretch and is measured (§4.1). Correctness is checked against exact enumeration before any performance work (§15, G7).
 - **Collection under a hard budget.** One HTTP dispatcher per source host spaces request *starts* at least 1 s apart (counting tokens, sessions and retries). It decides what to poll from uncertainty and age. NTES tokens cost an extra request per enquiry, so at about 2,500 running trains a full poll cycle takes roughly 1.5 h. The dashboard therefore shows each train's **evidence age** rather than hiding it (§7.2).
 - **Interactions between trains.** In v1 each train is simulated on its own. Train-to-train coupling is a gated experiment: it is enabled only after a causal ablation shows it helps (§4.4).
 
@@ -102,7 +108,8 @@ Observed facts come from the review's spot checks on 2026-10-07; [evidence](../r
 
 **Unverified (gate G2)**
 - How long boards keep actual times after a departure.
-- Publication lag *L*: from an event happening to it becoming visible.
+- The publication-lag distribution *S*: time from an event happening to it becoming visible, including its tail and the share of events never published.
+- Whether any "not yet" display actually guarantees that the event hasn't happened.
 - Token lifetime.
 - Whether displayed minutes are truncated or rounded. Default assumption: truncated, so jitter is U(0, 1) min.
 - What NTES regards as acceptable automated use (gate G1).
@@ -169,7 +176,11 @@ Everything downstream depends on four contracts: identity, clock, availability, 
   - Model **R** predicts it.
 - **Dwell at an intermediate halt** = actual minutes `sched_dwell + dep_delay − arr_delay` (≥ 0). Model **W** predicts it.
   - *Change* in dwell is `dep_delay − arr_delay`. That is a delay difference, not a dwell time.
-- **Origin departure delay.** Model **O** predicts it.
+- **Origin departure residual.** Model **O** predicts `actual dep − (scheduled dep + resched_min)`.
+  - `resched_min` is the latest exception revision received **before** the actual departure was received; 0 if none.
+  - Initialisation uses `scheduled + resched_min + O-draw`, so rescheduling is counted once.
+  - "Rescheduled" is an O feature.
+  - Regression case (second review): scheduled 100, rescheduled +20, actual 130 → label 10; initialisation centred on 130, not 150.
 - **Physical floor.** Sampled running time ≥ `60 × km / V_MAX` minutes.
   - `V_MAX` = 160 km/h, the maximum permitted passenger speed on IR.
   - No per-segment speed limit is invented; the OSM `maxspeed` tag is not used.
@@ -186,14 +197,22 @@ Everything downstream depends on four contracts: identity, clock, availability, 
   - Every parsed actual time, expected time, "pending" marker and exception is an **append-only revision** carrying `received_at` and `fetch_id`.
   - Current truth is the latest revision per key.
   - A revision can change a time but cannot delete an event; retractions are not modelled.
-- **As-of rule.** Anything computed "as of *t*" (features, forecasts, baselines, evaluation) uses only revisions with `received_at ≤ t`.
+- **As-of rule.** Anything computed "as of *t*" (features, forecasts, baselines, evaluation) uses only revisions with `received_at ≤ t`. The query filters revisions **first**, then takes the latest eligible revision per key: `obs.event_asof(t)` in §6. Filtering the current-truth view would drop an event whose latest revision arrived after *t*.
 - **Labels** use matured current revisions: the run is completed or expired and ≥ 6 h have passed since the event.
 - **History rows** have no availability time. They supply only label statistics and features, are never replayed as a live stream, and any history-only backtest is labelled *oracle-latency* and never used for acceptance.
-- **NTES baseline.** The latest NTES ETA revision with `received_at ≤ t` and age ≤ 30 min. Otherwise the case is ineligible for comparison.
+- **NTES baseline.** The latest NTES ETA revision received ≤ *t*. It is **confirmed** by the latest `ok` status fetch for that run received ≤ *t* (`obs.fetch.run_id`, §6), and the confirmation must be ≤ 30 min old. Otherwise the case is ineligible for comparison. An unchanged ETA that was freshly re-checked counts as fresh.
 - **Expected never becomes actual.** An actual requires the source's actual marker. A passed scheduled time does not count.
-- **Pending evidence.** `obs.pending_rev` records "source showed this event as *not yet happened* as of `received_at`". For example:
+- **Not-reported evidence.** `obs.pending_rev` records "the source had **not reported** this event as of `received_at`". For example:
   - in running status: the next halt after the last report
-  - on a board: a starred time at that station
+  - on a board: a starred (expected) time
+
+  This does **not** prove the event hasn't happened. It enters the engine only as a likelihood:
+
+  `P(not reported by r | event at t) = 1` if t ≥ r, otherwise `S(r − t)`.
+
+  - *S* is the publication-lag survival function measured in G2: the empirical lag distribution with an exponential tail, including the mass ε of events that are never published.
+  - *S* is estimated per source (status page vs board).
+  - A hard bound (S = 0 beyond some lag) is allowed only for a source whose timestamp guarantee G2 has verified. None is assumed.
 
 ### 3.4 Distribution format (the model contract)
 
@@ -226,26 +245,39 @@ Everything downstream depends on four contracts: identity, clock, availability, 
 
 ## 4. Modelling approach
 
-### 4.1 Exact Markov conditioning
+### 4.1 Block-wise weighted conditioning
 
 R, W and O are first-order in the run's own delay. Their other features are known in advance: static data, calendar, and run context that has already been observed.
 
-So an exactly reported event fixes the run's state, and conditioning on it is exact. The particle machinery reduces to:
+So an observed actual makes everything *before* it irrelevant to the future, up to the minute-display jitter. Weights are needed only within a **block**: the run of events from one piece of evidence up to and including the next event that carries evidence (an actual or a not-reported marker). The canonical event order is §3.2.
 
-1. **Halt event observed.** Every particle's time for that event is set to the observed time plus minute jitter. Everything downstream is re-drawn from there.
-2. **Pass event observed.** This sets an anchor inside the segment. The remaining running time is re-drawn as `sched_rem + Δ·(sched_rem/sched_run)`, with Δ ~ R at the delay seen at the pass.
-   - *ponytail:* linear scaling of Δ by the remaining scheduled fraction. Replace it with a sub-segment model trained on live pass events once enough exist.
-3. **Pending ("not yet") evidence.** The draw producing that event is truncated to `> received_at − L`. *L* is the p95 publication lag measured in G2; the default is 10 min.
-4. **Unreported events between two observed ones** are drawn truncated to `≤` the next observed time. If a lower bound from pending evidence conflicts with a later actual, the actual wins.
-   - *ponytail:* this is not joint bridge sampling, but it keeps all invariants.
+**For each block, in route order:**
+1. **Propagate.** Draw the block's unreported events forward from each particle's state, using the prior (R / W / O).
+2. **Weight at the evidence event *e*.**
+   - **Actual displayed at minute *m*** (truncation per G2; rounding uses [m−½, m+½)):
+     - draw *e* from the model truncated to [m, m+1)
+     - weight = `F(m+1) − F(m)`, the prior mass of that window given this particle's path
 
-Particles are therefore **i.i.d. samples of the future given all evidence**:
-- no importance weights, resampling, ESS or degeneracy
-- no "reset" heuristic
+     This is the locally optimal proposal, so after resampling, the unreported upstream times are posterior samples. Downstream truncation alone would not achieve that.
+   - **Pass event at minute *m*.** Same rule. The pass also becomes the segment's anchor (§9.2).
+   - **Not reported as of *r*.** Draw *e* from the prior and weight it by `P(not reported by r | e)` (§3.3).
+3. **Resample** to equal weights with systematic resampling. Its single uniform comes from the counter RNG keyed by (run, block index). Ancestors keep their upstream draws.
+4. **Monitor.**
+   - Record ESS/N per block as a metric.
+   - If ESS/N < 0.05, repeat the block with 4N proposals and resample back to N.
+   - If every weight is 0 (the report is impossible under the model, e.g. faster than `V_MAX`), set *e* to the observation for all particles and raise `data_invariant`.
 
-**Surprise.** Before conditioning on each halt event, its PIT under the cloud is recorded. PIT < 0.001 or > 0.999 counts as a *surprise*. It flags the train "uncertain" for 30 min and feeds calibration monitoring.
+**Check (second review's example).** X ∈ {0, 10} and D ∈ {10, 20}, all equally likely. Evidence: not reported, with a hard survival so that only X + D > 15 survives.
+- Weights: (0,10) gets 0; the other three get 1.
+- So P(X = 10 | evidence) = 2/3, as the enumeration requires.
 
-If a hidden per-run variable is added later (for example "this train is having a bad day"), importance weights return. That is out of scope for v1.
+**Status.** As N → ∞ this converges to the model's exact posterior (sequential importance resampling). At finite N it is a Monte Carlo approximation, and its error is measured by G7 (§15) and the conditioning tests (§14). It is not claimed to be exact.
+
+**Remaining model approximations**, each validated in G7 or Phase 3 rather than assumed:
+- *ponytail:* after a pass, the remaining running time is `sched_rem + Δ·(sched_rem/sched_run)` with Δ ~ R. Replace with a sub-segment model trained on live pass events once enough exist.
+- One publication-lag function *S* per source, not per station.
+
+**Surprise.** Before weighting each actual, its PIT under the cloud is recorded. PIT < 0.001 or > 0.999 counts as a *surprise*. It flags the train "uncertain" for 30 min and feeds calibration monitoring.
 
 ### 4.2 Why many particles still matter
 
@@ -253,7 +285,7 @@ Every particle shares the observed past, but futures fan out over up to 40 segme
 
 - Default **N = 10,000 per run**.
 - Phase 3 plots Monte Carlo error at P05/P50/P95 for N ∈ {1k, 5k, 10k, 50k, 100k}. The chosen N is the smallest whose MC error is ≤ 0.25 min at P05/P95 for the 6 h horizon.
-- Particles exist only during a run's replay, about 220 KB per run at N = 10k. **Memory is not the limit; replay CPU is** (A6).
+- Particles exist only during a run's replay, about 300 KB per run at N = 10k (plus transient ancestor arrays). **Memory is not the limit; replay CPU is** (A6).
 
 ### 4.3 Freight and disruptions
 
@@ -402,11 +434,13 @@ CREATE TABLE obs.fetch (                   -- one row per HTTP request: the load
   host text NOT NULL,
   purpose text NOT NULL,                   -- status|board|token|session|exceptions|schedule|search|history
   key text,
+  run_id bigint,                           -- set for status fetches; an ok row = a confirmation of that run's ETAs
   started_at timestamptz NOT NULL, received_at timestamptz,
   http_status smallint,
   outcome text NOT NULL,                   -- ok|empty|invalid|transport_error|challenge
   body_zstd bytea);                        -- retention §12
 CREATE INDEX ON obs.fetch (host, started_at);
+CREATE INDEX ON obs.fetch (run_id, received_at) WHERE outcome = 'ok';
 
 CREATE TABLE obs.event_rev (               -- actual times; insert when new or changed
   id bigserial PRIMARY KEY,
@@ -419,16 +453,22 @@ CREATE TABLE obs.event_rev (               -- actual times; insert when new or c
 CREATE INDEX ON obs.event_rev (run_id, station, occ, kind, received_at);
 CREATE INDEX ON obs.event_rev (received_at);
 
-CREATE VIEW obs.event AS                   -- current truth; as-of queries add WHERE received_at <= $t
+CREATE FUNCTION obs.event_asof(t timestamptz) RETURNS SETOF obs.event_rev
+  LANGUAGE sql STABLE AS $$
   SELECT DISTINCT ON (run_id, station, occ, kind) *
-  FROM obs.event_rev ORDER BY run_id, station, occ, kind, received_at DESC, id DESC;
+  FROM obs.event_rev
+  WHERE received_at <= t                   -- filter FIRST, then pick latest eligible revision
+  ORDER BY run_id, station, occ, kind, received_at DESC, id DESC $$;
 
-CREATE TABLE obs.pending_rev (             -- "not yet happened" as of received_at
+CREATE VIEW obs.event AS SELECT * FROM obs.event_asof('infinity');   -- current truth only; never filter this view by time
+
+CREATE TABLE obs.pending_rev (             -- "not reported" as of received_at (a likelihood, §3.3)
   run_id bigint REFERENCES obs.run, station text, occ smallint, kind obs.event_kind,
   fetch_id bigint REFERENCES obs.fetch, received_at timestamptz,
   PRIMARY KEY (run_id, station, occ, kind, received_at));
 
-CREATE TABLE obs.ntes_eta_rev (            -- baseline only, never evidence; insert on change
+CREATE TABLE obs.ntes_eta_rev (            -- baseline only, never evidence; insert on change.
+                                           -- Freshness = latest ok status fetch for the run (obs.fetch.run_id), not this row's age
   run_id bigint REFERENCES obs.run, station text, occ smallint, kind obs.event_kind,
   expected_ts timestamptz NOT NULL,
   fetch_id bigint REFERENCES obs.fetch, received_at timestamptz,
@@ -541,9 +581,9 @@ This is the honest baseline. Boards (if G2 shows they keep actual times) and unc
 3. **Exceptions** every 30 min.
 4. **Targeted polls** by priority. The engine computes it every 30 s as:
 
-   `priority = P(next halt event has happened by now − L) × width(P10..P90 of that event) + age/T_max`
+   `priority = P(next halt event is published by now) × width(P10..P90 of that event) + age/T_max`
 
-   This favours trains that probably have a new report waiting and whose estimate is wide.
+   The probability is the cloud's mean of `1 − S(now − t)` (§3.3). This favours trains that probably have a new report waiting and whose estimate is wide.
 5. **Boards.** The share is set by G2's measured yield of usable actual and pending events per request. If boards keep no actual times, they are used only for discovery and pending evidence, at a 10 % share.
 6. **Schedule refresh**, low priority.
 
@@ -597,7 +637,7 @@ This is the honest baseline. Boards (if G2 shows they keep actual times) and unc
 |---|---|---|
 | R | `Δrun` per run segment | Live, matured current revisions |
 | W | Actual dwell at intermediate halts | Live |
-| O | Origin departure delay | Live |
+| O | Origin departure residual against `scheduled + resched_min` (§3.2) | Live |
 | C (cold start) | Composite `Δcomp` | History, only after G4 |
 
 ### 8.2 Features (`msynd/features`, versioned by `FEATURE_VER`)
@@ -703,7 +743,7 @@ Buckets are 30 min, 2 h, 6 h and 12 h, each ±25 %. A case falls in at most one 
 
 ### 9.2 Per-particle state during replay
 
-Structure-of-arrays, about 22 B per particle:
+Structure-of-arrays, about 30 B per particle:
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -713,8 +753,10 @@ Structure-of-arrays, about 22 B per particle:
 | `anchor_t` | f32 | last pass anchor time; `t_dep_a` if none |
 | `anchor_km` | f32 | last pass anchor distance; `km(A_i)` if none |
 | `t_arr_b` | f32 | arrival at A_{i+1} |
+| `logw` | f32 | log-weight within the current block (§4.1); 0 after each resample |
+| `anc` | int32 | ancestor index, so display paths keep their reconstructed upstream times |
 
-**Draws.** Each event time comes from exactly one draw:
+**Draws.** Each event time comes from one draw per particle and block attempt:
 
 | Slot | Produces |
 |---|---|
@@ -735,42 +777,44 @@ Structure-of-arrays, about 22 B per particle:
 
 ### 9.3 Random numbers
 
-`u = splitmix64(key(V, run_id) ⊕ pack(particle, segment, slot, k)) / 2⁶⁴`
+`u = splitmix64(key(V, run_id) ⊕ pack(particle, segment, slot, k, attempt)) / 2⁶⁴`
 
 - The generator is stateless and counter-based.
-- Results are independent of batching, arrival order of evidence, and restarts.
-- Forecast draws and live draws are the same draws, because conditioning only *replaces* the draws for observed events.
+- Each resample's single uniform uses `pack(block, RESAMPLE)`.
+- A replay is a pure function of (*V*, evidence). Results are therefore independent of batching, arrival order of evidence, and restarts.
 
 ### 9.4 Replaying a run
 
 The function `replay(run) → summaries, display paths`:
 1. **Load** *V*, the bound route, the current revisions, and the pending markers. Order the events canonically: route index, then kind.
-2. **Initialise** N particles. Origin departure = scheduled + `resched_min` + O-draw.
-3. **For each observed event, in order:**
-   - Draw any unobserved events before it, truncated to ≤ its time (§4.1).
-   - Draw its own prediction and record its PIT (surprise).
-   - Set it to the observation plus jitter.
-4. **For the remaining events:** draw forward to the destination (or to `diverted_from`). Apply pending truncation `> received_at − L` to the draw producing each pending event. Downstream pending markers truncate only their own draw.
-   - *ponytail:* no upstream propagation of downstream pending markers.
+2. **Initialise** N particles. Origin departure = scheduled + `resched_min` + O-draw (O is the residual, §3.2). `resched_min` is as of the replay's evidence.
+3. **Run the blocks of §4.1 in route order.** Each evidence event (actual or not-reported marker) closes a block with propagate, weight, resample. A not-reported marker downstream of the last actual is handled the same way, so it also reweights the unreported upstream draws.
+4. **After the last evidence event:** draw forward without weights to the destination, or to `diverted_from`.
 5. **Outputs:**
-   - Per remaining halt: arrival and departure quantiles (P5, P10, P25, P50, P75, P90, P95) computed from **all N particles**.
-   - Per-run headline: next-halt quantiles, evidence state, last-event age, surprise flag.
-   - **K = 32 display paths:** particles 0 … 31, which are an unbiased sample because particles are i.i.d. Each path is the full event list to the destination.
+   - Per remaining halt: arrival and departure quantiles (P5, P10, P25, P50, P75, P90, P95) computed from **all N equal-weight particles**.
+   - Per-run headline: next-halt quantiles, evidence state, last-event age, surprise flag, minimum block ESS/N.
+   - **K = 32 display paths:** particles at indices `j·N/32`. Strided indices are used because systematic resampling clusters copies of an ancestor next to each other. Each path is the full event list to the destination.
 6. **Discard** the particle arrays. The engine keeps only the outputs, about 10 KB per run.
 
-**Cost estimate.** About 40 segments × N = 10k ≈ 0.4 M draws ≈ 10–20 ms per run on one core. A full rebuild of 2,500 runs on 4 cores takes about 10–15 s. Both are to be measured in G7.
+**Cost estimate.** About 40 segments × N = 10k ≈ 0.4 M draws ≈ 10–20 ms per run on one core. A full rebuild of 2,500 runs on 4 cores takes about 10–15 s. Both are to be measured in G8. Weighting and resampling add O(N) per evidence event, which is small next to the draws.
 
 ### 9.5 Main loop
 
 | Trigger | Work |
 |---|---|
 | Startup | LISTEN, commit, rebuild all active runs from the database, write a full frame |
-| `NOTIFY dirty`, or every 5 s | `DELETE FROM obs.dirty_run RETURNING run_id` (atomic consume, commit-safe), then replay each run |
-| Every 10 s, if anything changed | Append a **delta frame** with the changed runs' complete per-run payloads and tombstones for retired runs |
+| `NOTIFY dirty`, or every 1 s | `DELETE FROM obs.dirty_run RETURNING run_id` (atomic consume, commit-safe), replay those runs, then **immediately** append one **delta frame** with their complete per-run payloads and tombstones for retired runs, and `NOTIFY sim_frame` |
 | Every 5 min | Append a **full frame** |
 | Every 30 s | Recompute poll priorities and upsert `obs.poll_queue` |
 | Hourly | Append `sim.forecast_issue` for running runs |
 | `model_changed`, or a new bias generation | Mark all active runs dirty |
+
+**Latency budget for A6 (p95 ≤ 5 s):**
+- wake on NOTIFY, with the 1 s poll as fallback
+- a consumed batch is capped at 200 runs (≈ 1 s of replay on 4 cores); the rest is left for the next pass
+- frame write and API fan-out
+
+A burst larger than that (a model change, a restart) is excluded from A6 and measured as "full rebuild".
 
 **Time passing with no new evidence does not change a forecast.** The cloud moves along its precomputed paths, and the poll priority rises.
 
@@ -783,7 +827,7 @@ The function `replay(run) → summaries, display paths`:
 
 ### 9.7 Performance gate (replaces "port to Rust")
 - **Numba first.** `@njit` kernels for the draw and replay loops. Numba is already native code.
-- **G7 profile.** On the Oracle VM, with all services running, profile each stage separately:
+- **G8 profile.** On the Oracle VM, with all services running, profile each stage separately:
   - draws
   - CDF interpolation
   - LightGBM and ONNX inference
@@ -944,7 +988,11 @@ Each item names what must fail if the logic breaks.
 | Late data | An event received after events later on the route is incorporated, and the result equals a fresh replay |
 | Dirty set | Two connections, with commits racing the consumer: no committed dirty row is ever lost |
 | Determinism | The same evidence in one batch or two gives identical outputs. Restart gives identical outputs |
-| Conditioning | Observed halt events: every particle within the jitter. Pending: no particle event ≤ `received_at − L`. Invariants: speed ≤ `V_MAX`, dwell ≥ 0, monotone times |
+| Conditioning (G7 suite) | Small enumerable models (§15 G7): engine posteriors match exact enumeration within MC tolerance, including the review's 2/3 case. Observed actuals: every particle inside the minute window. Invariants: speed ≤ `V_MAX`, dwell ≥ 0, monotone times |
+| As-of query | Revision received 10:00 (time 09:50), corrected 10:30 (time 09:55): `event_asof(10:15)` returns 09:50; the current view returns 09:55 |
+| NTES baseline | Unchanged ETA first seen 09:00, re-confirmed by an `ok` fetch at 10:00: eligible at 10:10 |
+| Rescheduling | Scheduled 100, rescheduled +20, actual 130 → O label 10; initialisation median ≈ 130 |
+| Frame latency | Evidence committed → delta frame visible to the API in < 2 s with an idle engine |
 | Distribution format | Overflow draws are finite and follow τ. LightGBM→CDF reproduces its quantiles to within half a bin. The interpolation test |
 | Dispatcher | Simulated clock with tokens, retries and session recovery: ≤ 60 starts in any 60 s window. A second process cannot take the host lock |
 | Validation | Empty 200 → `empty`. Identity mismatch → `invalid`. An expected time is never stored as an actual |
@@ -965,12 +1013,13 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
 | Gate | Work | If it fails |
 |---|---|---|
 | **G1 Data use** | Record terms and licences, with retrieval date, in `docs/sources.md`: NTES (incl. the Disclaimer page), etrain, the GTFS repo, OSM (ODbL), Protomaps. Cover automated collection, model training, export to Kaggle, and portfolio display | Change source or scope. *User decision*: e.g. no Kaggle export (train on the VM only), or no etrain backfill |
-| **G2 NTES protocol and capacity** | 7-day pilot at ≤ 0.3 req/s. Measure: *h* (tokens and sessions), token lifetime, empty-200 behaviour, publication lag *L*, board actual-time retention (follow ≥ 30 train-station pairs through arrival, dwell and departure; busy and quiet stations, midnight, late trains), board yield per request, pending semantics, passing-station prevalence (50 trains), and the active run count by hour | Sets *h*, *L*, board share, *T_max* and *F*. If the freshness achievable at 1 req/s is unacceptable, the *user decides*: accept it, change the rate, change the source, or reduce scope |
+| **G2 NTES protocol and capacity** | 7-day pilot at ≤ 0.3 req/s. Measure: *h* (tokens and sessions), token lifetime, empty-200 behaviour, the **publication-lag distribution *S*** (poll ≥ 40 runs every 2 min around their expected events; lag = first `received_at` showing the actual − actual time, interval-censored by the poll spacing; tail and never-published share ε from completed runs), **"not reported" vs "not happened"** (cases where a page showed an event as pending after its later-published actual time — their share is the reason S is soft; any source with zero such cases over the pilot is a candidate for a hard bound, recorded in §18), board actual-time retention (follow ≥ 30 train-station pairs through arrival, dwell and departure; busy and quiet stations, midnight, late trains), board yield per request, pending semantics, passing-station prevalence (50 trains), and the active run count by hour | Sets *h*, *S* per source, board share, *T_max* and *F*. If the freshness achievable at 1 req/s is unacceptable, the *user decides*: accept it, change the rate, change the source, or reduce scope |
 | **G3 Fixtures** | Committed fixtures for every page type, including edge cases: cancelled, diverted, rescheduled, multi-day, empty | — |
 | **G4 etrain meaning** | After G2 has ≥ 2 weeks of live NTES data and etrain covers those dates: for ≥ 20 trains, compare etrain values against NTES actual arrivals and departures where they differ by ≥ 5 min. Cover origin, intermediate long dwell, destination, overnight and multi-day, early running, non-daily, repeated stations. Settle `run_date` semantics | History stays quarantined. Cold start uses the live empirical fallback (§3.2). Not blocking: G4 may finish during Phase 3 |
 | **G5 Platform** | Get the Oracle A1 allocation. Run the pinned arm64 image smoke test (imports, a LightGBM and ONNX round-trip). Measure the storage budget from G2 bodies. Run a restore drill into a fresh container | Fix the image, or use the other region. Development continues on the user's PC meanwhile |
 | **G6 Kaggle** (only if G1 allows export) | Private dataset and verified privacy. CLI push, status and output. GPU confirmed. `torch`/`onnx`/`lightgbm` import offline (otherwise phone-verify and enable internet, or ship wheels in the dataset) | Train on the VM only; drop the neural candidate |
-| **G7 Engine profile** | Prototype §9.4 with LightGBM on synthetic runs, on the VM with all services running: per-run replay p50/p95/p99, full rebuild, frame build | Apply §9.7 to the measured bottleneck |
+| **G7 Conditioning correctness** (before G8) | Run the real `replay()` on small discrete models whose posteriors can be enumerated exactly: 2–4 segments, 2–5 outcomes per draw, scripted evidence. Compare every reported marginal (unobserved upstream times, next-event and destination quantiles) with enumeration, at N = 10k and 100k; tolerance 4 MC standard errors. Cases: (a) the review's not-reported example (2/3); (b) an actual with an unreported halt before it (bridge posterior); (c) a pass event mid-segment, with the pass anchor's error against a fine-grained reference model reported, not just checked; (d) soft publication lag with a long tail and ε > 0; (e) evidence that is infeasible under the floor (handled, flagged, no NaNs); (f) a mix of actuals and not-reported markers across 3 blocks; (g) degenerate weights (ESS fallback triggers, still within tolerance) | Fix the engine; Phase 4 doesn't start until it passes |
+| **G8 Engine profile** | Prototype §9.4 with LightGBM on synthetic runs, on the VM with all services running: per-run replay p50/p95/p99, full rebuild, frame build, commit-to-frame latency | Apply §9.7 to the measured bottleneck |
 
 ### Phase 1 — Static network and identity (≈ 1 week)
 - Schedule and route versions, stations, OSM geometry with confidence, overrides.
@@ -995,7 +1044,7 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
 - **Exit** (needs ≥ 4 weeks of live data): R/W beat B1 on CRPS at the 2 h horizon (CI > 0), with coverage within ±5 points.
 
 ### Phase 4 — Engine (≈ 1–2 weeks; can start on the cold-start models)
-- Replay, conditioning, pending truncation, dirty set, determinism, cache, summaries, frame log, poll priorities, issued forecasts, and a debug map.
+- Replay, block-wise conditioning (must pass G7), not-reported likelihood, dirty set, determinism, cache, summaries, frame log, poll priorities, issued forecasts, and a debug map.
 - **Exit:**
   - The replay-day end-to-end test passes.
   - 7 days live with A1, A2 and A6 measured.
@@ -1050,14 +1099,16 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
 - **Scope:** all long-distance trains in India, with honest evidence states. Mumbai locals excluded.
 - **Collection:** hybrid targeted polls and boards, through one dispatcher per host. Request starts are spaced (no burst); tokens and retries count.
 - **Clock contract:** running (dep → arr) and dwell are separate models. History supplies only composite features or a cold start, after G4.
-- **Filtering:** exact Markov conditioning with i.i.d. particles (N = 10k default, set by the Monte Carlo error curve). No weights or resampling in v1.
+- **Filtering:** block-wise weighted conditioning (sequential importance resampling that resets at each actual), N = 10k by default and set by the Monte Carlo error curve. Validated against enumeration (G7). "Not reported" is a soft likelihood from the measured publication lag.
+- **Origin model:** a residual against the rescheduled departure.
+- **Frames:** a delta is published right after each replay batch, plus a full frame every 5 min.
 - **Recovery:** each dirty run is replayed in full. Durable dirty set and frame log. Counter-based random numbers.
 - **No position observations:** the NTES map gives station markers, not GPS.
 - **Coupling:** a gated experiment (C1, then C2).
 - **Performance:** Numba plus a profile gate. Rust only for a measured kernel bottleneck.
 - **Models:** LightGBM on the VM always. A neural candidate on Kaggle only if G1/G6 pass and it wins the promotion test.
 - **Backup:** off-site to Oracle Object Storage. Kaggle is not a backup.
-- **Phase 0 outcomes:** *to be appended here (G1–G7 results and decisions).*
+- **Phase 0 outcomes:** *to be appended here (G1–G8 results and decisions).*
 
 ---
 
@@ -1068,13 +1119,13 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
 | Phase 0: board retention | G2 measurement; boards limited to discovery and pending evidence if they fail (§7.2) |
 | Phase 0: map GPS | Dropped; no position observations (§2, §18) |
 | Phase 0: etrain meaning | G4 with discriminating cases; quarantine; never an R/W label (§3.2) |
-| Phase 0: performance / Rust | Profile gate G7; §9.7 |
+| Phase 0: performance / Rust | Correctness gate G7, then profile gate G8; §9.7 |
 | Collection arithmetic | Capacity stated (§7.2); *h* measured; fairness via *T_max*; rate change is a user decision |
 | 1 Mixed clocks | §3.2 contract plus regression test |
 | 2 Availability leakage | `received_at` revisions, as-of rule, NTES baseline age, fold-local fitting (§3.3, §8.3) |
 | 3 Mutable sequences | Immutable schedule and route versions; (station, occ) keys; explicit route→segment membership (§3.1, §6) |
 | 4 Checkpoint and late data / NOTIFY | Full replay per dirty run; transactional dirty set; LISTEN-then-reconcile (§9.4–9.5) |
-| 5 State and likelihood contract | Explicit dwell; event-directed draws; floor in minutes with `V_MAX`; no roughening, weights or underflow reset; no position likelihood (§4.1, §9.2) |
+| 5 State and likelihood contract | Explicit dwell; event-directed draws; floor in minutes with `V_MAX`; weights only within a block, no roughening, ESS fallback instead of an underflow reset; no position likelihood (§4.1, §9.2) |
 | 6 Determinism | Counter-based RNG keyed by *V* and draw identity; *V* bound to outputs; parity with tolerance (§9.3) |
 | 7 Network context | Coupling deferred to gated C1/C2 with probabilistic occupancy and ablation (§4.4) |
 | 8 Geometry | Drawing only; timetable km for prediction; confidence; versioned overrides (§7.6) |
@@ -1086,3 +1137,13 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
 | 14 Promotion vs acceptance | Issued forecasts; as-of horizon buckets; bootstrap CIs; prospective untouched acceptance; literature reframed (§2, §8.6) |
 | 15 Storage and recovery | Per-table retention, measured budget, off-site Object Storage backup, restore drill, no PAYG claim (§12, §13) |
 | 16 Data use | G1 gate; Kaggle export conditional (§15) |
+
+**Second review (v2 → v2.1)**
+
+| Finding | Resolution |
+|---|---|
+| R2-1 "Exact conditioning" was false | Block-wise weighting with locally optimal proposals and resampling; claimed only as consistent Monte Carlo; G7 enumeration gate (§4.1, §15) |
+| R2-2 Pending evidence was too strong | Soft likelihood `S(r − t)` with tail and ε; hard bounds only for sources with a verified guarantee; G2 tests "not reported" vs "not happened" (§3.3, §15) |
+| R2-3 As-of SQL order; ETA staleness | `obs.event_asof(t)` filters before picking the latest revision; ETA freshness from `ok` status fetches (§3.3, §6, §14) |
+| R2-4 Rescheduling counted twice | O is a residual against `scheduled + resched_min`, with a regression test (§3.2, §8.1, §9.4, §14) |
+| R2-5 Frame cadence vs A6 | Delta published right after each replay batch; 1 s fallback poll; batch cap; latency budget (§9.5) |
