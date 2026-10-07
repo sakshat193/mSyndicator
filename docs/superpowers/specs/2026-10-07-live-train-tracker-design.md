@@ -1,7 +1,8 @@
-# m-syndicator — Live All-India Train Tracker: Design Spec (v2)
+# m-syndicator — Live All-India Train Tracker: Design Spec (v2.2)
 
 - **Date:** 2026-10-07
-- **Status:** Draft v2.1, awaiting review
+- **Status:** Draft v2.2, incorporating the third review; implementation gates remain unmeasured
+- **What changed in v2.2:** signed O and two-sided R/O tails; effective event-time conditioning; per-key ETA confirmations; feasible, censored G2 cohorts; evidence-preserving fetch retention; per-key evidence merge; pass acceptance and replicate-based MC tolerance; versioned dirty acknowledgement after publication; API-read latency endpoint; restart spacing, parameter hashes, event-time matrices and partial-cancellation semantics. §19 maps R3 findings to amendments A1–A11.
 - **What changed from v1:** this version answers [the adversarial review](../reviews/2026-10-07-live-train-tracker-adversarial-review.md). §19 maps each review finding to the section that resolves it.
 - **What changed in v2.1** (second review, five blockers):
   - "exact conditioning" became block-wise weighted conditioning with a validation gate (§4.1, G7)
@@ -75,7 +76,7 @@ Each of these must be demonstrated with measurements; they are not promises. Num
 | A3 | Accuracy | **Prospective**: forecasts issued hourly by a model frozen for 4 weeks, scored on matured actuals in a period never used for selection. Median absolute error of P50 at the 2 h and 6 h horizon buckets (§8.6), compared with B1 (persistence) and B2 (NTES ETA ≤ 30 min old at issue time) on identical eligible cases | ≥ 10 % better than both, with the 95 % run-day block-bootstrap CI excluding 0 |
 | A4 | Calibration | Same forecasts: coverage of P10–P90 and P05–P95, reported with mean interval width and CRPS | 75–85 % / 85–95 % |
 | A5 | Load | Verified from the `obs.fetch` log, which records every request including tokens and retries | ≤ 60 request starts in any 60 s window per host at rate 1.0 |
-| A6 | Engine latency (Oracle VM, all services running) | Time from evidence commit to the frame containing it | p95 ≤ 5 s; full rebuild after a model change ≤ 3 min |
+| A6 | Engine latency (Oracle VM, all services running) | Time from evidence commit until the API process reads the delta frame containing it, server side before WebSocket send | p95 ≤ 5 s; full rebuild after a model change ≤ 3 min |
 | A7 | Dashboard | Frame rate on the user's laptop (named in the Phase 5 report) with K = 32 streaks per run, whole network | ≥ 60 fps; automatic fallback to K = 8 below 30 fps |
 | A8 | Completeness | Per-run missing-event rate: halts of completed runs with no actual arrival or departure | reported by class; target *(G2)* |
 
@@ -181,6 +182,7 @@ Everything downstream depends on four contracts: identity, clock, availability, 
   - Initialisation uses `scheduled + resched_min + O-draw`, so rescheduling is counted once.
   - "Rescheduled" is an O feature.
   - Regression case (second review): scheduled 100, rescheduled +20, actual 130 → label 10; initialisation centred on 130, not 150.
+  - Signed-residual regression: scheduled 100, rescheduled +60, actual 150 → O = −10, and initialisation can draw 150. R and O use SIGNED bins; W alone is NONNEG (§3.4).
 - **Physical floor.** Sampled running time ≥ `60 × km / V_MAX` minutes.
   - `V_MAX` = 160 km/h, the maximum permitted passenger speed on IR.
   - No per-segment speed limit is invented; the OSM `maxspeed` tag is not used.
@@ -200,7 +202,7 @@ Everything downstream depends on four contracts: identity, clock, availability, 
 - **As-of rule.** Anything computed "as of *t*" (features, forecasts, baselines, evaluation) uses only revisions with `received_at ≤ t`. The query filters revisions **first**, then takes the latest eligible revision per key: `obs.event_asof(t)` in §6. Filtering the current-truth view would drop an event whose latest revision arrived after *t*.
 - **Labels** use matured current revisions: the run is completed or expired and ≥ 6 h have passed since the event.
 - **History rows** have no availability time. They supply only label statistics and features, are never replayed as a live stream, and any history-only backtest is labelled *oracle-latency* and never used for acceptance.
-- **NTES baseline.** The latest NTES ETA revision received ≤ *t*. It is **confirmed** by the latest `ok` status fetch for that run received ≤ *t* (`obs.fetch.run_id`, §6), and the confirmation must be ≤ 30 min old. Otherwise the case is ineligible for comparison. An unchanged ETA that was freshly re-checked counts as fresh.
+- **NTES baseline.** For each event key, use the latest `obs.ntes_eta_rev` row received ≤ *t*, eligible only if `t − received_at ≤ 30 min`. Every `ok` status response appends every ETA actually present, including unchanged values. Missing keys get no confirmation; token/session fetches never write ETA rows. `obs.fetch.run_id` measures poll age only. Issued forecasts preserve eligible B2 run-clock values in `sim.forecast_issue.b2` (NaN = ineligible), so evaluation does not depend on expired ETA rows (§6, §12).
 - **Expected never becomes actual.** An actual requires the source's actual marker. A passed scheduled time does not count.
 - **Not-reported evidence.** `obs.pending_rev` records "the source had **not reported** this event as of `received_at`". For example:
   - in running status: the next halt after the last report
@@ -212,28 +214,33 @@ Everything downstream depends on four contracts: identity, clock, availability, 
 
   - *S* is the publication-lag survival function measured in G2: the empirical lag distribution with an exponential tail, including the mass ε of events that are never published.
   - *S* is estimated per source (status page vs board).
-  - A hard bound (S = 0 beyond some lag) is allowed only for a source whose timestamp guarantee G2 has verified. None is assumed.
+  - A hard bound (S = 0 beyond some lag) requires an independently documented source guarantee. Zero counterexamples in a finite pilot never establish one. None is assumed.
+  - **Merge per event key, as of t:** if any actual revision exists with `received_at ≤ t`, use the latest actual and ignore pending markers for that key. Otherwise use exactly one latest pending marker across sources; ties prefer `ntes_status`. Apply that source's S. Repeated markers are never multiplied; cross-source joint likelihood is not modelled (conservative). The repeated-pending witness gives 0.731059, not 0.880797.
 
 ### 3.4 Distribution format (the model contract)
 
 **Bins**
 - Each model returns a probability vector over fixed bins.
-- **R:** edges at −60, −59, …, 240 min. That gives 300 unit bins, plus underflow (−∞, −60) and overflow [240, ∞): **302 bins**.
-- **W and O:** edges 0 … 180, giving 180 unit bins plus overflow [180, ∞): **181 bins**.
+- **SIGNED (R and O):** edges at −60, −59, …, 240 min. That gives 300 unit bins, plus underflow (−∞, −60) and overflow [240, ∞): **302 bins**.
+- **NONNEG (W only):** edges 0 … 180, giving 180 unit bins plus overflow [180, ∞): **181 bins**.
 
 **Sampling** with a uniform *u*:
 - Find the bin by inverse CDF, then place the value linearly inside the bin.
-- Underflow returns the lower edge; the physical floor then applies.
-- Overflow returns `edge + τ·(−ln(1 − u'))`, an exponential excess. *τ* is the mean excess beyond the edge, fitted per class on training labels and stored in `ml.model.tail`.
+- SIGNED underflow draws `−60 − τ_lo·E`; overflow draws `240 + τ_hi·E`, with E ~ Exp(1). The physical floor applies afterwards. NONNEG overflow draws `180 + τ_hi·E`.
+- Tail scales are fitted per class on training labels and stored in `ml.model.tail` as `{"<class>": {"lo": τ_lo, "hi": τ_hi}}`.
 
-**Truncation to [lo, hi]**
-- Map the uniform as `u' = F(lo) + u·(F(hi) − F(lo))`.
-- If `F(hi) − F(lo) < 1e-6`, the model says the window is impossible. Sample `lo + τ·Exp(1)`, capped at `hi`.
+**Effective event-time distribution and truncation to [lo, hi)**
+- Every event draw has form `T = b + a·max(f, c + s·Q_d(u))`: b is the particle's base time; a and s are positive pass scalings, otherwise 1; f is `60·km/V_MAX` for running, 0 for dwell, −∞ for origin; c is scheduled running minutes + bias for R, 0 for W, and `resched_min` for O (b is scheduled departure).
+- `Q_d(u) = (1−w)·Q_j(u) + w·Q_{j+1}(u)` is the delay-interpolated quantile. `G(x) = P(T < x)` is the matching **left-limit CDF**, including floor atoms. Invert Q_d by bisection in the CDF coordinate below the median and the survival coordinate above it; use a closed form in joint exponential tails.
+- Window mass `W = G(hi) − G(lo)`, evaluated as `S(lo) − S(hi)` in the upper half (never by subtracting `1 − F`). Here S is the effective event-time survival, distinct from publication-lag S in §3.3.
+- Draw `T = Q_eff(G(lo) + u·W)` conditionally and clamp below hi. Use the survival coordinate in the upper half to preserve tiny positive masses.
+- **Any W > 0 is valid**, however small; weight the particle by W. W = 0 gives only that particle zero weight. Only if every particle has zero weight does the flagged observation override apply (§4.1). There is no 1e-6 impossible-window threshold.
+- Atom regression: D ~ U[0,10) with floor 5 gives `P(max(5,D) ∈ [5,6)) = 0.6`, not 0.1.
 
 **LightGBM to CDF**
 - Fit quantiles {0.02, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.98}, then sort them so they cannot cross.
 - The CDF is piecewise linear between quantiles.
-- Tails are exponential, anchored on the outer quantiles: the upper scale is `s = (q.98 − q.90)/ln 5`, and the lower tail mirrors it.
+- Tails are exponential: `s_hi = max(0.5, (q.98 − q.90)/ln 5)` anchored at q.98, and `s_lo = max(0.5, (q.10 − q.02)/ln 5)` anchored at q.02 (minutes).
 - Mass is rasterised into the bins. The excess beyond 240 becomes overflow with τ = s, which is consistent because the exponential is memoryless.
 
 **Delay conditioning**
@@ -256,7 +263,7 @@ So an observed actual makes everything *before* it irrelevant to the future, up 
 2. **Weight at the evidence event *e*.**
    - **Actual displayed at minute *m*** (truncation per G2; rounding uses [m−½, m+½)):
      - draw *e* from the model truncated to [m, m+1)
-     - weight = `F(m+1) − F(m)`, the prior mass of that window given this particle's path
+     - weight = `G(m+1) − G(m)`, the effective prior mass including delay interpolation, shifts, scalings and floor atoms (§3.4); use stable survival subtraction in the upper half
 
      This is the locally optimal proposal, so after resampling, the unreported upstream times are posterior samples. Downstream truncation alone would not achieve that.
    - **Pass event at minute *m*.** Same rule. The pass also becomes the segment's anchor (§9.2).
@@ -274,7 +281,7 @@ So an observed actual makes everything *before* it irrelevant to the future, up 
 **Status.** As N → ∞ this converges to the model's exact posterior (sequential importance resampling). At finite N it is a Monte Carlo approximation, and its error is measured by G7 (§15) and the conditioning tests (§14). It is not claimed to be exact.
 
 **Remaining model approximations**, each validated in G7 or Phase 3 rather than assumed:
-- *ponytail:* after a pass, the remaining running time is `sched_rem + Δ·(sched_rem/sched_run)` with Δ ~ R. Replace with a sub-segment model trained on live pass events once enough exist.
+- *ponytail:* a pass prior is the time-fraction point of the full segment R draw: `b = t_dep(A)`, `a = sched_to_pass/sched_run`, with s = 1, full-segment c and floor from §3.4. After pass k, draw `T_P + max(f_rem, sched_rem + r·(bias + Q_d′(u)))`, where `r = sched_rem/sched_run` and d′ is delay at the pass (slot 3+k). G7(c) compares this approximation against independent proportional sub-segment draws. If it fails, passes become display anchors only and are excluded from conditioning; record that decision in §18. Replace with a trained sub-segment model once live pass labels suffice.
 - One publication-lag function *S* per source, not per station.
 
 **Surprise.** Before weighting each actual, its PIT under the cloud is recorded. PIT < 0.001 or > 0.999 counts as a *surprise*. It flags the train "uncertain" for 30 min and feeds calibration monitoring.
@@ -285,7 +292,7 @@ Every particle shares the observed past, but futures fan out over up to 40 segme
 
 - Default **N = 10,000 per run**.
 - Phase 3 plots Monte Carlo error at P05/P50/P95 for N ∈ {1k, 5k, 10k, 50k, 100k}. The chosen N is the smallest whose MC error is ≤ 0.25 min at P05/P95 for the 6 h horizon.
-- Particles exist only during a run's replay, about 300 KB per run at N = 10k (plus transient ancestor arrays). **Memory is not the limit; replay CPU is** (A6).
+- Particles exist only during a run's replay: scalar state plus an `N × E` float32 event-time matrix (4NE bytes), gathered on resampling. G8 measures both memory and replay CPU; no fixed 300 KB claim includes all upstream event times.
 
 ### 4.3 Freight and disruptions
 
@@ -434,10 +441,10 @@ CREATE TABLE obs.fetch (                   -- one row per HTTP request: the load
   host text NOT NULL,
   purpose text NOT NULL,                   -- status|board|token|session|exceptions|schedule|search|history
   key text,
-  run_id bigint,                           -- set for status fetches; an ok row = a confirmation of that run's ETAs
+  run_id bigint,                           -- status poll age only; never confirms absent ETA keys
   started_at timestamptz NOT NULL, received_at timestamptz,
   http_status smallint,
-  outcome text NOT NULL,                   -- ok|empty|invalid|transport_error|challenge
+  outcome text NOT NULL,                   -- inflight|ok|empty|invalid|transport_error|challenge
   body_zstd bytea);                        -- retention §12
 CREATE INDEX ON obs.fetch (host, started_at);
 CREATE INDEX ON obs.fetch (run_id, received_at) WHERE outcome = 'ok';
@@ -448,7 +455,7 @@ CREATE TABLE obs.event_rev (               -- actual times; insert when new or c
   station text NOT NULL, occ smallint NOT NULL, kind obs.event_kind NOT NULL,
   actual_ts timestamptz NOT NULL,
   source obs.source NOT NULL,
-  fetch_id bigint REFERENCES obs.fetch,
+  fetch_id bigint REFERENCES obs.fetch ON DELETE SET NULL,
   received_at timestamptz NOT NULL);
 CREATE INDEX ON obs.event_rev (run_id, station, occ, kind, received_at);
 CREATE INDEX ON obs.event_rev (received_at);
@@ -464,30 +471,33 @@ CREATE VIEW obs.event AS SELECT * FROM obs.event_asof('infinity');   -- current 
 
 CREATE TABLE obs.pending_rev (             -- "not reported" as of received_at (a likelihood, §3.3)
   run_id bigint REFERENCES obs.run, station text, occ smallint, kind obs.event_kind,
-  fetch_id bigint REFERENCES obs.fetch, received_at timestamptz,
+  source obs.source NOT NULL,
+  fetch_id bigint REFERENCES obs.fetch ON DELETE SET NULL, received_at timestamptz,
   PRIMARY KEY (run_id, station, occ, kind, received_at));
 
-CREATE TABLE obs.ntes_eta_rev (            -- baseline only, never evidence; insert on change.
-                                           -- Freshness = latest ok status fetch for the run (obs.fetch.run_id), not this row's age
+CREATE TABLE obs.ntes_eta_rev (            -- baseline only; append EVERY present ETA on each ok status page
+                                           -- Freshness = this key's latest eligible received_at, including unchanged values
   run_id bigint REFERENCES obs.run, station text, occ smallint, kind obs.event_kind,
   expected_ts timestamptz NOT NULL,
-  fetch_id bigint REFERENCES obs.fetch, received_at timestamptz,
+  fetch_id bigint REFERENCES obs.fetch ON DELETE SET NULL, received_at timestamptz,
   PRIMARY KEY (run_id, station, occ, kind, received_at));
 
 CREATE TABLE obs.exception_rev (
   train text, start_date date, detail jsonb NOT NULL,
-  fetch_id bigint REFERENCES obs.fetch, received_at timestamptz,
+  fetch_id bigint REFERENCES obs.fetch ON DELETE SET NULL, received_at timestamptz,
   PRIMARY KEY (train, start_date, received_at));
 
 CREATE TABLE obs.history_daily (           -- quarantined until G4 records its meaning in §18
   train text, run_date date, station text, occ smallint,
   value_min smallint,                      -- NULL = cancelled/unknown
-  fetch_id bigint REFERENCES obs.fetch,
+  fetch_id bigint REFERENCES obs.fetch ON DELETE SET NULL,
   PRIMARY KEY (train, run_date, station, occ));
 
-CREATE TABLE obs.dirty_run (               -- written in the same txn as the evidence; consumed by engine
+CREATE SEQUENCE obs.dirty_seq;
+CREATE TABLE obs.dirty_run (               -- acknowledged only after frame publication
   run_id bigint PRIMARY KEY,
-  since timestamptz NOT NULL DEFAULT now());
+  since timestamptz NOT NULL DEFAULT now(),
+  ver bigint NOT NULL DEFAULT nextval('obs.dirty_seq')); -- every upsert sets a NEW ver
 
 CREATE TABLE obs.poll_queue (              -- written by engine, read by collector
   run_id bigint PRIMARY KEY REFERENCES obs.run,
@@ -504,7 +514,7 @@ CREATE TABLE ml.model (
   trained_at timestamptz NOT NULL,
   train_window daterange NOT NULL,
   path text NOT NULL,
-  tail jsonb NOT NULL,                     -- τ per class (§3.4)
+  tail jsonb NOT NULL,                     -- {"<class>": {"lo": τ_lo, "hi": τ_hi}} (§3.4)
   metrics jsonb NOT NULL,
   active boolean NOT NULL DEFAULT false);
 CREATE UNIQUE INDEX ON ml.model (role) WHERE active;
@@ -530,6 +540,7 @@ CREATE TABLE sim.forecast_issue (          -- prospective evaluation
   versions jsonb NOT NULL,
   halt_idx smallint[] NOT NULL,            -- schedule_stop.idx
   q real[] NOT NULL,                       -- 7 per halt: P5,P10,P25,P50,P75,P90,P95 arrival, run clock
+  b2 real[] NOT NULL,                      -- one per halt, run clock; NaN = ineligible at issue
   PRIMARY KEY (run_id, issued_at));
 
 CREATE TABLE sim.metric (
@@ -542,7 +553,7 @@ CREATE TABLE sim.metric (
 - `sim_frame`: wakes the API.
 - `model_changed`.
 
-None of these is relied on for delivery. Durable state is in `obs.dirty_run` and `sim.frame`, and every listener reconciles at start and every 5 s.
+None of these is relied on for delivery. Durable state is in `obs.dirty_run` and `sim.frame`; listeners LISTEN, commit and reconcile at startup, then the engine polls every 1 s and the API every 5 s. Every FK to `obs.fetch` is nullable with `ON DELETE SET NULL`; retention never cascades into evidence.
 
 ---
 
@@ -552,6 +563,8 @@ None of these is relied on for delivery. Durable state is in `obs.dirty_run` and
 - **One owner per host.** At start it takes `pg_try_advisory_lock(hashtext('http:' || host))`. A second process for the same host refuses to start. Backfill, schedule refresh and exceptions are tasks inside the collector, not separate processes.
 - **Spacing rule.** Request **starts** are ≥ `1/rate` apart, with no burst and one request in flight per host. At 1.0/s that guarantees ≤ 60 starts in any 60 s window (A5).
   - Every request goes through this rule and is logged in `obs.fetch`: pages, tokens, session pages, retries.
+  - Insert `outcome = 'inflight'` at request start, update on completion. On startup wait until the last logged start + 1/rate, including interrupted requests.
+  - Real httpx transports for NTES and etrain are built only with `MSYND_LIVE=1`; offline tests use `httpx.MockTransport`.
   - Rates: NTES 1.0/s, etrain 0.2/s (`NTES_RATE`, `ETRAIN_RATE`).
 - **Session.**
   - The landing page sets the cookie.
@@ -595,6 +608,7 @@ This is the honest baseline. Boards (if G2 shows they keep actual times) and unc
   - `cancelled`: from exceptions.
   - `expired_unknown`: no actual received for 12 h **and** now > scheduled destination arrival + max(12 h, 2 × last observed delay). This is never labelled "completed".
 - **Attributes.** `resched_min`, `diverted_from` and `part_cancelled` are columns, not states.
+- **Partial cancellation.** A cancelled tail ends simulation at the first cancelled halt; a cancelled head begins at the first operated halt with O applied to its scheduled departure. A cancelled middle is treated as a diversion.
 - **Dirty set.** Every evidence or lifecycle change upserts `obs.dirty_run` **in the same transaction**, then sends `NOTIFY dirty`.
 
 ### 7.4 Parsing
@@ -666,7 +680,7 @@ Not in the v1 baseline: anything about other trains (C1, C2 in §4.4) and OSM at
   - O and W start as *empirical* tables (per class and scheduled-dwell bucket) until there are enough labels for LightGBM.
 - **Neural candidate, on Kaggle GPU** (gated by G1/G6):
   - **Inputs:** the §8.2 features plus the run's observed sequence of segment deltas (up to 8, through a small GRU or transformer), plus *d*.
-  - **Head:** 302-way (R) or 181-way (W/O) softmax. Loss is cross-entropy on a Gaussian-smoothed target (σ = 1.5 bins) plus 0.5 × CRPS.
+  - **Head:** 302-way (R/O) or 181-way (W) softmax. Loss is cross-entropy on a Gaussian-smoothed target (σ = 1.5 bins) plus 0.5 × CRPS.
   - **Training:** AdamW, cosine schedule, mixed precision.
   - **Export:** ONNX, run on the VM with ONNX Runtime.
   - **Shipped only** if it passes §8.6 against the LightGBM model on identical cases.
@@ -738,12 +752,13 @@ Buckets are 30 min, 2 h, 6 h and 12 h, each ±25 %. A case falls in at most one 
   - bias generation
   - `FEATURE_VER`
   - *N*
+  - `params_hash`, covering per-source S, V_MAX and ESS threshold in `data/params.json`
 - **Input:** a run's evidence, i.e. the current revisions of its events and pending markers.
 - **Determinism.** *V* plus the evidence fully determines the run's output.
 
 ### 9.2 Per-particle state during replay
 
-Structure-of-arrays, about 30 B per particle:
+Structure-of-arrays plus an `N × E` float32 event-time matrix:
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -754,7 +769,9 @@ Structure-of-arrays, about 30 B per particle:
 | `anchor_km` | f32 | last pass anchor distance; `km(A_i)` if none |
 | `t_arr_b` | f32 | arrival at A_{i+1} |
 | `logw` | f32 | log-weight within the current block (§4.1); 0 after each resample |
-| `anc` | int32 | ancestor index, so display paths keep their reconstructed upstream times |
+| `times` | N × E f32 | full event-time matrix, gathered on every resample to preserve upstream paths |
+
+*ponytail:* matrix gathers copy upstream times; use ancestor indices only if G8 identifies copies as a bottleneck.
 
 **Draws.** Each event time comes from one draw per particle and block attempt:
 
@@ -786,7 +803,7 @@ Structure-of-arrays, about 30 B per particle:
 ### 9.4 Replaying a run
 
 The function `replay(run) → summaries, display paths`:
-1. **Load** *V*, the bound route, the current revisions, and the pending markers. Order the events canonically: route index, then kind.
+1. **Load** *V*, the bound route, and revisions as of the replay cutoff. Merge each event key under §3.3: latest actual wins, otherwise one latest pending marker across sources (status wins ties). Order canonically: route index, then kind.
 2. **Initialise** N particles. Origin departure = scheduled + `resched_min` + O-draw (O is the residual, §3.2). `resched_min` is as of the replay's evidence.
 3. **Run the blocks of §4.1 in route order.** Each evidence event (actual or not-reported marker) closes a block with propagate, weight, resample. A not-reported marker downstream of the last actual is handled the same way, so it also reweights the unreported upstream draws.
 4. **After the last evidence event:** draw forward without weights to the destination, or to `diverted_from`.
@@ -803,7 +820,7 @@ The function `replay(run) → summaries, display paths`:
 | Trigger | Work |
 |---|---|
 | Startup | LISTEN, commit, rebuild all active runs from the database, write a full frame |
-| `NOTIFY dirty`, or every 1 s | `DELETE FROM obs.dirty_run RETURNING run_id` (atomic consume, commit-safe), replay those runs, then **immediately** append one **delta frame** with their complete per-run payloads and tombstones for retired runs, and `NOTIFY sim_frame` |
+| `NOTIFY dirty`, or every 1 s | Read `run_id, ver FROM obs.dirty_run ORDER BY since LIMIT 200`, replay, then in **one transaction** insert the delta frame, delete only rows whose `(run_id, ver)` still match, and `NOTIFY sim_frame`. A concurrent update with a new ver survives |
 | Every 5 min | Append a **full frame** |
 | Every 30 s | Recompute poll priorities and upsert `obs.poll_queue` |
 | Hourly | Append `sim.forecast_issue` for running runs |
@@ -812,7 +829,11 @@ The function `replay(run) → summaries, display paths`:
 **Latency budget for A6 (p95 ≤ 5 s):**
 - wake on NOTIFY, with the 1 s poll as fallback
 - a consumed batch is capped at 200 runs (≈ 1 s of replay on 4 cores); the rest is left for the next pass
-- frame write and API fan-out
+- frame write and API read (server side before WebSocket send)
+
+Transient DB or IO failure acknowledges nothing, so dirty rows are retried. A deterministic replay exception publishes run state `error` and metric `replay_error`, then acknowledges the matching version in the publication transaction.
+
+Idle notification test: evidence commit to API reading its delta < 2 s. With NOTIFY disabled: ≤ 1 s engine poll + 5 s API poll + replay time. This fallback bound is reported separately from the normal-notification A6 target.
 
 A burst larger than that (a model change, a restart) is excluded from A6 and measured as "full rebuild".
 
@@ -924,7 +945,8 @@ A burst larger than that (a model change, a restart) is excluded from A6 and mea
    | `obs.fetch.body_zstd` for `ok` responses | 24 h |
    | Bodies for non-`ok` responses, plus a 1 % `ok` sample | 14 days |
    | `obs.fetch` rows | 180 days |
-   | `obs.pending_rev`, `obs.ntes_eta_rev` | 180 days |
+   | `obs.pending_rev` | 180 days |
+   | `obs.ntes_eta_rev` | 35 days; issued B2 retained in `sim.forecast_issue.b2` |
    | `sim.forecast_issue` | 120 days |
    | `sim.frame` | 15 min (pruned by the engine) |
    | `obs.event_rev`, `obs.run`, `ref.*`, `ml.*` | kept; small, see §13 |
@@ -956,7 +978,7 @@ A burst larger than that (a model change, a restart) is excluded from A6 and mea
 | Fetch bodies: 24 h of all `ok` responses at ~86k requests per day × zstd size | measure (≤ 15 GB assumed) |
 | Fetch bodies: 14-day non-`ok` set plus sample | ≤ 5 GB |
 | Forecast issues | ~3–4 GB (120 days) |
-| Pending and ETA revisions | ~3 GB (180 days) |
+| Pending and ETA revisions | Measure Phase 2 row volume and indexed size; pending 180 days, per-key ETA confirmations 35 days |
 | PMTiles India | 1–3 GB |
 | Images | ~5 GB |
 | Local dumps | ~2 × 3 GB |
@@ -990,8 +1012,8 @@ Each item names what must fail if the logic breaks.
 | Determinism | The same evidence in one batch or two gives identical outputs. Restart gives identical outputs |
 | Conditioning (G7 suite) | Small enumerable models (§15 G7): engine posteriors match exact enumeration within MC tolerance, including the review's 2/3 case. Observed actuals: every particle inside the minute window. Invariants: speed ≤ `V_MAX`, dwell ≥ 0, monotone times |
 | As-of query | Revision received 10:00 (time 09:50), corrected 10:30 (time 09:55): `event_asof(10:15)` returns 09:50; the current view returns 09:55 |
-| NTES baseline | Unchanged ETA first seen 09:00, re-confirmed by an `ok` fetch at 10:00: eligible at 10:10 |
-| Rescheduling | Scheduled 100, rescheduled +20, actual 130 → O label 10; initialisation median ≈ 130 |
+| NTES baseline | Unchanged-present ETA at 10:00 is eligible at 10:10; a missing key first seen 09:00 stays stale. Changed and post-cutoff confirmations, tokens and sessions tested separately |
+| Rescheduling | Scheduled 100, rescheduled +20, actual 130 → O label 10; initialisation median ≈ 130. +60, actual 150 → signed O = −10 through labels, conversion, sampling and initialisation |
 | Frame latency | Evidence committed → delta frame visible to the API in < 2 s with an idle engine |
 | Distribution format | Overflow draws are finite and follow τ. LightGBM→CDF reproduces its quantiles to within half a bin. The interpolation test |
 | Dispatcher | Simulated clock with tokens, retries and session recovery: ≤ 60 starts in any 60 s window. A second process cannot take the host lock |
@@ -999,6 +1021,7 @@ Each item names what must fail if the logic breaks.
 | WebSocket | A missed `gen` triggers a full resync. Slow-client coalescing. A tombstone removes a run |
 | `pos()` parity | Python and TypeScript on the shared fixture |
 | Restore | Dump, restore into a fresh container, rebuild; frames equal the original's for the same evidence |
+| Retention | Deleting an old referenced fetch sets all evidence fetch_id references NULL without deleting evidence |
 | Replay day (end to end) | A recorded day of fetch bodies goes through parsers and engine at 60×. Checks: A1, A6, `invalid` < 1 %, no unhandled exceptions |
 | Model gate | §8.6 promotion is the acceptance test for every model |
 
@@ -1013,13 +1036,13 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
 | Gate | Work | If it fails |
 |---|---|---|
 | **G1 Data use** | Record terms and licences, with retrieval date, in `docs/sources.md`: NTES (incl. the Disclaimer page), etrain, the GTFS repo, OSM (ODbL), Protomaps. Cover automated collection, model training, export to Kaggle, and portfolio display | Change source or scope. *User decision*: e.g. no Kaggle export (train on the VM only), or no etrain backfill |
-| **G2 NTES protocol and capacity** | 7-day pilot at ≤ 0.3 req/s. Measure: *h* (tokens and sessions), token lifetime, empty-200 behaviour, the **publication-lag distribution *S*** (poll ≥ 40 runs every 2 min around their expected events; lag = first `received_at` showing the actual − actual time, interval-censored by the poll spacing; tail and never-published share ε from completed runs), **"not reported" vs "not happened"** (cases where a page showed an event as pending after its later-published actual time — their share is the reason S is soft; any source with zero such cases over the pilot is a candidate for a hard bound, recorded in §18), board actual-time retention (follow ≥ 30 train-station pairs through arrival, dwell and departure; busy and quiet stations, midnight, late trains), board yield per request, pending semantics, passing-station prevalence (50 trains), and the active run count by hour | Sets *h*, *S* per source, board share, *T_max* and *F*. If the freshness achievable at 1 req/s is unacceptable, the *user decides*: accept it, change the rate, change the source, or reduce scope |
+| **G2 NTES protocol and capacity** | 7-day pilot at <= 0.3 req/s. At least 40 distinct runs over the week in rotating cohorts; simultaneous n_sim <= floor(0.7 * 0.3 * 120 / h), i.e. 12 at h = 2, reserving 30 % for boards, exceptions, sessions and retries. Measure h, token lifetime, empty-200 behaviour, per-source publication-lag S using interval-censored lags; unfinished runs are right-censored, not never-published. Report epsilon with a 95 % Wilson CI. A hard bound requires an independently documented source guarantee, never zero pilot counterexamples. Rerun G7(d) at the epsilon CI upper bound and tail scale x2. Measure board actual retention on >= 30 train-station pairs (busy/quiet, midnight, late), board yield, pending semantics, passing prevalence (50 trains) and hourly active-run count | Sets h, S per source, board share, T_max and F. Unacceptable freshness is a user decision: accept, change rate/source or reduce scope |
 | **G3 Fixtures** | Committed fixtures for every page type, including edge cases: cancelled, diverted, rescheduled, multi-day, empty | — |
 | **G4 etrain meaning** | After G2 has ≥ 2 weeks of live NTES data and etrain covers those dates: for ≥ 20 trains, compare etrain values against NTES actual arrivals and departures where they differ by ≥ 5 min. Cover origin, intermediate long dwell, destination, overnight and multi-day, early running, non-daily, repeated stations. Settle `run_date` semantics | History stays quarantined. Cold start uses the live empirical fallback (§3.2). Not blocking: G4 may finish during Phase 3 |
 | **G5 Platform** | Get the Oracle A1 allocation. Run the pinned arm64 image smoke test (imports, a LightGBM and ONNX round-trip). Measure the storage budget from G2 bodies. Run a restore drill into a fresh container | Fix the image, or use the other region. Development continues on the user's PC meanwhile |
 | **G6 Kaggle** (only if G1 allows export) | Private dataset and verified privacy. CLI push, status and output. GPU confirmed. `torch`/`onnx`/`lightgbm` import offline (otherwise phone-verify and enable internet, or ship wheels in the dataset) | Train on the VM only; drop the neural candidate |
-| **G7 Conditioning correctness** (before G8) | Run the real `replay()` on small discrete models whose posteriors can be enumerated exactly: 2–4 segments, 2–5 outcomes per draw, scripted evidence. Compare every reported marginal (unobserved upstream times, next-event and destination quantiles) with enumeration, at N = 10k and 100k; tolerance 4 MC standard errors. Cases: (a) the review's not-reported example (2/3); (b) an actual with an unreported halt before it (bridge posterior); (c) a pass event mid-segment, with the pass anchor's error against a fine-grained reference model reported, not just checked; (d) soft publication lag with a long tail and ε > 0; (e) evidence that is infeasible under the floor (handled, flagged, no NaNs); (f) a mix of actuals and not-reported markers across 3 blocks; (g) degenerate weights (ESS fallback triggers, still within tolerance) | Fix the engine; Phase 4 doesn't start until it passes |
-| **G8 Engine profile** | Prototype §9.4 with LightGBM on synthetic runs, on the VM with all services running: per-run replay p50/p95/p99, full rebuild, frame build, commit-to-frame latency | Apply §9.7 to the measured bottleneck |
+| **G7 Conditioning correctness** (before G8) | Real replay on 2-4 segment models, 2-5 outcomes per draw, N = 10k and 100k. Use 20 independent replicates salted into the RNG key; compare >= 5 CDF grid points, discrete marginals and continuous quantiles. Tolerance = 4*sqrt(se_rep**2 + se_ref**2), se_rep = sd/sqrt(20). Reference: exact enumeration for bin-aligned conditions; otherwise iid likelihood weighting over >= 2 M prior samples with computed SE, a different algorithm from the engine. Cases: (a) upstream 2/3; (b) actual bridge; (c) pass versus independent proportional sub-segment reference: next-halt P10/P50/P90 error <= max(2 min, 10 % of reference P10-P90 width), MC spread separate from mean approximation error; failure excludes passes from conditioning and is logged in section 18; (d) soft publication lag with long tail and epsilon > 0, plus epsilon CI upper bound and tail x2; (e) infeasible floor override, flagged, no NaNs; (f) three mixed blocks; (g) ESS fallback; also tiny positive windows, floor atoms, repeated/cross-source pending and actual precedence | Fix conditioning; Phase 4 waits. Failed pass approximation uses display anchors only |
+| **G8 Engine profile** | Prototype §9.4 with LightGBM on synthetic runs, on the VM with all services running: per-run replay p50/p95/p99, full rebuild, frame build, evidence-commit-to-API-read latency | Apply §9.7 to the measured bottleneck |
 
 ### Phase 1 — Static network and identity (≈ 1 week)
 - Schedule and route versions, stations, OSM geometry with confidence, overrides.
@@ -1037,6 +1060,7 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
   - Evidence-age distribution and A8 reported.
   - `invalid` < 1 %.
   - A restore drill passes.
+  - Per-key ETA confirmation row volume and indexed storage size measured; replace the provisional storage budget.
 
 ### Phase 3 — Baseline models and evaluation (runs while live data accumulates)
 - Features with the causal rules, LightGBM R/W/O, the empirical fallbacks, and C if G4 passes.
@@ -1147,3 +1171,19 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
 | R2-3 As-of SQL order; ETA staleness | `obs.event_asof(t)` filters before picking the latest revision; ETA freshness from `ok` status fetches (§3.3, §6, §14) |
 | R2-4 Rescheduling counted twice | O is a residual against `scheduled + resched_min`, with a regression test (§3.2, §8.1, §9.4, §14) |
 | R2-5 Frame cadence vs A6 | Delta published right after each replay batch; 1 s fallback poll; batch cap; latency budget (§9.5) |
+
+**Third review (v2.1 -> v2.2), R3 amendments**
+
+| Finding / addition | Amendment and resolution |
+|---|---|
+| R3-1 Effective conditional law | A2: left-limit effective CDF including floors, scaling, bias and quantile interpolation; stable upper-tail mass; any positive window valid (section 3.4, section 4.1) |
+| R3-2 Signed origin residual | A1: SIGNED 302 bins for R/O, NONNEG 181 for W; two exponential tails, floored LightGBM scales and matching neural heads (section 3.2, section 3.4, section 6, section 8.4) |
+| R3-3 False ETA refresh | A3: append every present ETA per key; missing keys never refresh; 35-day retention and issued B2 array; measured row volume (section 3.3, section 6, sections 12-15) |
+| R3-4 Pilot capacity and tail | A4: rotating >= 40 distinct runs, bounded simultaneous cohort, 30 % reserve, censoring, Wilson CI, independent guarantee for hard bound, sensitivity (section 3.3, section 15 G2/G7) |
+| R3-5 Fetch retention | A5: every fetch FK nullable ON DELETE SET NULL, 180-day fetch rows, no cascade into evidence (section 6, section 12, section 14) |
+| Repeated/cross-source pending | A6: latest actual wins, otherwise one latest marker across sources, status tie-break, source-specific S (section 3.3, section 6, section 9.4) |
+| Pass approximation | A7: defined time-fraction prior and remainder, quantitative next-halt acceptance, display-only fallback (section 4.1, section 15 G7) |
+| Monte Carlo tolerance | A8: 20 salted replicates, CDFs/marginals/quantiles, combined SE, independent reference (section 15 G7) |
+| Dirty batches | A9: fresh sequence ver on upsert, bounded read, matching-version acknowledgement in frame/NOTIFY transaction, transient retry and deterministic error state (section 6, section 9.5) |
+| Latency endpoint | A10: evidence commit to server-side API read; idle NOTIFY < 2 s, no-NOTIFY <= 1+5 s polls plus replay (section 1 A6, section 9.5, section 10, section 14) |
+| Restart, versions, state, cancellation | A11: inflight start logging and restart spacing; params_hash; gathered N x E matrix; cancelled head/tail/middle rules (section 6, section 7.1, section 7.3, sections 9.1-9.2) |
