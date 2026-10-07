@@ -67,7 +67,7 @@ class Eff:
             raise ValueError("invalid probability masses")
         if not 0 <= self.j < len(m) or not 0 <= self.w <= 1 or (self.w and self.j+1 >= len(m)):
             raise ValueError("invalid delay interpolation")
-        if any(not math.isfinite(v) for v in (self.tau_lo,self.tau_hi,self.b,self.a,self.c,self.s)) or min(self.tau_lo,self.tau_hi,self.a,self.s) <= 0 or math.isnan(self.f) or self.f == math.inf:
+        if any(not math.isfinite(v) for v in (self.tau_lo,self.tau_hi,self.b,self.a,self.c,self.s)) or min(self.tau_lo,self.tau_hi,self.s) <= 0 or self.a < 0 or math.isnan(self.f) or self.f == math.inf:
             raise ValueError("invalid effective parameters")
         below = np.cumsum(m, axis=1)
         above = np.cumsum(m[:, ::-1], axis=1)[:, ::-1].copy()
@@ -109,11 +109,15 @@ def _raw_interp(e, p, upper):
 
 @njit
 def _eff_q(e, p, upper):
+    if e[9] == 0:
+        return e[8]
     return e[8]+e[9]*max(e[10],e[11]+e[12]*_raw_interp(e,p,upper))
 
 
 @njit
 def _cdf(e, x):
+    if e[9] == 0:
+        return (0.0, 1.0) if x <= e[8] else (1.0, 0.0)
     if x <= e[8]+e[9]*e[10]:
         return 0.0, 1.0
     y = (x-e[8])/e[9]

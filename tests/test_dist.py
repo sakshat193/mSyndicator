@@ -126,3 +126,14 @@ def test_deep_overflow_tail_window_sampling():
     expected_excess = tau - width/np.expm1(width/tau)
     assert xs.mean() == pytest.approx(lo+expected_excess, rel=1e-6, abs=0)
     assert (xs-lo).mean() == pytest.approx(expected_excess, rel=1e-6, abs=0)
+
+
+def test_zero_pass_fraction_is_constant_event():
+    m = np.zeros(SIGNED_NB); m[0] = .5; m[-1] = .5
+    e = Eff(m, True, 4, 7, 0, 0, 125, 0, 6, 100, 1)
+    assert eff_quantile(e, 0) == 125 and eff_quantile(e, 1) == 125
+    assert eff_cdf_left(e, 125) == (0, 1)
+    assert eff_cdf_left(e, 126) == (1, 0)
+    assert eff_window_mass(e, 125, 126) == 1
+    assert eff_window_mass(e, 124, 125) == 0
+    assert eff_sample_window(e, 125, 126, .5) == 125
