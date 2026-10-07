@@ -691,6 +691,7 @@ forward-draw nxt .. (stop_event or last) without weights; outputs from all N row
 - intermediate `dep`: b = T[arr], W at level = arr delay.
 - `arr` at B: b = T[dep A], or the pass rule (A7) if passes exist; R at level = dep delay at A, or the delay at the pass; f = 60·km/v_max; c = sched_run + bias.
 - `pass`: A7 with a = the time fraction.
+- Chained remainder (ruling, G7-accepted): anchor Pᵢ (P₀ = dep A); `sched_rem = max(0.1, sched(B) − sched(Pᵢ))`, `r = sched_rem/sched_run`, `f_rem = 60·(km_B − km_Pᵢ)/v_max`, R at the delay at Pᵢ; `b = T_Pᵢ`, `c = sched_rem + r·bias`, `s = r`; `a = 1` for B, `a = clip((sched(Pᵢ₊₁) − sched(Pᵢ))/sched_rem, 0, 1)` for the next pass.
 
 Log-weights use log-sum-exp. Display paths use strided rows `j*N//K`.
 
@@ -785,7 +786,7 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 **Interfaces:**
 - `create_runs(conn, now) -> int` covers the next 24 h of origin dates (IST), using versions valid on the date with a matching `days_of_run` bit, minus cancellations, bound to the latest route version.
 - `expire_runs(conn, now) -> int` applies: no actual for 12 h **and** now > scheduled destination arrival + max(12 h, 2 × last observed delay).
-- `apply_exception(conn, row, fetch) -> None` handles cancelled, `resched_min`, `diverted_from` and `part_cancelled`, then calls `mark_dirty`.
+- `apply_exception(conn, row, fetch) -> None` handles cancelled, `resched_min`, `diverted_from` and `part_cancelled`, then calls `mark_dirty`. Each `obs.exception_rev.detail` it writes carries the run's **full cumulative** exception state (resched, diversion, part_cancelled), because evidence assembly (Task 16) reads the latest detail as complete state.
 
 - [ ] Tests:
   - `test_creates_only_matching_weekdays`;
