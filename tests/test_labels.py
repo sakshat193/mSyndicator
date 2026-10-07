@@ -37,3 +37,18 @@ def test_labels_only_matured(db):
     assert len(result) == 1 and result[0]["role"] == "origin"
     db.execute("update obs.run set lifecycle='running' where id=%s", (run,))
     assert build_live_labels(db, now).num_rows == 0
+
+
+@pytest.mark.db
+def test_label_resched_asof_receipt(db):
+    received = datetime(2026, 10, 7, 1, tzinfo=timezone.utc)
+    actual = datetime(2026, 10, 6, 19, tzinfo=timezone.utc)  # 00:30 IST: residual 30
+    run = make_run(db)
+    db.execute("update obs.run set lifecycle='completed', resched_min=60 where id=%s", (run,))
+    insert_event(db, run, "MMCT", 1, "dep", actual, received)
+    db.execute("""insert into obs.exception_rev(train,start_date,detail,received_at)
+        values ('12951','2026-10-07','{"resched_min":60}',%s)""",
+        (received + timedelta(minutes=1),))
+    assert build_live_labels(db, actual + timedelta(hours=7)).to_pylist() == [
+        {"run_id": run, "role": "origin", "idx": 0, "value": 30.0}
+    ]
