@@ -6,6 +6,8 @@ import numpy as np
 
 SIGNED_LO, SIGNED_HI, SIGNED_NB = -60.0, 240.0, 302
 NONNEG_LO, NONNEG_HI, NONNEG_NB = 0.0, 180.0, 181
+SIGNED_EDGES = np.arange(-60.0, 241.0)
+NONNEG_EDGES = np.arange(0.0, 181.0)
 LEVELS = np.array([-30,-10,0,5,10,15,20,30,45,60,90,120,180,240,360,600], dtype=float)
 QUANTILES = np.array([.02,.05,.1,.25,.5,.75,.9,.95,.98])
 
@@ -83,17 +85,17 @@ def _raw_q(m, below, above, signed, tau_lo, tau_hi, p, upper):
     if upper:
         if m[-1] > 0 and p <= m[-1]:
             return high + tau_hi*(math.log(m[-1])-math.log(p)) if p > 0 else math.inf
-        for i in range(len(m)-2, offset-1, -1):
-            if m[i] > 0 and p < above[i]:
-                return low+(i-offset)+1-(p-above[i+1])/m[i]
+        i = len(m)-1-np.searchsorted(above[::-1], p, side="right")
+        if offset <= i < len(m)-1:
+            return low+(i-offset)+1-(p-above[i+1])/m[i]
         u = 1-p
         return low+tau_lo*(math.log(u)-math.log(m[0])) if signed and u > 0 else -math.inf
     if signed and m[0] > 0 and p < m[0]:
         return low+tau_lo*(math.log(p)-math.log(m[0])) if p > 0 else -math.inf
-    for i in range(offset, len(m)-1):
-        if m[i] > 0 and p < below[i]:
-            previous = below[i-1] if i else 0.0
-            return low+(i-offset)+(p-previous)/m[i]
+    i = np.searchsorted(below, p, side="right")
+    if offset <= i < len(m)-1:
+        previous = below[i-1] if i else 0.0
+        return low+(i-offset)+(p-previous)/m[i]
     v = 1-p
     return high+tau_hi*(math.log(m[-1])-math.log(v)) if m[-1] > 0 and v > 0 else math.inf
 
@@ -115,6 +117,24 @@ def _eff_q(e, p, upper):
 
 
 @njit
+def _raw_cdf(m, below, above, signed, lo, hi, target):
+    low, high = (-60.0, 240.0) if signed else (0.0, 180.0)
+    if target < low:
+        p = m[0]*math.exp((target-low)/lo) if signed else 0.0
+        return p, 1-p
+    if target >= high:
+        p = m[-1]*math.exp((high-target)/hi)
+        return 1-p, p
+    edges = SIGNED_EDGES if signed else NONNEG_EDGES
+    bin_idx = np.searchsorted(edges, target, side="right")-1
+    i = bin_idx+(1 if signed else 0)
+    fraction = target-edges[bin_idx]
+    fl = (below[i-1] if i else 0.0)+fraction*m[i]
+    sl = above[i+1]+(1-fraction)*m[i]
+    return fl, sl
+
+
+@njit
 def _cdf(e, x):
     if e[9] == 0:
         return (0.0, 1.0) if x <= e[8] else (1.0, 0.0)
@@ -124,12 +144,14 @@ def _cdf(e, x):
     if y <= e[10]:
         return 0.0, 1.0
     target = (y-e[11])/e[12]
+    m, below, above, signed, lo, hi, j, w, b, a, f, c, s = e
+    if w == 0:
+        return _raw_cdf(m[j], below[j], above[j], signed, lo, hi, target)
     if target <= _raw_interp(e,0.0,False):
         return 0.0, 1.0
     if target >= _raw_interp(e,0.0,True):
         return 1.0, 0.0
-    m, below, above, signed, lo, hi, j, w, b, a, f, c, s = e
-    other = j+1 if w > 0 else j
+    other = j+1
     # Joint exponential tails have an exact inverse in their stable coordinate.
     upper_mass = min(m[j,-1], m[other,-1])
     if upper_mass > 0 and target >= _raw_interp(e,upper_mass,True):
@@ -144,9 +166,15 @@ def _cdf(e, x):
             cdf = math.exp((target-anchor)/lo)
             return cdf, 1-cdf
     upper = target > _raw_interp(e,.5,False)
-    left, right = 0.0, .5
+    first = _raw_cdf(m[j], below[j], above[j], signed, lo, hi, target)
+    second = _raw_cdf(m[other], below[other], above[other], signed, lo, hi, target)
+    coordinate = 1 if upper else 0
+    left = max(0.0, min(first[coordinate], second[coordinate]))
+    right = min(.5, max(first[coordinate], second[coordinate]))
     for _ in range(60):
         mid = (left+right)/2
+        if mid == left or mid == right:
+            break
         q = _raw_interp(e,mid,upper)
         if (q < target) != upper:
             left = mid
@@ -157,20 +185,24 @@ def _cdf(e, x):
 
 
 @njit
-def _window(e, low, high):
-    if high <= low:
-        return 0.0
-    fl, sl = _cdf(e,low)
-    fh, sh = _cdf(e,high)
+def _window_mass(low_cdf, high_cdf):
+    fl, sl = low_cdf
+    fh, sh = high_cdf
     return max(0.0, sl-sh if fl >= .5 else fh-fl)
 
 
 @njit
-def _sample(e, low, high, u):
-    mass = _window(e,low,high)
+def _window(e, low, high):
+    if high <= low:
+        return 0.0
+    return _window_mass(_cdf(e,low), _cdf(e,high))
+
+
+@njit
+def _sample(e, low, high, u, low_cdf, mass):
     if mass <= 0:
         raise ValueError("zero-mass observation window")
-    fl, sl = _cdf(e,low)
+    fl, sl = low_cdf
     x = _eff_q(e,sl-u*mass,True) if fl >= .5 else _eff_q(e,fl+u*mass,False)
     return min(max(low,x),np.nextafter(high,-math.inf))
 
@@ -192,4 +224,6 @@ def eff_window_mass(e, lo, hi):
 def eff_sample_window(e, lo, hi, u):
     if not 0 <= u < 1:
         raise ValueError("conditional uniform outside [0,1)")
-    return _sample(e.args, lo, hi, u)
+    low_cdf = _cdf(e.args, lo)
+    mass = _window_mass(low_cdf, _cdf(e.args, hi)) if hi > lo else 0.0
+    return _sample(e.args, lo, hi, u, low_cdf, mass)

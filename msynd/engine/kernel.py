@@ -3,23 +3,22 @@ import math
 from numba import njit
 import numpy as np
 
-from msynd.dist import _cdf, _eff_q, _sample, _window, level_weight
+from msynd.dist import _cdf, _eff_q, _sample, _window_mass, level_weight
 from msynd.rng import uniform
 
 
 @njit
-def eff_for(e, row, route, tables, v_max, resched):
+def event_eff(e, route, tables, v_max, resched):
     kind, sched, km, seg, halt, anchor, dest, departure = route
     r, rb, ra, rtau, bias, w, wb, wa, wtau, o, ob, oa, otau = tables
     if e == 0:
-        return (o, ob, oa, True, otau[0], otau[1], 0, 0.0,
-                sched[e], 1.0, -math.inf, float(resched), 1.0)
+        return ((o, ob, oa, True, otau[0], otau[1], 0, 0.0,
+                 sched[e], 1.0, -math.inf, float(resched), 1.0), -1, 0.0)
     p = anchor[e]
-    j, weight = level_weight(float(row[p])-sched[p])
     if kind[e] == 2:  # intermediate departure: NONNEG dwell
         h = halt[e]
-        return (w[h], wb[h], wa[h], False, 1.0, wtau[h], j, weight,
-                float(row[p]), 1.0, 0.0, 0.0, 1.0)
+        return ((w[h], wb[h], wa[h], False, 1.0, wtau[h], 0, 0.0,
+                 0.0, 1.0, 0.0, 0.0, 1.0), p, sched[p])
     end, segment = dest[e], seg[e]
     sched_run = sched[end]-sched[departure[e]]
     # ponytail: floor avoids s=0 when a pass shares B's minute; upgrade: finer published pass times.
@@ -27,8 +26,24 @@ def eff_for(e, row, route, tables, v_max, resched):
     scale = sched_rem/sched_run
     a = min(1.0, max(0.0, (sched[e]-sched[p])/sched_rem)) if kind[e] == 1 else 1.0
     floor = 60*(km[end]-km[p])/v_max
-    return (r[segment], rb[segment], ra[segment], True, rtau[segment, 0], rtau[segment, 1], j, weight,
-            float(row[p]), a, floor, sched_rem+scale*bias[segment], scale)
+    return ((r[segment], rb[segment], ra[segment], True, rtau[segment, 0], rtau[segment, 1], 0, 0.0,
+             0.0, a, floor, sched_rem+scale*bias[segment], scale), p, sched[p])
+
+
+@njit
+def particle_eff(event, row):
+    eff, p, sched = event
+    if p < 0:
+        return eff
+    m, below, above, signed, lo, hi, j, weight, b, a, f, c, s = eff
+    b = float(row[p])
+    j, weight = level_weight(b-sched)
+    return m, below, above, signed, lo, hi, j, weight, b, a, f, c, s
+
+
+@njit
+def eff_for(e, row, route, tables, v_max, resched):
+    return particle_eff(event_eff(e, route, tables, v_max, resched), row)
 
 
 @njit
@@ -39,8 +54,9 @@ def prior(eff, u):
 @njit
 def draw(times, start, stop, route, tables, v_max, resched, key, attempt=0):
     for e in range(start, stop+1):
+        event = event_eff(e, route, tables, v_max, resched)
         for i in range(len(times)):
-            eff = eff_for(e, times[i], route, tables, v_max, resched)
+            eff = particle_eff(event, times[i])
             times[i, e] = prior(eff, uniform(key, i, e, attempt))
 
 
@@ -60,14 +76,17 @@ def block(times, start, e, actual, minute, lag_table, route, tables, v_max, resc
     draw(times, start, e-1, route, tables, v_max, resched, key, attempt)
     logw = np.full(len(times), -math.inf)
     pit = 0.0
+    event = event_eff(e, route, tables, v_max, resched)
     for i in range(len(times)):
-        eff = eff_for(e, times[i], route, tables, v_max, resched)
+        eff = particle_eff(event, times[i])
         u = uniform(key, i, e, attempt)
         if actual:
-            weight = _window(eff, minute, minute+1)
-            pit += _cdf(eff, minute)[0]+.5*weight
+            low_cdf = _cdf(eff, minute)
+            high_cdf = _cdf(eff, minute+1)
+            weight = _window_mass(low_cdf, high_cdf)
+            pit += low_cdf[0]+.5*weight
             if weight > 0:
-                value = np.float32(_sample(eff, minute, minute+1, u))
+                value = np.float32(_sample(eff, minute, minute+1, u, low_cdf, weight))
                 # Storage must preserve the observation's half-open window too.
                 if value >= minute+1:
                     value = np.nextafter(np.float32(minute+1), np.float32(-math.inf))
