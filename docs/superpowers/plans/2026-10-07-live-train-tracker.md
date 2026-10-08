@@ -786,7 +786,8 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 **Interfaces:**
 - `create_runs(conn, now) -> int` covers the next 24 h of origin dates (IST), using versions valid on the date with a matching `days_of_run` bit, minus cancellations, bound to the latest route version.
 - `expire_runs(conn, now) -> int` applies: no actual for 12 h **and** now > scheduled destination arrival + max(12 h, 2 × last observed delay).
-- `apply_exception(conn, row, fetch) -> None` handles cancelled, `resched_min`, `diverted_from` and `part_cancelled`, then calls `mark_dirty`. Each `obs.exception_rev.detail` it writes carries the run's **full cumulative** exception state (resched, diversion, part_cancelled), because evidence assembly (Task 16) reads the latest detail as complete state.
+- `apply_exception(conn, row, fetch) -> None` handles cancelled, `resched_min`, `diverted_from` and `part_cancelled`, then calls `mark_dirty`.
+- `obs.exception_rev.detail` is `{"kind": "cancelled"|"part_cancelled"|"rescheduled"|"diverted"|"none", ...}` (Task 10 `ExceptionRow.kind`; `none` withdraws an exception). A (train, start_date) is fully cancelled as of t when its latest revision with `received_at ≤ t` has `kind = 'cancelled'`; any later revision of another kind clears it (monitor, 2026-10-08). Each `obs.exception_rev.detail` it writes carries the run's **full cumulative** exception state (resched, diversion, part_cancelled), because evidence assembly (Task 16) reads the latest detail as complete state.
 
 - [ ] Tests:
   - `test_creates_only_matching_weekdays`;
@@ -842,7 +843,7 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 **Files:** create `msynd/ops/report.py`, `tests/ops/test_report.py`.
 
 **Interface:** `python -m msynd.ops.report {a1,a2,a5,a8,invalid,phase2} --since --until --out docs/gates/<name>.md`. It computes:
-- A1: the coverage triple — scheduled-active, discovered and freshly-observed runs, where the scheduled-active denominator comes from our own inventory;
+- A1 (cancellation per the Task 21 `exception_rev.detail` rule): the coverage triple — scheduled-active, discovered and freshly-observed runs, where the scheduled-active denominator comes from our own inventory;
 - A2: p50/p90 of (now − last `received_at`) by class and zone, where a run's zone is that of its last event's station (origin zone before any event; spec §18, 2026-10-08);
 - A5: the maximum number of starts in any 60 s window per host, from `obs.fetch` with a SQL window function;
 - A8: missing-event rate by class;
