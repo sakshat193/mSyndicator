@@ -122,7 +122,7 @@ class Dispatcher:
                     outcome, retry_after = "transport_error", self._retry_after(response)
                 elif status == 200 and not body.strip():
                     outcome = "empty"
-                elif not 200 <= status < 300:
+                elif not 200 <= status < 300 and self.classify is None:
                     outcome = "invalid"
                 else:
                     outcome = self.classify(purpose, response) if self.classify else "ok"

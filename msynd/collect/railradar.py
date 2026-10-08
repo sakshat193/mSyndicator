@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 import json
 import math
@@ -8,51 +7,12 @@ import re
 import httpx
 
 from msynd.collect.dispatcher import Dispatcher, real_transport
+from msynd.collect.status import Event, InvalidResponse, ParsedStatus, PassingStation, Pending
 from msynd.db import connect
 
 HOST = "api.railradar.in"
 BASE_URL = f"https://{HOST}/v1"
 IST = timezone(timedelta(hours=5, minutes=30))
-
-
-class InvalidResponse(ValueError):
-    pass
-
-
-@dataclass(frozen=True)
-class Event:
-    station: str
-    occ: int
-    kind: str
-    actual_ts: datetime
-
-
-@dataclass(frozen=True)
-class Pending:
-    station: str
-    occ: int
-    kind: str
-
-
-@dataclass(frozen=True)
-class PassingStation:
-    station: str
-    occ: int
-    dist_km: float
-    sched_off: float | None
-
-
-@dataclass(frozen=True)
-class ParsedStatus:
-    train: str
-    start_date: date
-    status: str
-    last_updated_at: datetime
-    events: tuple[Event, ...]
-    pending: tuple[Pending, ...]
-    passing_stations: tuple[PassingStation, ...]
-    exceptions: tuple[dict, ...]
-    flags: tuple[str, ...]
 
 
 def timestamp(value):
@@ -146,7 +106,7 @@ def parse_status(body, train, start):
 
 
 def classify(purpose, response):
-    if purpose != "status":
+    if purpose != "status" or not 200 <= response.status_code < 300:
         return "invalid"
     try:
         train = response.request.url.path.split("/")[-2]

@@ -111,3 +111,11 @@ def test_factory_live_guard_and_no_key_leak(monkeypatch):
 def test_request_boundary_validation():
     with pytest.raises(ValueError):
         RailRadarClient(None, "")
+
+
+def test_non_2xx_with_valid_body_is_invalid():
+    from msynd.collect.railradar import classify
+
+    request = httpx.Request("GET", "https://api.railradar.in/v1/trains/12919/live?date=2026-10-07")
+    assert classify("status", httpx.Response(200, json=payload(), request=request)) == "ok"
+    assert classify("status", httpx.Response(404, json=payload(), request=request)) == "invalid"
