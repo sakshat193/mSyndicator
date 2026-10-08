@@ -1143,6 +1143,11 @@ RSTGCN (github `KoyenaChowdhury/RSTGCN`, no licence) holds Sept 2024: 1.28 M sta
 
 **Files:** create `msynd/db/migrations/0003_history_seq.sql` (`obs.history_daily` gains nullable `seq smallint`, the per-run file order; user ruling 2026-10-08), `msynd/ops/rstgcn.py`, `tests/ops/test_rstgcn.py`, `tests/fixtures/rstgcn_mini/` (a hand-written CSV with 3 runs, a zone JSON with 3 stations); modify `data/static_sources.json` (`"rstgcn": {"repo": "KoyenaChowdhury/RSTGCN", "sha": "160da04cd3b5dd72588b6cc72b08e84e0b7210b4", "path": "Indian-Railway-Network-and-Delays.zip", "sha256": "f8a6fe9e70972acb8ad98bbe5b7eb594c5b6b3475e21efd6d3b9e19049bdaf91"}`).
 
+**Input format (monitor, measured 2026-10-08 on the pinned zip):**
+- Zip members sit under `Indian-Railway-Network-and-Delays/`; read `train_routes_delays_Sep2024.csv` and `stations_zones_mapping.json` from there with `zipfile` (no extraction).
+- CSV, UTF-8, header `train,date,station,sch_arr,act_arr,arr_delay,sch_dep,act_dep,dep_delay`. Example row: `12303,2024-09-02,BWN,09:05 AM,09:20 AM,15.0,09:08 AM,09:23 AM,15.0`. `train` is a train-number string, `date` is ISO `YYYY-MM-DD` (the run's origin date), `station` is a station code, and `arr_delay` is a float string of whole minutes (0.0…4336.0; no empty cells). A run is `(train, date)`; its rows are not guaranteed contiguous, so `seq` counts per run in file order. Only `train`, `date`, `station` and `arr_delay` are read.
+- Zone JSON: one flat object `{"<station code>": "<zone code>"}`, 4,735 string values, e.g. `{"AADR": "NR", "AAG": "CR"}`.
+
 **Interfaces:**
 - `python -m msynd.ops.rstgcn import --zip PATH` verifies the sha256, then:
   - loads `train_routes_delays_Sep2024.csv` into `obs.history_daily` (`value_min = arr_delay`, `seq` = 1-based file order within a run, `occ` by repeats in file order within a run, `fetch_id` NULL; re-import is idempotent);
