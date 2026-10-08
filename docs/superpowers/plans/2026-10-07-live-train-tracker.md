@@ -1168,7 +1168,21 @@ RSTGCN (github `KoyenaChowdhury/RSTGCN`, no licence) holds Sept 2024: 1.28 M sta
   - `test_labels_origin_and_composite`;
   - `test_fit_marks_cold_start_and_promotes_only_on_gain`.
 - [x] Implement; commit `task 42: rstgcn history and cold-start models`.
-- [ ] **Monitor:** run `import` with the downloaded zip and `fit` against the dev DB. Record the counts and log-scores in `docs/gates/rstgcn.md`.
+- [x] **Monitor:** run `import` with the downloaded zip and `fit` against the dev DB. Record the counts and log-scores in `docs/gates/rstgcn.md`.
+
+### Task 43: Dwell prior below the scheduled dwell (Task 27 follow-up)
+
+`_prior('dwell', d)` is `d + Exp(2)`, so it gives zero mass to every dwell shorter than the scheduled one. A real short stop then gives every particle W = 0 and forces the `data_invariant` override. Task 41's 1 % smoothing does not help, because the prior it mixes in has the same gap. Decision (user, 2026-10-08): start the dwell prior at half the scheduled dwell.
+
+**Files:** modify `msynd/models/empirical.py` and `tests/models/test_empirical.py`.
+
+**Interfaces:** `_prior('dwell', d)` becomes `d/2 + Exp(2)` on the `NONNEG` bins (`# ponytail:` fixed half-dwell edge; upgrade: fit the edge from live W labels). The provisional model and the Task 41 smoothing prior both call it, so both pick up the change; nothing else changes.
+
+- [ ] Tests:
+  - `test_dwell_prior_mass_below_scheduled` (d = 10 → bins 5…9 carry mass > 0; bins 0…4 carry 0; masses sum to 1);
+  - `test_dwell_prior_zero_dwell` (d = 0 → identical to before);
+  - the existing empirical, cache and replay tests still pass.
+- [ ] Implement; commit `task 43: dwell prior below scheduled dwell`.
 
 ---
 
@@ -1193,7 +1207,7 @@ RSTGCN (github `KoyenaChowdhury/RSTGCN`, no licence) holds Sept 2024: 1.28 M sta
 | §7.4 Parsing | 8, 10 |
 | §7.5 Backfill | none approved; RSTGCN one-off import 42 |
 | §7.6 Static | 4, 5, 37 |
-| §8 Learning | 26–30, 38, 39, 41, 42 |
+| §8 Learning | 26–30, 38, 39, 41–43 |
 | §9 Engine | 13–17, 19, 27, 31, 32 |
 | §10 API | 34 |
 | §11 Dashboard | 35, 36 |
