@@ -1178,11 +1178,11 @@ RSTGCN (github `KoyenaChowdhury/RSTGCN`, no licence) holds Sept 2024: 1.28 M sta
 
 **Interfaces:** `_prior('dwell', d)` becomes `d/2 + Exp(2)` on the `NONNEG` bins (`# ponytail:` fixed half-dwell edge; upgrade: fit the edge from live W labels). The provisional model and the Task 41 smoothing prior both call it, so both pick up the change; nothing else changes.
 
-- [ ] Tests:
+- [x] Tests:
   - `test_dwell_prior_mass_below_scheduled` (d = 10 → bins 5…9 carry mass > 0; bins 0…4 carry 0; masses sum to 1);
   - `test_dwell_prior_zero_dwell` (d = 0 → identical to before);
   - the existing empirical, cache and replay tests still pass.
-- [ ] Implement; commit `task 43: dwell prior below scheduled dwell`.
+- [x] Implement; commit `task 43: dwell prior below scheduled dwell`.
 
 ---
 
