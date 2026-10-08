@@ -812,11 +812,11 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 - `next_job(state, now) -> Job`. Order: (1) nothing while the host is `stopped`; (2) overdue runs (not fetched within `T_max = 1.25·R·h/rate`); (3) targeted polls by `obs.poll_queue.priority`, falling back to age when no row exists. MMT has no boards, exception list or backfill.
 - `python -m msynd.collect` runs the MMT host task, plus hourly `create_runs`, `expire_runs`, body retention (Task 23) and the disk check.
 
-- [ ] Tests:
+- [x] Tests:
   - `test_no_run_starves_beyond_tmax` (simulate 300 runs with skewed priorities for 6 simulated hours: every run is fetched within T_max);
   - `test_job_order`;
   - `test_stopped_host_issues_nothing`.
-- [ ] Implement; commit `task 22: admission and collector loop`.
+- [x] Implement; commit `task 22: admission and collector loop`.
 
 ### Task 23: Retention, disk guard, backup (spec §12, §13, A3, A5)
 
