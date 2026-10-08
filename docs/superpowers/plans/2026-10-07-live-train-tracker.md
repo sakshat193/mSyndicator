@@ -821,7 +821,7 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 - `prune_bodies(conn, now, ok_hours)` runs hourly from the collector: `ok` bodies after `ok_hours` (24, or 2 when disk ≥ 80 %); non-`ok` bodies and a 1 % `ok` sample after 14 days.
 - `prune_rows(conn, now)` runs nightly: `obs.fetch` after 180 days, `pending_rev` after 180 days, `ntes_eta_rev` after 35 days, `forecast_issue` after 120 days.
 - `disk_check(path) -> (pct, ok_hours)` writes the metric and raises an alarm at 70 %.
-- `backup()` runs `pg_dump -Fc` (ref, obs without fetch bodies, ml, `sim.forecast_issue`), keeps 2 copies in `/data/backups`, uploads with `oci os object put` (7 daily / 4 weekly), and alarms if the off-site set is over 15 GB.
+- `backup()` runs `pg_dump -Fc` (ref, obs without fetch bodies, ml, `sim.forecast_issue`), keeps 2 copies in `/data/backups`, uploads with `oci os object put` (7 daily / 4 weekly), and alarms if the off-site set is over 15 GB. **Off-site excludes `obs`** (spec §18, 2026-10-08): the local dumps hold ref, obs (no fetch bodies), ml and `sim.forecast_issue`; the uploaded dump holds only ref, ml and `sim.forecast_issue`, until G1 allows raw evidence off the machine.
 
 - [ ] Tests:
   - `test_old_referenced_fetch_pruned_event_kept` (A5);
