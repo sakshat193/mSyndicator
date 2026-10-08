@@ -1026,10 +1026,10 @@ def test_late_event_frame_equals_fresh_replay(db_url): ...    # RF4
 
 **Interfaces:** `pos(...)`, a port of `msynd/pos.py`; `FrameStore.apply(frame) -> 'ok' | 'gap'`, which applies full frames, deltas and tombstones and reports a gap when `gen` is not last + 1; `connectLive(url, store)`, which resyncs on a gap with exponential reconnect.
 
-- [ ] Tests:
+- [x] Tests:
   - `position.test.ts` reads `../tests/fixtures/pos_cases.json` and expects every case to equal the Python result within 1e-6;
   - `frames.test.ts` covers gap detection, tombstones, and a full frame replacing everything.
-- [ ] Verify `npm --prefix web test`; commit `task 35: web scaffold and frame client`.
+- [x] Verify `npm --prefix web test`; commit `task 35: web scaffold and frame client`.
 
 ### Task 36: Map, layers, timeline, panels → 🛑 A7 and Phase 5 exit (spec §11)
 
