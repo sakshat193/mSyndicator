@@ -869,12 +869,12 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 - FEATURE_VER 1 omits "count of surprises so far" (spec §18, 2026-10-08).
 - `FoldEncoders.fit(train_rows)` covers target encoding (smoothed), slack P05 per halt pair and history stats (only if G4 passed). It is fitted on training rows only.
 
-- [ ] Tests:
+- [x] Tests:
   - `test_leakage_received_after_asof_absent` (an event at 10:00 received at 10:20 is absent at 10:15);
   - `test_encoders_never_see_validation_rows`;
   - `test_splits_rolling_by_week`;
   - `test_calendar_features_use_sched_dep_plus_d`.
-- [ ] Implement; commit `task 26: features`.
+- [x] Implement; commit `task 26: features`.
 
 ### Task 27: Empirical and provisional models, registry, CDF cache (spec §3.2 cold start, §8.4, §9.6)
 
@@ -889,12 +889,12 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 - `registry.active(conn) -> dict[role, (model_id, artifact)]`; `registry.promote(conn, model_id)` swaps `active` in one transaction and sends `NOTIFY model_changed`.
 - `cache.tables_for(conn, ev: RunEvidence, active, bias_gen) -> ModelTables` batches every remaining segment × 16 levels × {R, W}, plus O. The cache key is (V, shared features). Bias shifts R. LightGBM per-level tail scales collapse to the max over the 16 levels per segment (R, lo and hi separately) and per halt (W), `# ponytail:` per-level τ in the kernel (spec §18, 2026-10-08).
 
-- [ ] Tests:
+- [x] Tests:
   - `test_empirical_masses_sum_to_one_and_signed_o`;
   - `test_provisional_flags_cold_start`;
   - `test_promote_single_active_and_notifies`;
   - `test_cache_hit_on_same_v`, and a miss when the bias generation changes.
-- [ ] Implement; commit `task 27: empirical models and cache`.
+- [x] Implement; commit `task 27: empirical models and cache`.
 
 ### Task 28: LightGBM quantile models (spec §3.4 LightGBM→CDF, §8.4)
 
