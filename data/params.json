@@ -1,0 +1,14 @@
+{
+  "S": {
+    "mmt_status": {
+      "lag": [0],
+      "survival": [1],
+      "tau": 14.426950408889635,
+      "eps": 0.05,
+      "p50": 10,
+      "distribution": "exponential"
+    }
+  },
+  "minute": "trunc",
+  "provisional": true
+}
