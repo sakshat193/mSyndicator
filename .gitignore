@@ -9,3 +9,4 @@ data/replay_days/
 *.pmtiles
 .env
 data/mmt_capture/
+data/models/
