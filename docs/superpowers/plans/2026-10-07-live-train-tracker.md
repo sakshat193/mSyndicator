@@ -823,12 +823,12 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 - `disk_check(path) -> (pct, ok_hours)` writes the metric and raises an alarm at 70 %.
 - `backup()` runs `pg_dump -Fc` (ref, obs, ml, `sim.forecast_issue`), keeps 2 copies in `/data/backups`, uploads with `oci os object put` (7 daily / 4 weekly), and alarms if the off-site set is over 15 GB. **Off-site excludes `obs`** (spec §18, 2026-10-08): the local dumps hold ref, obs (no fetch bodies), ml and `sim.forecast_issue`; the uploaded dump holds only ref, ml and `sim.forecast_issue`, until G1 allows raw evidence off the machine. The local dump includes `obs.fetch` with its bodies (pg_dump cannot drop one column; retention already bounds bodies to ~24 h plus the 1 % sample), `# ponytail:` sanitized fetch copy from the same snapshot if dump size matters (monitor, 2026-10-08).
 
-- [ ] Tests:
+- [x] Tests:
   - `test_old_referenced_fetch_pruned_event_kept` (A5);
   - `test_eta_35_days`;
   - `test_body_retention_drops_to_2h_at_80pct` (inject the disk percentage);
   - `test_sample_kept_14_days`.
-- [ ] Implement; commit `task 23: retention and backup`.
+- [x] Implement; commit `task 23: retention and backup`.
 
 ### Task 24: Image, compose, Caddy (spec §5, §13)
 
