@@ -849,8 +849,8 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 - A8: missing-event rate by class;
 - the `invalid` share.
 
-- [ ] Tests: `test_a5_window_counts` (61 starts within 60 s are detected); `test_a1_aggregates_metric_rows` (inserted `a1_*` rows → expected mean, minimum and target verdict).
-- [ ] Commit `task 25: reports`.
+- [x] Tests: `test_a5_window_counts` (61 starts within 60 s are detected); `test_a1_aggregates_metric_rows` (inserted `a1_*` rows → expected mean, minimum and target verdict).
+- [x] Commit `task 25: reports`.
 - [ ] **🛑 CP-3 (user and monitor):**
   1. The user reviews the G2 results and decides on h, S, board share, T_max and F. If 1 req/s freshness is unacceptable, the user chooses between accepting it, changing the rate, changing the source, or reducing scope. Record this in §18.
   2. **G5:** the user gets an Oracle A1 allocation. The monitor deploys per `docs/deploy.md`, runs the image smoke test, measures storage from the G2 bodies, runs a restore drill into a fresh container (timed), and runs `engine.bench` on the VM. Results go to `docs/gates/G5.md` and `G8-vm.md`.
