@@ -83,6 +83,39 @@ def test_challenge_stops_host(db_url):
     asyncio.run(run())
 
 
+def test_mmt_403_stops_host_and_logs_challenge(db_url):
+    from msynd.collect.mmt import classify
+
+    async def run():
+        d = dispatcher(db_url, FakeClock(), lambda r: httpx.Response(403, content=b"forbidden"), classify=classify)
+        await d.start()
+        try:
+            with pytest.raises(HostStopped):
+                await d.request("status", "POST", "https://h/x", key="mmt-403")
+            with pytest.raises(HostStopped):
+                await d.request("status", "POST", "https://h/x")
+            assert d.state == "stopped"
+            assert d.conn.execute("select http_status,outcome from obs.fetch where key='mmt-403' order by id desc limit 1").fetchone() == (403, "challenge")
+        finally:
+            await d.close()
+
+    asyncio.run(run())
+
+
+def test_404_without_classifier_is_invalid(db_url):
+    async def run():
+        d = dispatcher(db_url, FakeClock(), lambda r: httpx.Response(404, content=b"not found"))
+        await d.start()
+        try:
+            result = await d.request("status", "GET", "https://h/x")
+            assert result.outcome == "invalid" and result.status == 404
+            assert d.state == "ok"
+        finally:
+            await d.close()
+
+    asyncio.run(run())
+
+
 def test_breaker_pauses_10_min(db_url):
     async def run():
         clock = FakeClock()
