@@ -1130,11 +1130,11 @@ An unsmoothed histogram gives zero mass to unseen bins. An observed actual there
 
 **Interfaces:** every histogram `fit_empirical` stores (class-pooled and W dwell buckets) becomes `0.99·fitted + 0.01·prior`, where the prior is the matching `_prior(role, dwell)` masses (the bucket's dwell for W). Tails take `tau = max(fitted, prior)` per side. `provisional_models()` is unchanged. Mark the 1 % with `# ponytail:` (fixed mix weight; upgrade: fit it on validation log-score).
 
-- [ ] Tests:
+- [x] Tests:
   - `test_unseen_bin_has_nonzero_mass` (labels all 0 → the mass of the bin for +100 is > 0 for run and origin, and for a W bucket);
   - `test_smoothed_masses_sum_to_one`;
   - the existing empirical and cache tests still pass.
-- [ ] Implement; commit `task 41: smooth empirical histograms`.
+- [x] Implement; commit `task 41: smooth empirical histograms`.
 
 ### Task 42: RSTGCN history import, station zones, cold-start O and R
 
