@@ -244,12 +244,47 @@ def test_actual_preserves_cancelled_and_revives_expired_unknown(db):
         assert db.execute('SELECT station,occ,kind,actual_ts FROM obs.event_rev WHERE run_id=%s', (run,)).fetchall() == [('BRC', 1, 'arr', ist('08:30'))]
 
 
-def test_exceptions_wait_for_task_21(db):
+def test_exception_on_status_page_is_stored_and_dirty(db):
     run = make_run(db)
-    with pytest.raises(NotImplementedError):
-        store(db, run, page(exceptions=({'kind': 'cancelled'},), events=(Event('BRC', 1, 'arr', ist('08:30')),)))
-    assert db.execute('SELECT count(*) FROM obs.event_rev').fetchone() == (0,)
-    assert db.execute('SELECT count(*) FROM obs.dirty_run').fetchone() == (0,)
+    assert store(db, run, page(exceptions=({'kind': 'cancelled'},),
+                               events=(Event('BRC', 1, 'arr', ist('08:30')),))).changed
+    assert db.execute('SELECT detail FROM obs.exception_rev').fetchone() == (
+        {'kind': 'cancelled', 'resched_min': 0, 'diverted_from': None, 'part_cancelled': None},)
+    assert db.execute('SELECT lifecycle FROM obs.run WHERE id=%s', (run,)).fetchone() == ('cancelled',)
+    assert db.execute('SELECT count(*) FROM obs.event_rev').fetchone() == (1,)
+    assert db.execute('SELECT run_id FROM obs.dirty_run').fetchall() == [(run,)]
+
+
+def test_page_exceptions_share_evidence_transaction(db):
+    run = make_run(db)
+    with pytest.raises(RuntimeError), db.transaction():
+        store(db, run, page(exceptions=({'kind': 'rescheduled', 'resched_min': 60},),
+                            events=(Event('MMCT', 1, 'dep', ist('08:30')),)))
+        raise RuntimeError('rollback')
+    for table in ('event_rev', 'exception_rev', 'dirty_run'):
+        assert db.execute(f'SELECT count(*) FROM obs.{table}').fetchone() == (0,)
+    assert db.execute('SELECT lifecycle,resched_min FROM obs.run WHERE id=%s', (run,)).fetchone() == ('scheduled', 0)
+
+
+def test_multiple_page_exceptions_write_one_cumulative_revision(db):
+    run = make_run(db)
+    assert store(db, run, page(exceptions=({'kind': 'rescheduled', 'resched_min': 60},
+                                          {'kind': 'diverted', 'diverted_from': 'BRC'}))).changed
+    assert db.execute('SELECT detail FROM obs.exception_rev').fetchall() == [
+        ({'kind': 'diverted', 'resched_min': 60, 'diverted_from': 'BRC', 'part_cancelled': None},)]
+    assert load_run_evidence(db, run).resched_min == 60
+
+
+def test_exception_can_bind_status_fetch_without_run_id(db):
+    from msynd.collect.store import store_status
+
+    run = make_run(db)
+    received = ist('09:00')
+    fetch = insert_fetch(db, received_at=received, started_at=received)
+    assert store_status(db, run, FetchResult(fetch, 'ok', 200, b'', received),
+                        page(exceptions=({'kind': 'rescheduled', 'resched_min': 60},))).changed
+    assert db.execute('SELECT run_id FROM obs.fetch WHERE id=%s', (fetch,)).fetchone() == (run,)
+    assert db.execute('SELECT resched_min FROM obs.run WHERE id=%s', (run,)).fetchone() == (60,)
 
 
 def test_wrong_run_page_is_rejected(db):

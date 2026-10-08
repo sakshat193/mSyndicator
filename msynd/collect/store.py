@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 
 from msynd.collect.dispatcher import FetchResult
+from msynd.collect.lifecycle import apply_exception
 from msynd.collect.status import ParsedStatus
 from msynd.db.dirty import mark_dirty
 from msynd.static.gtfs import content_hash
@@ -66,9 +67,6 @@ def store_status(conn, run_id, fetch: FetchResult, page: ParsedStatus,
         raise ValueError('store_status requires an evidence transaction')
     if fetch.outcome != 'ok':
         return StoreResult(False)
-    # ponytail: Task 21 wires apply_exception once lifecycle exceptions are implemented.
-    if page.exceptions:
-        raise NotImplementedError('Task 21 must wire status exceptions')
     with conn.transaction():
         logged = conn.execute('SELECT purpose,outcome,run_id FROM obs.fetch WHERE id=%s', (fetch.fetch_id,)).fetchone()
         if logged is None:
@@ -86,6 +84,8 @@ def store_status(conn, run_id, fetch: FetchResult, page: ParsedStatus,
             FROM obs.run WHERE id=%s FOR UPDATE''', (run_id,)).fetchone()
         if (train, start) != (page.train, page.start_date):
             raise ValueError('status belongs to another train or origin date')
+        if page.exceptions and logged[2] is None:
+            conn.execute('UPDATE obs.fetch SET run_id=%s WHERE id=%s', (run_id, fetch.fetch_id))
         dirty = _enrich(conn, schedule[0], route, page.passing_stations)
         changed = False
         for event in page.events:
@@ -106,6 +106,10 @@ def store_status(conn, run_id, fetch: FetchResult, page: ParsedStatus,
             conn.execute('INSERT INTO obs.ntes_eta_rev VALUES (%s,%s,%s,%s,%s,%s,%s)',
                          (run_id, eta.station, eta.occ, eta.kind, eta.eta_ts, fetch.fetch_id, fetch.received_at))
             changed = True
+        for exception in page.exceptions:
+            apply_exception(conn, exception, fetch)
+            changed = True
+        lifecycle = conn.execute('SELECT lifecycle FROM obs.run WHERE id=%s', (run_id,)).fetchone()[0]
         destination = conn.execute('''SELECT station,occ FROM ref.schedule_stop
             WHERE version_id=%s ORDER BY idx DESC LIMIT 1''', schedule).fetchone()
         completed = conn.execute('''SELECT 1 FROM obs.event_rev
