@@ -435,14 +435,14 @@ def classify(purpose, response) -> str               # ok | invalid | challenge 
 ```
 Any headers that discovery records as required are added here. Without the Task 7 discovery, use only `Content-Type: application/json` and the UA.
 
-- [ ] Tests:
+- [x] Tests:
   - exactly one POST per enquiry, with the exact JSON body;
   - `findNextRunningDate` is always false;
   - `from_env` raises without `MSYND_LIVE=1`;
   - `classify` maps 403 or an HTML body to `challenge` and malformed JSON to `invalid`;
   - a 403 through the Dispatcher with the MMT classifier stops the host; without a classifier a 404 stays `invalid`;
   - the RailRadar tests still pass after the type move.
-- [ ] Implement; commit `task 08: shared status types and mmt client`.
+- [x] Implement; commit `task 08: shared status types and mmt client`.
 
 ### Task 9: G3 fixture capture (monitor, live 🛑)
 
@@ -1161,13 +1161,13 @@ RSTGCN (github `KoyenaChowdhury/RSTGCN`, no licence) holds Sept 2024: 1.28 M sta
   - promotes through `registry.promote` only when the candidate's validation log-score beats the provisional prior's.
 - `build_live_labels` (Task 12) still never reads `obs.history_daily`.
 
-- [ ] Tests:
+- [x] Tests:
   - `test_import_seq_occ_and_idempotent`;
   - `test_zone_fill_never_overwrites`;
   - `test_bad_sha_refuses`;
   - `test_labels_origin_and_composite`;
   - `test_fit_marks_cold_start_and_promotes_only_on_gain`.
-- [ ] Implement; commit `task 42: rstgcn history and cold-start models`.
+- [x] Implement; commit `task 42: rstgcn history and cold-start models`.
 - [ ] **Monitor:** run `import` with the downloaded zip and `fit` against the dev DB. Record the counts and log-scores in `docs/gates/rstgcn.md`.
 
 ---
