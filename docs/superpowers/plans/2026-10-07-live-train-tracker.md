@@ -839,8 +839,8 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 
 **Files:** create `Dockerfile` (python:3.12-slim, multi-arch, `uv sync --frozen`), and modify `compose.yaml` to add the services `collector`, `engine`, `api`, `caddy` and an `ops` profile (`restart: unless-stopped`, health checks, json-file logging 10m×5, volumes `/data/{pg,models,backups,tiles}`). Create `Caddyfile` (DuckDNS host, basic auth on everything, `/api/*` → api:8000 with WebSocket, static `web/dist`, `/tiles/*`), extend `.env.example`, and write `docs/deploy.md` (≤ 60 lines: VM firewall 80/443 open, 22 restricted to the user's IP, crontab lines for nightly 21:00 UTC and weekly Sat 20:30 UTC).
 
-- [ ] Verify: `docker buildx build --platform linux/arm64,linux/amd64 .` succeeds, and `docker compose --profile ops run --rm ops python -c "import lightgbm, onnxruntime, numba"` passes.
-- [ ] Commit `task 24: image and compose`.
+- [x] Verify: `docker buildx build --platform linux/arm64,linux/amd64 .` succeeds, and `docker compose --profile ops run --rm ops python -c "import lightgbm, onnxruntime, numba"` passes.
+- [x] Commit `task 24: image and compose`.
 
 ### Task 25: Gate and exit report CLI → 🛑 CP-3
 
