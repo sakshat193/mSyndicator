@@ -989,6 +989,12 @@ def test_late_event_frame_equals_fresh_replay(db_url): ...    # RF4
   - `test_age_term_prevents_starvation`;
   - `test_forecast_issue_b2_nan_when_stale`.
   - `test_a1_active_uses_simulated_arrival` (a late observed run stays active past scheduled arrival; an unseen run leaves at its prior P50).
+- Defaults until CP-3 decides them (monitor, 2026-10-08), each marked `# ponytail:`:
+  - S for priority comes from `Params.s_tables[source]` with `source='ntes_status'` as a loop argument; without that table, poll-queue upserts are skipped.
+  - `T_max` defaults to 30 min and `F` (A1 fresh) to 30 min, both as loop arguments.
+  - Poll age = now − the run's latest `obs.fetch.started_at` (no fetch → age = T_max).
+  - Forecast issue rows cover remaining halts with finite arrival quantiles; `b2` follows A3 directly on `obs.ntes_eta_rev` (latest row ≤ issue time, ≤ 30 min old), NaN otherwise.
+  - A1 uses the latest replay output per run: an observed origin departure counts as ≤ t and an observed destination arrival as ≤ t (halt_q is NaN for past events). Cancellation follows the Task 21 `exception_rev.detail` rule. `a1_cold` counts runs whose model tables had `cold_start`.
 - [ ] Implement; commit `task 32: priorities and issued forecasts`.
 
 ### Task 33: Replay-day end-to-end → 🛑 G8 and Phase 4 exit (spec §14 Replay day)
