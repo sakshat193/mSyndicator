@@ -984,7 +984,7 @@ def test_late_event_frame_equals_fresh_replay(db_url): ...    # RF4
 - Hourly: insert `sim.forecast_issue` for running runs with `q` (7 per halt) and `b2` (A3 eligibility at issue time, NaN otherwise).
 - Each minute: write the A1 triple to `sim.metric` from the replay outputs already held (spec §18, 2026-10-08). A run is **active at t** when its simulated origin departure P50 ≤ t (the actual once observed), its simulated destination arrival P50 > t, and it is not cancelled as of t (Task 21 rule). Metrics: `a1_active`, `a1_discovered` (≥ 1 source event), `a1_fresh` (last event received ≤ F), the same first two as `a1_active_1h`/`a1_discovered_1h` restricted to origin departure P50 ≤ t − 1 h, and `a1_cold` (active runs replayed on cold-start tables).
 
-- [ ] Tests:
+- [x] Tests:
   - `test_priority_prefers_published_and_wide`;
   - `test_age_term_prevents_starvation`;
   - `test_forecast_issue_b2_nan_when_stale`.
@@ -995,7 +995,7 @@ def test_late_event_frame_equals_fresh_replay(db_url): ...    # RF4
   - Poll age = now − the run's latest `obs.fetch.started_at` (no fetch → age = T_max).
   - Forecast issue rows cover remaining halts with finite arrival quantiles; `b2` follows A3 directly on `obs.ntes_eta_rev` (latest row ≤ issue time, ≤ 30 min old), NaN otherwise.
   - A1 uses the latest replay output per run: an observed origin departure counts as ≤ t and an observed destination arrival as ≤ t (halt_q is NaN for past events). Cancellation follows the Task 21 `exception_rev.detail` rule. `a1_cold` counts runs whose model tables had `cold_start`.
-- [ ] Implement; commit `task 32: priorities and issued forecasts`.
+- [x] Implement; commit `task 32: priorities and issued forecasts`.
 
 ### Task 33: Replay-day end-to-end → 🛑 G8 and Phase 4 exit (spec §14 Replay day)
 
