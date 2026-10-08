@@ -766,7 +766,7 @@ Every case runs at N = 10k and 100k, with the A8 tolerance.
 
 Migration `0004_mmt_source.sql` adds `'mmt_status'` to `obs.source`. `settings.live_source = 'mmt_status'` replaces the hard-coded `'ntes_status'` defaults in `msynd/engine/__main__.py`, `priority.py`, `evidence.py`'s tie-break, `api/app.py` and `ops/nightly.py`. There is no board, exception-list or history store: MMT has no such pages, and RSTGCN history is Task 42.
 
-- [ ] Tests, including `msynd/eval/baselines.py:b2_eta(conn, run_id, station, occ, kind, t)` (create it here):
+- [x] Tests, including `msynd/eval/baselines.py:b2_eta(conn, run_id, station, occ, kind, t)` (create it here):
 ```python
 def test_eta_confirmation_per_key(db):    # A3 / R3-3
     # 09:00 ok page: ETA B=10:30, C=11:00 ; 10:00 ok page: C=11:00 only ; 10:20 ok page: B=10:30 unchanged
@@ -783,7 +783,7 @@ def test_dirty_in_same_txn(db): ...               # rollback of store → no dir
 def test_repeated_station_keys(db): ...           # RF3: occ 1 and 2 stored separately
 def test_enrichment_never_rekeys(db): ...         # passing station → new route version, event keys identical
 ```
-- [ ] Implement; commit `task 20: evidence store`.
+- [x] Implement; commit `task 20: evidence store`.
 
 ### Task 21: Run lifecycle and exceptions (spec §7.3, A11)
 
