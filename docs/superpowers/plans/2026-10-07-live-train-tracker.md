@@ -498,12 +498,12 @@ Rules:
 
   It writes `data/params.json` as `{"S": {"mmt_status": {...}}, "minute": "trunc", "provisional": false}`. Before G2, the file is committed with `provisional: true`: lag P50 10 min, exponential, ε = 0.05.
 
-- [ ] Tests:
+- [x] Tests:
   - `test_cohort_bound` (h = 1, rate 0.2 → 16);
   - `test_s_fit_recovers_synthetic` (synthetic lags with a known exponential tail and ε = 0.03, polled every 120 s → the fitted median is within 1 min and the ε CI contains 0.03);
   - `test_right_censored_not_counted_unpublished`;
   - `test_never_hard_bound` (zero counterexamples → the output still has ε > 0 and a soft tail).
-- [ ] Implement; commit `task 11: g2 pilot`.
+- [x] Implement; commit `task 11: g2 pilot`.
 - [ ] **🛑 CP-2 (user):** choose the pilot host (PC or VM; it must stay up for 7 days). The monitor then starts it with `MSYND_LIVE=1`, checks it daily (fetch-log rate ≤ 0.2/s, no challenge) and runs `analyse` at the end.
 
 ---
