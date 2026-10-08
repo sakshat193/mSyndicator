@@ -398,12 +398,12 @@ Live source since CP-1 is MakeMyTrip RIS (spec §18, 2026-10-08): `MMT_HOST = ra
 
 **Interfaces:** `python -m msynd.collect.capture plan.json --out <dir> [--rate 0.2]`. `plan.json` is a list of `{name, purpose, method, url, json?}`, one Dispatcher per host. It writes `<name>.body` plus `manifest.json` (status, response headers minus `Set-Cookie`, sha256, received_at, outcome). The transport is `real_transport()`, so it runs only with `MSYND_LIVE=1`.
 
-- [ ] Tests with MockTransport:
+- [x] Tests with MockTransport:
   - the files and manifest are written;
   - `Set-Cookie` and any `auth`/`token`/`csrf`-like header values are redacted;
   - starts are spaced ≥ 1/rate;
   - without `MSYND_LIVE=1` the CLI exits before any request.
-- [ ] Implement; commit `task 07: capture cli`.
+- [x] Implement; commit `task 07: capture cli`.
 - [ ] **🛑 Monitor (live; the user confirms first):** `MSYND_LIVE=1 python -m msynd.collect.capture discovery.json --out data/mmt_capture/discovery/` at 0.2 req/s, ≤ 10 requests:
   - the autosuggest for 12951;
   - livestatus for 12951 today and for one train not yet started.
@@ -412,7 +412,7 @@ Live source since CP-1 is MakeMyTrip RIS (spec §18, 2026-10-08): `MMT_HOST = ra
 
 ### Task 8: Shared status types and MMT client (spec §2, §7.1)
 
-**Files:** create `msynd/collect/status.py` and `msynd/collect/mmt.py`; modify `msynd/collect/railradar.py` (import the moved types) and `msynd/config.py` (`mmt_rate=0.2` from `MMT_RATE`); create `tests/collect/test_mmt.py`.
+**Files:** create `msynd/collect/status.py` and `msynd/collect/mmt.py`; modify `msynd/collect/railradar.py` (import the moved types), `msynd/collect/dispatcher.py` (non-2xx replies other than 429/5xx go to the source `classify` when one is given, else stay `invalid`; user ruling 2026-10-08) and `tests/collect/test_dispatcher.py` and `msynd/config.py` (`mmt_rate=0.2` from `MMT_RATE`); create `tests/collect/test_mmt.py`.
 
 **Interfaces:**
 ```python
@@ -440,6 +440,7 @@ Any headers that discovery records as required are added here. Without the Task 
   - `findNextRunningDate` is always false;
   - `from_env` raises without `MSYND_LIVE=1`;
   - `classify` maps 403 or an HTML body to `challenge` and malformed JSON to `invalid`;
+  - a 403 through the Dispatcher with the MMT classifier stops the host; without a classifier a 404 stays `invalid`;
   - the RailRadar tests still pass after the type move.
 - [ ] Implement; commit `task 08: shared status types and mmt client`.
 
@@ -762,7 +763,7 @@ Every case runs at N = 10k and 100k, with the A8 tolerance.
 - applies lifecycle transitions (running / completed);
 - calls `mark_dirty` if anything changed.
 
-Migration `0003_mmt_source.sql` adds `'mmt_status'` to `obs.source`. `settings.live_source = 'mmt_status'` replaces the hard-coded `'ntes_status'` defaults in `msynd/engine/__main__.py`, `priority.py`, `evidence.py`'s tie-break, `api/app.py` and `ops/nightly.py`. There is no board, exception-list or history store: MMT has no such pages, and RSTGCN history is Task 42.
+Migration `0004_mmt_source.sql` adds `'mmt_status'` to `obs.source`. `settings.live_source = 'mmt_status'` replaces the hard-coded `'ntes_status'` defaults in `msynd/engine/__main__.py`, `priority.py`, `evidence.py`'s tie-break, `api/app.py` and `ops/nightly.py`. There is no board, exception-list or history store: MMT has no such pages, and RSTGCN history is Task 42.
 
 - [ ] Tests, including `msynd/eval/baselines.py:b2_eta(conn, run_id, station, occ, kind, t)` (create it here):
 ```python
@@ -1140,15 +1141,15 @@ An unsmoothed histogram gives zero mass to unseen bins. An observed actual there
 
 RSTGCN (github `KoyenaChowdhury/RSTGCN`, no licence) holds Sept 2024: 1.28 M station rows, 57,485 runs. Use is personal only; the raw data never leaves the PC or VM. Meaning (spec §18, 2026-10-08): one arrival-delay value per station (departure is derived), early running clipped to 0. G4 does not apply.
 
-**Files:** create `msynd/ops/rstgcn.py`, `tests/ops/test_rstgcn.py`, `tests/fixtures/rstgcn_mini/` (a hand-written CSV with 3 runs, a zone JSON with 3 stations); modify `data/static_sources.json` (`"rstgcn": {"repo": "KoyenaChowdhury/RSTGCN", "sha": "160da04cd3b5dd72588b6cc72b08e84e0b7210b4", "path": "Indian-Railway-Network-and-Delays.zip", "sha256": "f8a6fe9e70972acb8ad98bbe5b7eb594c5b6b3475e21efd6d3b9e19049bdaf91"}`).
+**Files:** create `msynd/db/migrations/0003_history_seq.sql` (`obs.history_daily` gains nullable `seq smallint`, the per-run file order; user ruling 2026-10-08), `msynd/ops/rstgcn.py`, `tests/ops/test_rstgcn.py`, `tests/fixtures/rstgcn_mini/` (a hand-written CSV with 3 runs, a zone JSON with 3 stations); modify `data/static_sources.json` (`"rstgcn": {"repo": "KoyenaChowdhury/RSTGCN", "sha": "160da04cd3b5dd72588b6cc72b08e84e0b7210b4", "path": "Indian-Railway-Network-and-Delays.zip", "sha256": "f8a6fe9e70972acb8ad98bbe5b7eb594c5b6b3475e21efd6d3b9e19049bdaf91"}`).
 
 **Interfaces:**
 - `python -m msynd.ops.rstgcn import --zip PATH` verifies the sha256, then:
-  - loads `train_routes_delays_Sep2024.csv` into `obs.history_daily` (`value_min = arr_delay`, `occ` by repeats in file order within a run, `fetch_id` NULL; re-import is idempotent);
+  - loads `train_routes_delays_Sep2024.csv` into `obs.history_daily` (`value_min = arr_delay`, `seq` = 1-based file order within a run, `occ` by repeats in file order within a run, `fetch_id` NULL; re-import is idempotent);
   - fills `ref.station.zone` where it is NULL from `stations_zones_mapping.json`, never overwriting a non-NULL value.
 - `python -m msynd.ops.rstgcn fit --models-dir DIR` builds labels from `obs.history_daily` for runs dated 2024-09:
-  - O = the first value of each run;
-  - R ≈ composite = value(B) − value(A) for consecutive rows. `# ponytail:` the composite includes dwell, so R is over-dispersed while W stays provisional; live R replaces it after 4 weeks (Task 38);
+  - O = the value at the lowest `seq` of each run (rows with NULL `seq` are skipped);
+  - R ≈ composite = value(B) − value(A) for consecutive `seq`. `# ponytail:` the composite includes dwell, so R is over-dispersed while W stays provisional; live R replaces it after 4 weeks (Task 38);
   - class from `ref.train` (UNKNOWN otherwise); split train = days 1–23, valid = 24–30;
   - `fit_empirical(labels, role)` for `origin` and `run`, with `cold_start=True`;
   - inserts `ml.model` rows (`kind='empirical'`, `train_window`, `metrics` = mean validation log-score of the candidate and of the provisional prior);
@@ -1156,7 +1157,7 @@ RSTGCN (github `KoyenaChowdhury/RSTGCN`, no licence) holds Sept 2024: 1.28 M sta
 - `build_live_labels` (Task 12) still never reads `obs.history_daily`.
 
 - [ ] Tests:
-  - `test_import_occ_and_idempotent`;
+  - `test_import_seq_occ_and_idempotent`;
   - `test_zone_fill_never_overwrites`;
   - `test_bad_sha_refuses`;
   - `test_labels_origin_and_composite`;
