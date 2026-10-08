@@ -795,14 +795,14 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 - `apply_exception(conn, row, fetch) -> None` (rows come from `ParsedStatus.exceptions`; MMT has no network-wide list) handles cancelled, `resched_min`, `diverted_from` and `part_cancelled`, then calls `mark_dirty`.
 - `obs.exception_rev.detail` is `{"kind": "cancelled"|"part_cancelled"|"rescheduled"|"diverted"|"none", ...}` (Task 10 `ExceptionRow.kind`; `none` withdraws an exception). A (train, start_date) is fully cancelled as of t when its latest revision with `received_at ≤ t` has `kind = 'cancelled'`; any later revision of another kind clears it (monitor, 2026-10-08). Each `obs.exception_rev.detail` it writes carries the run's **full cumulative** exception state (resched, diversion, part_cancelled), because evidence assembly (Task 16) reads the latest detail as complete state.
 
-- [ ] Tests:
+- [x] Tests:
   - `test_creates_only_matching_weekdays`;
   - `test_ist_start_date_at_utc_evening` (RF2: at 2026-10-07 19:00 UTC the IST date is 10-08);
   - `test_cancelled_not_created`;
   - `test_expiry_rule_both_conditions`;
   - `test_expired_never_completed`;
   - `test_exception_marks_dirty`.
-- [ ] Implement; commit `task 21: run lifecycle`.
+- [x] Implement; commit `task 21: run lifecycle`.
 
 ### Task 22: Admission and the collector main loop (spec §7.2, §7.5)
 
