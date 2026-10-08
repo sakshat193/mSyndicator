@@ -159,7 +159,7 @@ async def run_pilot(client, *, days=7, metadata=METADATA, candidates=None):
                     run.expected[eta.station, eta.occ, eta.kind] = eta.eta_ts
             elif result.status == 400:
                 try:
-                    not_running = json.loads(result.body).get("error", {}).get("errorCode") == 1001
+                    not_running = json.loads(result.body).get("error", {}).get("errorCode") in (1001, 1002)  # both mean "not running on given date"
                 except (ValueError, AttributeError):
                     not_running = False
                 if not_running:

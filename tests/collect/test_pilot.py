@@ -348,3 +348,26 @@ def test_semantic_invalids_count_toward_dispatcher_breaker(db_url, tmp_path, cle
         assert max(b-a for a, b in zip(starts, starts[1:])) >= 600
 
     asyncio.run(run())
+
+
+@pytest.mark.db
+@pytest.mark.parametrize("code", [1001, 1002])
+def test_not_running_400_stops_polling_that_run(db_url, tmp_path, clean_pilot_log, code):
+    from msynd.collect.pilot import PilotRun, run_pilot
+
+    async def run():
+        clock = FakeClock()
+        clock.base = datetime(2026, 10, 8, 10, 17, tzinfo=timezone.utc)
+        starts = []
+
+        def handle(request):
+            starts.append(clock.t)
+            return httpx.Response(400, json={"response": None, "success": False, "error": {
+                "errorCode": code, "errorDescription": "Train is not running on given date"}})
+
+        d = Dispatcher(HOST, .2, lambda: connect(db_url), httpx.MockTransport(handle), clock=clock)
+        candidate = PilotRun("00461", date(2026, 10, 8), {("X", 1, "dep"): clock.base})
+        await run_pilot(MmtClient(d), days=1/24, metadata=tmp_path / "pilot.json", candidates=lambda now: [candidate])
+        assert len(starts) == 1
+
+    asyncio.run(run())

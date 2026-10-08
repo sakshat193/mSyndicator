@@ -137,3 +137,25 @@ def test_invalid_route(mutation):
         row["dayDetails"]["dayCnt"] = 0
     with pytest.raises(InvalidResponse):
         parse_copy(body)
+
+
+def test_null_intermediate_stations_parse_like_empty():
+    # Live bodies send null, not [], for halts without passing stations.
+    body = loaded("repeated_station_11014")
+    expected = parse_status(json.dumps(body).encode(), "11014", date(2026, 10, 8))
+    for halt in body["response"]["stations"]:
+        if not halt["intermediateStations"]:
+            halt["intermediateStations"] = None
+    assert parse_status(json.dumps(body).encode(), "11014", date(2026, 10, 8)) == expected
+
+
+def test_scheduled_date_follows_actual_past_midnight():
+    # Live 11004: CHI sch dep 23:12 dayCnt 1, left 00:04 next day, and MMT moved schDepDate to the actual's date.
+    body = loaded("running_12723")
+    expected = parse_status(json.dumps(body).encode(), "12723", date(2026, 10, 8))
+    for halt in body["response"]["stations"]:
+        for detail in (halt["arrivalDetails"], halt["departureDetails"]):
+            for key in ("schArrDate", "schDepDate"):
+                if detail.get(key):
+                    detail[key] = "09-10-2026 00:00:00"
+    assert parse_status(json.dumps(body).encode(), "12723", date(2026, 10, 8)) == expected
