@@ -490,6 +490,7 @@ Rules:
 - `python -m msynd.collect.pilot analyse --out docs/gates/G2.md --params data/params.json` measures:
   - h and the empty/invalid/challenge rates;
   - S for `mmt_status`: lag = first `received_at` showing the actual − the actual time, interval-censored by the previous poll (midpoint, `# ponytail:` → Turnbull), an exponential tail fitted above P90, ε with a Wilson CI, unfinished runs right-censored;
+    Censoring (monitor ruling, 2026-10-08): an event whose actual was seen gives an interval [previous poll without it, first poll with it] − actual. An event never seen as actual is known to have happened only if a later event of the same run has an actual at t_L. If the run terminated, it is an ε counterexample (never published). If the run is unfinished at pilot end, it is right-censored at lag ≥ last poll − t_L, because actual ≤ t_L. With no later actual, it is excluded (not known to have happened). ETAs are never truth. Retention: nothing schedules `prune_bodies` during the pilot, so `msynd/ops/nightly.py` is unchanged and the monitor runs no retention job on the pilot DB.
   - pending-after-actual counts;
   - ETA revision rate;
   - passing-station prevalence;
