@@ -52,7 +52,7 @@ def parse_status(body: bytes, train, start) -> ParsedStatus:
             if not math.isfinite(distance) or distance < 0:
                 raise InvalidResponse("invalid halt distance")
             rows.append((distance, True, halt))
-            children = halt.get("intermediateStations", [])
+            children = halt.get("intermediateStations") or []
             if not isinstance(children, list):
                 raise InvalidResponse("invalid passing stations")
             for row in children:
@@ -81,10 +81,7 @@ def parse_status(body: bytes, train, start) -> ParsedStatus:
                     raise InvalidResponse("invalid actual marker")
                 sched = _clock(detail[f"sch{prefix}Time"], scheduled_day)
                 scheduled.append(sched)
-                if sched is not None:
-                    day_value = detail.get(f"sch{prefix}Date")
-                    if day_value is not None and _date(day_value) != scheduled_day:
-                        raise InvalidResponse("scheduled date disagrees with day count")
+                # sch*Date follows the actual's date once a delay crosses midnight (live 11004, 11020); dayCnt is the schedule.
                 value = detail[f"act{prefix}Time"]
                 actual_day = detail[f"act{prefix}Date"]
                 if value is not None and actual_day is None:
