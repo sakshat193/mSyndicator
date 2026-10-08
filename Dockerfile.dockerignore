@@ -1,0 +1,13 @@
+# Send only application code and versioned inputs, never local evidence or secrets.
+**
+!Dockerfile
+!pyproject.toml
+!uv.lock
+!msynd/
+!msynd/**
+msynd/**/__pycache__/
+!data/
+!data/params.json
+!data/segment_overrides.csv
+!data/holidays.csv
+!data/static_sources.json
