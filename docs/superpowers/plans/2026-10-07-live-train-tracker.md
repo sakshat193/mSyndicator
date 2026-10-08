@@ -465,7 +465,7 @@ Rules:
 - Day offsets (day count) make run-clock times monotone. Occurrence numbers follow page order.
 - A delay > 24 h is kept and flagged `delay_gt_24h`.
 - Non-halt rows with a time become `PassingStation` (km from the response).
-- A cancellation, reschedule or diversion indicated by the response becomes an `exceptions` entry in the same `detail` form as Task 21. If the response has none, the tuple is empty.
+- `exceptions` is always empty: no MMT exception was ever observed (G3), so its fields are unmapped. If `cancelledFromStation` or `cancelledToStation` is non-null, keep the page and add flag `exception_unparsed` (`# ponytail:` unmapped; upgrade: map to the Task 21 `detail` form once a real cancelled body is captured). A reschedule shows only as a late actual origin departure (user, 2026-10-08).
 
 - [ ] Tests (one per fixture, comparing against its golden file), plus:
   - `test_status_for_other_start_date_is_invalid` (RF1);
