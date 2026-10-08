@@ -1140,6 +1140,7 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
   - W scheduled-dwell buckets are data-driven: quintile edges of scheduled dwell over the fold's training rows (duplicate edges merged), stored in the artifact. An empty or unseen bucket falls back to the class-pooled histogram, then the provisional prior.
   - `websockets` becomes a runtime dependency as uvicorn's WebSocket backend.
   - Model tables carry one tail pair per segment (R) and one scale per halt (W): the CDF cache takes the max of the per-level LightGBM scales. Per-level τ in the kernel is the upgrade path.
+  - Off-site backup excludes `obs` (raw source evidence) until G1 allows it to leave the machine; local backups keep it.
 
 ---
 
