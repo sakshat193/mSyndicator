@@ -1,0 +1,157 @@
+{
+  "train": "12426",
+  "start_date": "2026-10-08",
+  "status": "not_started",
+  "last_updated_at": "2026-10-06T18:35:00+00:00",
+  "events": [],
+  "pending": [
+    {
+      "station": "JAT",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "MSKT",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "MSKT",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "PTKC",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "PTKC",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "LDH",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "LDH",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "NDLS",
+      "occ": 1,
+      "kind": "arr"
+    }
+  ],
+  "passing_stations": [
+    {
+      "station": "BBMN",
+      "occ": 1,
+      "dist_km": 9.0,
+      "sched_off": 1292.0
+    },
+    {
+      "station": "VJPJ",
+      "occ": 1,
+      "dist_km": 21.0,
+      "sched_off": 1303.0
+    },
+    {
+      "station": "BHBT",
+      "occ": 1,
+      "dist_km": 26.0,
+      "sched_off": 1307.0
+    },
+    {
+      "station": "SMBX",
+      "occ": 1,
+      "dist_km": 32.0,
+      "sched_off": 1313.0
+    },
+    {
+      "station": "GHGL",
+      "occ": 1,
+      "dist_km": 42.0,
+      "sched_off": 1321.0
+    },
+    {
+      "station": "HRNR",
+      "occ": 1,
+      "dist_km": 47.0,
+      "sched_off": 1326.0
+    },
+    {
+      "station": "CKDL",
+      "occ": 1,
+      "dist_km": 51.0,
+      "sched_off": 1329.0
+    },
+    {
+      "station": "CHNR",
+      "occ": 1,
+      "dist_km": 56.0,
+      "sched_off": 1334.0
+    },
+    {
+      "station": "BDHY",
+      "occ": 1,
+      "dist_km": 64.0,
+      "sched_off": 1340.0
+    }
+  ],
+  "exceptions": [],
+  "flags": [],
+  "etas": [
+    {
+      "station": "JAT",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-08T15:55:00+00:00"
+    },
+    {
+      "station": "MSKT",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-08T17:01:00+00:00"
+    },
+    {
+      "station": "MSKT",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-08T17:03:00+00:00"
+    },
+    {
+      "station": "PTKC",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-08T17:35:00+00:00"
+    },
+    {
+      "station": "PTKC",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-08T17:37:00+00:00"
+    },
+    {
+      "station": "LDH",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-08T20:05:00+00:00"
+    },
+    {
+      "station": "LDH",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-08T20:15:00+00:00"
+    },
+    {
+      "station": "NDLS",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T00:25:00+00:00"
+    }
+  ]
+}

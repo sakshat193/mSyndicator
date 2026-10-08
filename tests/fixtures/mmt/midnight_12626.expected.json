@@ -1,0 +1,907 @@
+{
+  "train": "12626",
+  "start_date": "2026-10-07",
+  "status": "running",
+  "last_updated_at": "2026-10-08T11:55:00+00:00",
+  "events": [
+    {
+      "station": "NDLS",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-07T14:40:00+00:00"
+    },
+    {
+      "station": "MTJ",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-07T16:31:00+00:00"
+    },
+    {
+      "station": "MTJ",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-07T16:34:00+00:00"
+    },
+    {
+      "station": "AGC",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-07T17:18:00+00:00"
+    },
+    {
+      "station": "AGC",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-07T17:22:00+00:00"
+    },
+    {
+      "station": "GWL",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-07T18:43:00+00:00"
+    },
+    {
+      "station": "GWL",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-07T18:45:00+00:00"
+    },
+    {
+      "station": "VGLJ",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-07T20:04:00+00:00"
+    },
+    {
+      "station": "VGLJ",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-07T20:11:00+00:00"
+    },
+    {
+      "station": "BINA",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-07T22:05:00+00:00"
+    },
+    {
+      "station": "BINA",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-07T22:10:00+00:00"
+    },
+    {
+      "station": "BPL",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-08T00:20:00+00:00"
+    },
+    {
+      "station": "BPL",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-08T00:32:00+00:00"
+    },
+    {
+      "station": "ET",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-08T02:00:00+00:00"
+    },
+    {
+      "station": "ET",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-08T02:12:00+00:00"
+    },
+    {
+      "station": "NGP",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-08T06:24:00+00:00"
+    },
+    {
+      "station": "NGP",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-08T06:38:00+00:00"
+    },
+    {
+      "station": "SEGM",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-08T07:58:00+00:00"
+    },
+    {
+      "station": "SEGM",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-08T08:01:00+00:00"
+    },
+    {
+      "station": "CD",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-08T09:29:00+00:00"
+    },
+    {
+      "station": "CD",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-08T09:31:00+00:00"
+    },
+    {
+      "station": "BPQ",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-08T09:47:00+00:00"
+    },
+    {
+      "station": "BPQ",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-08T09:57:00+00:00"
+    },
+    {
+      "station": "SKZR",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-08T10:50:00+00:00"
+    },
+    {
+      "station": "SKZR",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-08T10:51:00+00:00"
+    },
+    {
+      "station": "RDM",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-08T11:52:00+00:00"
+    },
+    {
+      "station": "RDM",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-08T11:54:00+00:00"
+    }
+  ],
+  "pending": [
+    {
+      "station": "WL",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "WL",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "BZA",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "BZA",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "NLR",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "NLR",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "GDR",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "GDR",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "RU",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "RU",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "TPTY",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "TPTY",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "CTO",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "CTO",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "KPD",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "KPD",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "JTJ",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "JTJ",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "SA",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "SA",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "ED",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "ED",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "TUP",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "TUP",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "CBE",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "CBE",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "PGT",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "PGT",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "OTP",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "OTP",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "TCR",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "TCR",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "AWY",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "AWY",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "ERN",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "ERN",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "VARD",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "VARD",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "KTYM",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "KTYM",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "CGY",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "CGY",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "TRVL",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "TRVL",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "CNGR",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "CNGR",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "MVLK",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "MVLK",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "KYJ",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "KYJ",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "QLN",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "QLN",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "VAK",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "VAK",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "TVP",
+      "occ": 1,
+      "kind": "arr"
+    },
+    {
+      "station": "TVP",
+      "occ": 1,
+      "kind": "dep"
+    },
+    {
+      "station": "TVC",
+      "occ": 1,
+      "kind": "arr"
+    }
+  ],
+  "passing_stations": [
+    {
+      "station": "XX-RDMC",
+      "occ": 1,
+      "dist_km": 1444.0,
+      "sched_off": 2461.0
+    },
+    {
+      "station": "XX-RDMB",
+      "occ": 1,
+      "dist_km": 1445.0,
+      "sched_off": 2461.0
+    },
+    {
+      "station": "RGPM",
+      "occ": 1,
+      "dist_km": 1453.0,
+      "sched_off": 2468.0
+    },
+    {
+      "station": "PDPL",
+      "occ": 1,
+      "dist_km": 1461.0,
+      "sched_off": 2475.0
+    },
+    {
+      "station": "XX-PDPB",
+      "occ": 1,
+      "dist_km": 1466.0,
+      "sched_off": 2479.0
+    },
+    {
+      "station": "KYOP",
+      "occ": 1,
+      "dist_km": 1469.0,
+      "sched_off": 2483.0
+    },
+    {
+      "station": "KOLR",
+      "occ": 1,
+      "dist_km": 1475.0,
+      "sched_off": 2487.0
+    },
+    {
+      "station": "OEA",
+      "occ": 1,
+      "dist_km": 1480.0,
+      "sched_off": 2492.0
+    },
+    {
+      "station": "PTKP",
+      "occ": 1,
+      "dist_km": 1483.0,
+      "sched_off": 2495.0
+    },
+    {
+      "station": "BGSF",
+      "occ": 1,
+      "dist_km": 1494.0,
+      "sched_off": 2504.0
+    },
+    {
+      "station": "JMKT",
+      "occ": 1,
+      "dist_km": 1500.0,
+      "sched_off": 2510.0
+    },
+    {
+      "station": "OPL",
+      "occ": 1,
+      "dist_km": 1512.0,
+      "sched_off": 2520.0
+    },
+    {
+      "station": "HSP",
+      "occ": 1,
+      "dist_km": 1524.0,
+      "sched_off": 2530.0
+    },
+    {
+      "station": "KMPT",
+      "occ": 1,
+      "dist_km": 1531.0,
+      "sched_off": 2536.0
+    },
+    {
+      "station": "KZJE",
+      "occ": 1,
+      "dist_km": 1535.0,
+      "sched_off": 2539.0
+    },
+    {
+      "station": "KZJT",
+      "occ": 1,
+      "dist_km": 1535.0,
+      "sched_off": 2540.0
+    },
+    {
+      "station": "KZJF",
+      "occ": 1,
+      "dist_km": 1536.0,
+      "sched_off": 2541.0
+    }
+  ],
+  "exceptions": [],
+  "flags": [],
+  "etas": [
+    {
+      "station": "WL",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-08T12:58:00+00:00"
+    },
+    {
+      "station": "WL",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-08T13:00:00+00:00"
+    },
+    {
+      "station": "BZA",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-08T16:45:00+00:00"
+    },
+    {
+      "station": "BZA",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-08T16:55:00+00:00"
+    },
+    {
+      "station": "NLR",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-08T20:23:00+00:00"
+    },
+    {
+      "station": "NLR",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-08T20:25:00+00:00"
+    },
+    {
+      "station": "GDR",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-08T21:03:00+00:00"
+    },
+    {
+      "station": "GDR",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-08T21:05:00+00:00"
+    },
+    {
+      "station": "RU",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-08T22:30:00+00:00"
+    },
+    {
+      "station": "RU",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-08T22:40:00+00:00"
+    },
+    {
+      "station": "TPTY",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-08T23:05:00+00:00"
+    },
+    {
+      "station": "TPTY",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-08T23:10:00+00:00"
+    },
+    {
+      "station": "CTO",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T00:23:00+00:00"
+    },
+    {
+      "station": "CTO",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T00:25:00+00:00"
+    },
+    {
+      "station": "KPD",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T01:15:00+00:00"
+    },
+    {
+      "station": "KPD",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T01:20:00+00:00"
+    },
+    {
+      "station": "JTJ",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T02:35:00+00:00"
+    },
+    {
+      "station": "JTJ",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T02:40:00+00:00"
+    },
+    {
+      "station": "SA",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T04:07:00+00:00"
+    },
+    {
+      "station": "SA",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T04:10:00+00:00"
+    },
+    {
+      "station": "ED",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T05:15:00+00:00"
+    },
+    {
+      "station": "ED",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T05:25:00+00:00"
+    },
+    {
+      "station": "TUP",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T06:08:00+00:00"
+    },
+    {
+      "station": "TUP",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T06:10:00+00:00"
+    },
+    {
+      "station": "CBE",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T07:00:00+00:00"
+    },
+    {
+      "station": "CBE",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T07:05:00+00:00"
+    },
+    {
+      "station": "PGT",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T08:22:00+00:00"
+    },
+    {
+      "station": "PGT",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T08:25:00+00:00"
+    },
+    {
+      "station": "OTP",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T08:49:00+00:00"
+    },
+    {
+      "station": "OTP",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T08:50:00+00:00"
+    },
+    {
+      "station": "TCR",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T09:51:00+00:00"
+    },
+    {
+      "station": "TCR",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T09:53:00+00:00"
+    },
+    {
+      "station": "AWY",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T10:38:00+00:00"
+    },
+    {
+      "station": "AWY",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T10:40:00+00:00"
+    },
+    {
+      "station": "ERN",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T11:00:00+00:00"
+    },
+    {
+      "station": "ERN",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T11:05:00+00:00"
+    },
+    {
+      "station": "VARD",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T11:44:00+00:00"
+    },
+    {
+      "station": "VARD",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T11:45:00+00:00"
+    },
+    {
+      "station": "KTYM",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T12:22:00+00:00"
+    },
+    {
+      "station": "KTYM",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T12:25:00+00:00"
+    },
+    {
+      "station": "CGY",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T12:43:00+00:00"
+    },
+    {
+      "station": "CGY",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T12:44:00+00:00"
+    },
+    {
+      "station": "TRVL",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T12:53:00+00:00"
+    },
+    {
+      "station": "TRVL",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T12:54:00+00:00"
+    },
+    {
+      "station": "CNGR",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T13:05:00+00:00"
+    },
+    {
+      "station": "CNGR",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T13:07:00+00:00"
+    },
+    {
+      "station": "MVLK",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T13:19:00+00:00"
+    },
+    {
+      "station": "MVLK",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T13:20:00+00:00"
+    },
+    {
+      "station": "KYJ",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T13:48:00+00:00"
+    },
+    {
+      "station": "KYJ",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T13:50:00+00:00"
+    },
+    {
+      "station": "QLN",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T14:30:00+00:00"
+    },
+    {
+      "station": "QLN",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T14:32:00+00:00"
+    },
+    {
+      "station": "VAK",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T14:52:00+00:00"
+    },
+    {
+      "station": "VAK",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T14:53:00+00:00"
+    },
+    {
+      "station": "TVP",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T15:29:00+00:00"
+    },
+    {
+      "station": "TVP",
+      "occ": 1,
+      "kind": "dep",
+      "eta_ts": "2026-10-09T15:30:00+00:00"
+    },
+    {
+      "station": "TVC",
+      "occ": 1,
+      "kind": "arr",
+      "eta_ts": "2026-10-09T16:20:00+00:00"
+    }
+  ]
+}

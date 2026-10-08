@@ -1,0 +1,97 @@
+{
+  "train": "12951",
+  "start_date": "2026-10-07",
+  "status": "completed",
+  "last_updated_at": "2026-10-08T03:12:00+00:00",
+  "events": [
+    {
+      "station": "MMCT",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-07T11:30:00+00:00"
+    },
+    {
+      "station": "BVI",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-07T12:04:00+00:00"
+    },
+    {
+      "station": "BVI",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-07T12:06:00+00:00"
+    },
+    {
+      "station": "ST",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-07T14:19:00+00:00"
+    },
+    {
+      "station": "ST",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-07T14:25:00+00:00"
+    },
+    {
+      "station": "BRC",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-07T15:47:00+00:00"
+    },
+    {
+      "station": "BRC",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-07T15:56:00+00:00"
+    },
+    {
+      "station": "RTM",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-07T18:55:00+00:00"
+    },
+    {
+      "station": "RTM",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-07T18:59:00+00:00"
+    },
+    {
+      "station": "NAD",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-07T19:38:00+00:00"
+    },
+    {
+      "station": "NAD",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-07T19:40:00+00:00"
+    },
+    {
+      "station": "KOTA",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-07T21:49:00+00:00"
+    },
+    {
+      "station": "KOTA",
+      "occ": 1,
+      "kind": "dep",
+      "actual_ts": "2026-10-07T21:57:00+00:00"
+    },
+    {
+      "station": "NDLS",
+      "occ": 1,
+      "kind": "arr",
+      "actual_ts": "2026-10-08T03:12:00+00:00"
+    }
+  ],
+  "pending": [],
+  "passing_stations": [],
+  "exceptions": [],
+  "flags": [],
+  "etas": []
+}
