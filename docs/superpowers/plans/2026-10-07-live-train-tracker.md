@@ -49,7 +49,7 @@ If a step needs a decision the plan does not make, stop and start your final mes
 
 These are copied from the spec; every task implicitly includes them.
 
-- Python 3.12, with dependencies locked by `uv`. Runtime dependencies: `httpx selectolax zstandard psycopg[binary,pool] numpy numba lightgbm onnxruntime pyarrow fastapi uvicorn msgpack`. Ops extras: `kaggle oci-cli`. Import extras: `networkx` plus the `osmium-tool` binary. Dev: `pytest`. **No new runtime dependency without a plan change.**
+- Python 3.12, with dependencies locked by `uv`. Runtime dependencies: `httpx selectolax zstandard psycopg[binary,pool] numpy numba lightgbm onnxruntime pyarrow fastapi uvicorn websockets msgpack`. Ops extras: `kaggle oci-cli`. Import extras: `networkx` plus the `osmium-tool` binary. Dev: `pytest`. **No new runtime dependency without a plan change.**
 - Postgres 16. Timestamps are UTC `timestamptz` and are displayed in IST. Offsets are run-clock minutes (float), counted from 00:00 IST on the origin start date. Migrations are numbered SQL files applied by `msynd/db/migrate.py`.
 - Deliberately absent: PostGIS, Redis, Kafka, persisted particle state, Rust.
 - HTTP: one Dispatcher per host. Request **starts** are spaced ≥ 1/rate apart, with no burst and one request in flight. Tokens, session pages and retries all count. `NTES_RATE=1.0`, `ETRAIN_RATE=0.2`, pilot ≤ 0.3 req/s. Changing a rate is the user's decision. The user agent is `m-syndicator/<ver> (personal research)`.
@@ -865,7 +865,8 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 
 **Interfaces:**
 - `segment_queries(conn, run_id, asof) -> pyarrow.Table` holds the shared per-segment features (§8.2 table minus *d*).
-- `training_frame(conn, fold: Fold) -> (X, y)` takes `Fold(train_weeks, valid_weeks)` (rolling-origin by week).
+- `training_frame(conn, fold: Fold) -> (X, y)` takes `Fold(train_weeks, valid_weeks)` (rolling-origin by week). Each row's as-of cutoff is the `received_at` of the segment's departure event at A.
+- FEATURE_VER 1 omits "count of surprises so far" (spec §18, 2026-10-08).
 - `FoldEncoders.fit(train_rows)` covers target encoding (smoothed), slack P05 per halt pair and history stats (only if G4 passed). It is fitted on training rows only.
 
 - [ ] Tests:
@@ -880,7 +881,7 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 **Files:** create `msynd/models/empirical.py`, `msynd/models/registry.py`, `msynd/engine/cache.py`, `tests/models/test_empirical.py`, `tests/engine/test_cache.py`.
 
 **Interfaces:**
-- `fit_empirical(labels, role) -> ModelArtifact` builds per-class histograms; W also has a scheduled-dwell bucket.
+- `fit_empirical(labels, role) -> ModelArtifact` builds per-class histograms; W also has a scheduled-dwell bucket. Buckets: quintile edges of scheduled dwell over the training rows (duplicates merged), stored in the artifact; an empty or unseen bucket falls back to the class-pooled histogram, then the provisional prior (spec §18, 2026-10-08).
 - `provisional_models() -> dict[role, ModelArtifact]` gives day-1 broad priors, all marked `cold_start`:
   - R: Δrun ~ Laplace(0, 5);
   - W: sched dwell + Exp(2);

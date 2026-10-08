@@ -664,7 +664,7 @@ One query is (run, segment *i*, delay level *d*). Everything except *d* is share
 | Segment | timetable km, scheduled running min, scheduled dwell at A, slack (scheduled running − fold-local P05 of observed running on this halt pair), zone at A |
 | Calendar | hour of `sched_dep + d` (sin/cos), weekday, month, `fog_north` × northern zone, holiday ±1 day |
 | Delay | *d*: departure delay at A for R; arrival delay for W |
-| Observed run context | the run's last *observed* `Δrun` and how many segments ago it occurred; count of surprises so far |
+| Observed run context | the run's last *observed* `Δrun` and how many segments ago it occurred. *Count of surprises so far is deferred to `FEATURE_VER` 2* (no as-of surprise store in v1; §18) |
 | History (only if G4 passes) | fold-local per (train, halt pair) composite mean and P90 |
 
 Not in the v1 baseline: anything about other trains (C1, C2 in §4.4) and OSM attributes.
@@ -966,7 +966,7 @@ A burst larger than that (a model change, a restart) is excluded from A6 and mea
 **Secrets.** Kept in `.env` with mode 600: Kaggle token, basic-auth hash, DuckDNS token, OCI configuration, rates. `.env.example` is committed.
 
 **Dependencies.** Locked with `uv`:
-- Python 3.12, `httpx`, `selectolax`, `zstandard`, `psycopg[binary,pool]`, `numpy`, `numba`, `lightgbm`, `onnxruntime`, `pyarrow`, `fastapi`, `uvicorn`, `msgpack`, `kaggle`
+- Python 3.12, `httpx`, `selectolax`, `zstandard`, `psycopg[binary,pool]`, `numpy`, `numba`, `lightgbm`, `onnxruntime`, `pyarrow`, `fastapi`, `uvicorn`, `websockets`, `msgpack`, `kaggle`
 - `osmium-tool` and `networkx` for the import
 - G5 smoke-tests the **pinned** image on the actual A1 VM.
 
@@ -1134,6 +1134,11 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
 - **Backup:** off-site to Oracle Object Storage. Kaggle is not a backup.
 - **Phase 0 outcomes:** *to be appended here (G1–G8 results and decisions).*
   - **G7 (2026-10-07): pass.** All 13 cases plus both A4 sensitivity variants within A8 tolerance at N = 10k and 100k (`docs/gates/G7.md`). A7 accepted: P10/P50/P90 error ≤ 0.49 min against a 2 min limit, so passes stay in conditioning. A second pass chains from the previous pass (remainder anchored at Pᵢ; formula in G7.md).
+- **Implementation decisions (2026-10-08, user):**
+  - Features v1 drop "count of surprises so far"; it returns in `FEATURE_VER` 2 once surprises are stored with receipt times.
+  - A training row's as-of cutoff is the `received_at` of the segment's departure event at A (the live moment a run forecast is issued).
+  - W scheduled-dwell buckets are data-driven: quintile edges of scheduled dwell over the fold's training rows (duplicate edges merged), stored in the artifact. An empty or unseen bucket falls back to the class-pooled histogram, then the provisional prior.
+  - `websockets` becomes a runtime dependency as uvicorn's WebSocket backend.
 
 ---
 
