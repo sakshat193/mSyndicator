@@ -72,5 +72,5 @@ def test_migrations_are_idempotent(db_url):
     migrate.apply(db_url)
     with connect(db_url) as conn:
         assert conn.execute("select version from schema_migrations order by version").fetchall() == [
-            ("0001_init.sql",), ("0002_pending_source_key.sql",)
+            ("0001_init.sql",), ("0002_pending_source_key.sql",), ("0003_history_seq.sql",)
         ]

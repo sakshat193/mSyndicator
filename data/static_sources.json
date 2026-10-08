@@ -1,4 +1,5 @@
 {
   "gtfs": {"repo": "Neo2308/indianrailways-gtfs", "sha": "b340b7048e99c18330ad333e8210d61161ac7a43", "path": "gtfs/gtfs.zip", "distance_unit": "km"},
-  "datameet": {"repo": "datameet/railways", "sha": "e0c538a1e41ae5eace454d2818902e1065608e16", "path": "stations.json"}
+  "datameet": {"repo": "datameet/railways", "sha": "e0c538a1e41ae5eace454d2818902e1065608e16", "path": "stations.json"},
+  "rstgcn": {"repo": "KoyenaChowdhury/RSTGCN", "sha": "160da04cd3b5dd72588b6cc72b08e84e0b7210b4", "path": "Indian-Railway-Network-and-Delays.zip", "sha256": "f8a6fe9e70972acb8ad98bbe5b7eb594c5b6b3475e21efd6d3b9e19049bdaf91"}
 }
