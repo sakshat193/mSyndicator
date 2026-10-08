@@ -1142,6 +1142,7 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
   - Model tables carry one tail pair per segment (R) and one scale per halt (W): the CDF cache takes the max of the per-level LightGBM scales. Per-level τ in the kernel is the upgrade path.
   - Off-site backup excludes `obs` (raw source evidence) until G1 allows it to leave the machine; local backups keep it.
   - A2 zone: the zone of the station of the run's last event; runs with no event use the origin zone.
+  - A1 denominator comes from the simulation: a run is scheduled-active at t when its simulated origin departure P50 ≤ t, its simulated destination arrival P50 > t, and it is not cancelled as of t. Observed late runs stay active while the posterior says they are running; unseen runs leave at their prior P50. The engine writes the triple to `sim.metric` each minute; the report only aggregates. Cold-start priors make the denominator rough, so the share of minutes on cold-start tables is reported.
 
 ---
 

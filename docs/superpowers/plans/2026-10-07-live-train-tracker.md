@@ -843,13 +843,13 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 **Files:** create `msynd/ops/report.py`, `tests/ops/test_report.py`.
 
 **Interface:** `python -m msynd.ops.report {a1,a2,a5,a8,invalid,phase2} --since --until --out docs/gates/<name>.md`. It computes:
-- A1 (cancellation per the Task 21 `exception_rev.detail` rule): the coverage triple — scheduled-active, discovered and freshly-observed runs, where the scheduled-active denominator comes from our own inventory;
+- A1: aggregates the engine's per-minute `sim.metric` rows (written by Task 32; spec §18, 2026-10-08) over `--since..--until`. It reports mean and minimum of `a1_discovered/a1_active` and `a1_fresh/a1_active`, and the target ratio `a1_discovered_1h/a1_active_1h` against ≥ 95 %, plus the share of minutes with `a1_cold > 0` (counted on cold-start priors). It never recomputes the denominator from schedules;
 - A2: p50/p90 of (now − last `received_at`) by class and zone, where a run's zone is that of its last event's station (origin zone before any event; spec §18, 2026-10-08);
 - A5: the maximum number of starts in any 60 s window per host, from `obs.fetch` with a SQL window function;
 - A8: missing-event rate by class;
 - the `invalid` share.
 
-- [ ] Test `test_a5_window_counts` (61 starts within 60 s are detected).
+- [ ] Tests: `test_a5_window_counts` (61 starts within 60 s are detected); `test_a1_aggregates_metric_rows` (inserted `a1_*` rows → expected mean, minimum and target verdict).
 - [ ] Commit `task 25: reports`.
 - [ ] **🛑 CP-3 (user and monitor):**
   1. The user reviews the G2 results and decides on h, S, board share, T_max and F. If 1 req/s freshness is unacceptable, the user chooses between accepting it, changing the rate, changing the source, or reducing scope. Record this in §18.
@@ -982,11 +982,13 @@ def test_late_event_frame_equals_fresh_replay(db_url): ...    # RF4
 **Interfaces:**
 - `priority(run_out, S, now, age, T_max) = P(next halt event published by now) × width(P10..P90) + age/T_max`. The probability is the particle mean of `1 − S(now − t)`. Upsert to `obs.poll_queue` every 30 s.
 - Hourly: insert `sim.forecast_issue` for running runs with `q` (7 per halt) and `b2` (A3 eligibility at issue time, NaN otherwise).
+- Each minute: write the A1 triple to `sim.metric` from the replay outputs already held (spec §18, 2026-10-08). A run is **active at t** when its simulated origin departure P50 ≤ t (the actual once observed), its simulated destination arrival P50 > t, and it is not cancelled as of t (Task 21 rule). Metrics: `a1_active`, `a1_discovered` (≥ 1 source event), `a1_fresh` (last event received ≤ F), the same first two as `a1_active_1h`/`a1_discovered_1h` restricted to origin departure P50 ≤ t − 1 h, and `a1_cold` (active runs replayed on cold-start tables).
 
 - [ ] Tests:
   - `test_priority_prefers_published_and_wide`;
   - `test_age_term_prevents_starvation`;
   - `test_forecast_issue_b2_nan_when_stale`.
+  - `test_a1_active_uses_simulated_arrival` (a late observed run stays active past scheduled arrival; an unseen run leaves at its prior P50).
 - [ ] Implement; commit `task 32: priorities and issued forecasts`.
 
 ### Task 33: Replay-day end-to-end → 🛑 G8 and Phase 4 exit (spec §14 Replay day)
