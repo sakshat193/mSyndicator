@@ -467,14 +467,14 @@ Rules:
 - Non-halt rows with a time become `PassingStation` (km from the response).
 - `exceptions` is always empty: no MMT exception was ever observed (G3), so its fields are unmapped. If `cancelledFromStation` or `cancelledToStation` is non-null, keep the page and add flag `exception_unparsed` (`# ponytail:` unmapped; upgrade: map to the Task 21 `detail` form once a real cancelled body is captured). A reschedule shows only as a late actual origin departure (user, 2026-10-08).
 
-- [ ] Tests (one per fixture, comparing against its golden file), plus:
+- [x] Tests (one per fixture, comparing against its golden file), plus:
   - `test_status_for_other_start_date_is_invalid` (RF1);
   - `test_multiday_offsets_monotone` (RF2);
   - `test_repeated_station_occ` (RF3);
   - `test_delay_over_24h_kept_flagged` (RF5);
   - `test_unflagged_time_is_eta_never_actual`;
   - `test_empty_body_invalid`.
-- [ ] Implement; commit `task 10: mmt parser and validation`.
+- [x] Implement; commit `task 10: mmt parser and validation`.
 
 ### Task 11: G2 pilot runner and analysis → 🛑 CP-2
 
