@@ -843,7 +843,7 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 
 **Interface:** `python -m msynd.ops.report {a1,a2,a5,a8,invalid,phase2} --since --until --out docs/gates/<name>.md`. It computes:
 - A1: the coverage triple — scheduled-active, discovered and freshly-observed runs, where the scheduled-active denominator comes from our own inventory;
-- A2: p50/p90 of (now − last `received_at`) by class and zone;
+- A2: p50/p90 of (now − last `received_at`) by class and zone, where a run's zone is that of its last event's station (origin zone before any event; spec §18, 2026-10-08);
 - A5: the maximum number of starts in any 60 s window per host, from `obs.fetch` with a SQL window function;
 - A8: missing-event rate by class;
 - the `invalid` share.

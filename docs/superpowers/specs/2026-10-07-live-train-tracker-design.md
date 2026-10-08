@@ -1141,6 +1141,7 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
   - `websockets` becomes a runtime dependency as uvicorn's WebSocket backend.
   - Model tables carry one tail pair per segment (R) and one scale per halt (W): the CDF cache takes the max of the per-level LightGBM scales. Per-level τ in the kernel is the upgrade path.
   - Off-site backup excludes `obs` (raw source evidence) until G1 allows it to leave the machine; local backups keep it.
+  - A2 zone: the zone of the station of the run's last event; runs with no event use the origin zone.
 
 ---
 
