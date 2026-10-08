@@ -25,8 +25,10 @@ def test_empirical_masses_sum_to_one_and_signed_o(tmp_path):
         assert masses.shape == (1, 16, 181 if role == "dwell" else 302)
         np.testing.assert_allclose(masses.sum(axis=-1), 1.)
         if role != "dwell":
-            assert masses[0, 0, 0] == .2
-            assert masses[0, 0, 51] == .2  # [-10,-9)
+            prior_lo = .5*math.exp(-12) if role == "run" else 0.
+            prior_bin = .5*(math.exp(-9/5)-math.exp(-10/5)) if role == "run" else 0.
+            assert masses[0, 0, 0] == pytest.approx(.99*.2 + .01*prior_lo)
+            assert masses[0, 0, 51] == pytest.approx(.99*.2 + .01*prior_bin)  # [-10,-9)
             assert lo[0, 0] == 10.
             assert hi[0, 0] == 10.
         else:
@@ -49,9 +51,9 @@ def test_dwell_buckets_and_fallback(tmp_path):
     model = fit_empirical(labels, "dwell")
     assert model.dwell_edges == [0., 10., 20., 30., 40.]
     m, _, _ = model.predict_distribution(query(["X", "Y", "X", "NEW"], [20., 20., 100., 5.]))
-    assert m[0, 0, 3] == 1.
-    assert m[1, 0, 90] == 1.  # empty Y bucket -> Y pool
-    np.testing.assert_allclose(m[2, 0, 1:6], [.2] * 5)  # outside fitted edges -> pool
+    assert m[0, 0, 3] == pytest.approx(.99)
+    assert m[1, 0, 90] == pytest.approx(.99 + .01*math.exp(-45)*(1-math.exp(-.5)))  # empty Y bucket -> Y pool
+    np.testing.assert_allclose(m[2, 0, 1:6], [.198] * 5)  # outside fitted edges -> pool
     assert m[3, 0, :5].sum() == 0.  # unseen class -> sched dwell + Exp(2)
     assert m[3, 0, 5] == pytest.approx(1-math.exp(-.5))
     path = tmp_path / "w.json"
@@ -89,7 +91,57 @@ def test_empty_and_training_only_fallback():
         {"class": "X", "value": 99., "sched_dwell": 500., "split": "valid"},
     ]), "dwell")
     assert model.dwell_edges == [5.]
-    assert model.predict_distribution(query(["X"], [5.]))[0][0,0,1] == 1.
+    m = model.predict_distribution(query(["X"], [5.]))[0][0,0]
+    assert m[1] == pytest.approx(.99)
+    assert m[5] == pytest.approx(.01*(1-math.exp(-.5)))
+
+
+@pytest.mark.parametrize("role", ["run", "origin", "dwell"])
+def test_unseen_bin_has_nonzero_mass(role):
+    from msynd.models.empirical import fit_empirical
+
+    model = fit_empirical([{"class": "X", "value": 0., "sched_dwell": 5.}], role)
+    m, lo, hi = model.predict_distribution(query(["X"], [5.]))
+    index = 100 if role == "dwell" else 161
+    scale = {"run": 5., "origin": 10., "dwell": 2.}[role]
+    shift = {"run": 0., "origin": -2., "dwell": 5.}[role]
+    factor = .5 if role == "run" else 1.
+    expected = .01*factor*math.exp(-(100-shift)/scale)*(1-math.exp(-1/scale))
+    assert m[0, 0, index] > 0.
+    assert m[0, 0, index] == pytest.approx(expected, rel=1e-12, abs=0.)
+    assert hi[0, 0] == scale
+    if role != "dwell":
+        assert lo[0, 0] == (5. if role == "run" else .5)
+    assert not model.cold_start
+
+
+@pytest.mark.parametrize("role", ["run", "origin", "dwell"])
+def test_smoothed_masses_sum_to_one(role):
+    from msynd.models.empirical import fit_empirical
+
+    values = [0., 0., 180., 200.] if role == "dwell" else [-80., 0., 240., 280.]
+    model = fit_empirical([{"class": "X", "value": v, "sched_dwell": d}
+                           for v, d in zip(values, [0., 10., 20., 30.])], role)
+    for masses in [model.pooled["X"], *model.buckets.get("X", {}).values()]:
+        assert np.all(np.isfinite(masses))
+        assert np.all(np.asarray(masses) >= 0.)
+        assert sum(masses) == pytest.approx(1.)
+
+
+def test_dwell_smoothing_uses_each_histograms_mean_training_dwell():
+    from msynd.models.empirical import fit_empirical
+
+    rows = [{"class": "X", "value": 0., "sched_dwell": d} for d in range(11)]
+    rows.append({"class": "X", "value": 99., "sched_dwell": 500., "split": "valid"})
+    model = fit_empirical(rows, "dwell")
+    # Pool mean is 5; first bucket contains dwells 0 and 1, so its mean is .5.
+    assert model.pooled["X"][0] == pytest.approx(.99)
+    assert model.pooled["X"][5] == pytest.approx(.01*(1-math.exp(-.5)))
+    m, _, hi = model.predict_distribution(query(["X", "X"], [0., 100.]))
+    assert m[0, 0, 0] == pytest.approx(.99 + .01*(1-math.exp(-.25)))
+    assert m[0, 0, 1] == pytest.approx(.01*(math.exp(-.25)-math.exp(-.75)))
+    np.testing.assert_array_equal(m[1, 0], model.pooled["X"])
+    assert np.all(hi == 2.)
 
 
 @pytest.mark.parametrize("role,value", [("bad", 0.), ("dwell", -1.), ("run", float("nan"))])

@@ -10,12 +10,13 @@ import numpy as np
 from msynd import dist
 
 
-def _histogram(values, signed):
+def _histogram(values, signed, prior):
     edges = np.arange(-60, 241) if signed else np.arange(181)
     counts = np.bincount(np.searchsorted(edges, values, side="right"),
                          minlength=302) if signed else np.bincount(
                              np.searchsorted(edges, values, side="right") - 1, minlength=181)
-    return (counts / len(values)).tolist()
+    # ponytail: fixed mix weight; upgrade: fit it on validation log-score.
+    return (.99 * counts / len(values) + .01 * prior).tolist()
 
 
 def _prior(role, dwell):
@@ -120,15 +121,22 @@ def fit_empirical(labels, role):
     for name in sorted(set(classes)):
         selected = classes == name
         y = values[selected]
-        pooled[name] = _histogram(y, signed)
+        # ponytail: mean-dwell prior; upgrade: mix the prior at predict time using the query dwell
+        dwell = float(dwells[selected].mean()) if role == "dwell" else 0.
+        prior, prior_lo, prior_hi = _prior(role, dwell)
+        pooled[name] = _histogram(y, signed, prior)
         excess = y[y >= (240 if signed else 180)] - (240 if signed else 180)
-        tails[name] = {"hi": max(.5, float(excess.mean())) if len(excess) else .5}
+        tails[name] = {"hi": max(prior_hi, float(excess.mean())) if len(excess) else prior_hi}
         if signed:
             excess = -60-y[y < -60]
-            tails[name]["lo"] = max(.5, float(excess.mean())) if len(excess) else .5
+            tails[name]["lo"] = max(prior_lo, float(excess.mean())) if len(excess) else prior_lo
         if role == "dwell":
             bucket_ids = np.searchsorted(edges[1:-1], dwells[selected], side="right")
-            buckets[name] = {str(b): _histogram(y[bucket_ids == b], False) for b in np.unique(bucket_ids)}
+            buckets[name] = {}
+            for b in np.unique(bucket_ids):
+                members = bucket_ids == b
+                prior, _, _ = _prior(role, float(dwells[selected][members].mean()))
+                buckets[name][str(b)] = _histogram(y[members], False, prior)
     return ModelArtifact(role, pooled, buckets, edges, tails, not rows)
 
 
