@@ -1,6 +1,6 @@
 # m-syndicator v1 — Live All-India Train Tracker: Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
 > **Execution in this repo:** Codex implements exactly one task per `codex exec` session. Claude (the monitor) launches each session, reviews and verifies it, runs every live or gated step itself, and ticks the boxes. See "How this plan runs".
 
@@ -446,12 +446,12 @@ Any headers that discovery records as required are added here. Without the Task 
 
 ### Task 9: G3 fixture capture (monitor, live 🛑)
 
-- [x] After the user confirms, capture ≤ 40 livestatus bodies at 0.2 req/s:
+- [ ] After the user confirms, capture ≤ 40 livestatus bodies at 0.2 req/s:
   - normal running; not started; completed;
   - cancelled, rescheduled and diverted (if found);
   - a multi-day train and a repeated-station train (from GTFS);
   - one passing through midnight IST; one with a delay > 3 h.
-- [x] Copy the chosen bodies, trimmed to the fields the parser reads and labelled, into `tests/fixtures/mmt/`. Record in `docs/gates/G3.md` which edge cases were captured and which could not be found.
+- [ ] Copy the chosen bodies, trimmed to the fields the parser reads and labelled, into `tests/fixtures/mmt/`. Record in `docs/gates/G3.md` which edge cases were captured and which could not be found.
 
 ### Task 10: MMT parser and semantic validation (spec §7.1 Validation, §7.4, A3)
 
@@ -467,14 +467,14 @@ Rules:
 - Non-halt rows with a time become `PassingStation` (km from the response).
 - A cancellation, reschedule or diversion indicated by the response becomes an `exceptions` entry in the same `detail` form as Task 21. If the response has none, the tuple is empty.
 
-- [x] Tests (one per fixture, comparing against its golden file), plus:
+- [ ] Tests (one per fixture, comparing against its golden file), plus:
   - `test_status_for_other_start_date_is_invalid` (RF1);
   - `test_multiday_offsets_monotone` (RF2);
   - `test_repeated_station_occ` (RF3);
   - `test_delay_over_24h_kept_flagged` (RF5);
   - `test_unflagged_time_is_eta_never_actual`;
   - `test_empty_body_invalid`.
-- [x] Implement; commit `task 10: mmt parser and validation`.
+- [ ] Implement; commit `task 10: mmt parser and validation`.
 
 ### Task 11: G2 pilot runner and analysis → 🛑 CP-2
 
@@ -497,13 +497,13 @@ Rules:
 
   It writes `data/params.json` as `{"S": {"mmt_status": {...}}, "minute": "trunc", "provisional": false}`. Before G2, the file is committed with `provisional: true`: lag P50 10 min, exponential, ε = 0.05.
 
-- [x] Tests:
+- [ ] Tests:
   - `test_cohort_bound` (h = 1, rate 0.2 → 16);
   - `test_s_fit_recovers_synthetic` (synthetic lags with a known exponential tail and ε = 0.03, polled every 120 s → the fitted median is within 1 min and the ε CI contains 0.03);
   - `test_right_censored_not_counted_unpublished`;
   - `test_never_hard_bound` (zero counterexamples → the output still has ε > 0 and a soft tail).
-- [x] Implement; commit `task 11: g2 pilot`.
-- [x] **🛑 CP-2 (user):** choose the pilot host (PC or VM; it must stay up for 7 days). The monitor then starts it with `MSYND_LIVE=1`, checks it daily (fetch-log rate ≤ 0.2/s, no challenge) and runs `analyse` at the end.
+- [ ] Implement; commit `task 11: g2 pilot`.
+- [ ] **🛑 CP-2 (user):** choose the pilot host (PC or VM; it must stay up for 7 days). The monitor then starts it with `MSYND_LIVE=1`, checks it daily (fetch-log rate ≤ 0.2/s, no challenge) and runs `analyse` at the end.
 
 ---
 
@@ -765,7 +765,7 @@ Every case runs at N = 10k and 100k, with the A8 tolerance.
 
 Migration `0004_mmt_source.sql` adds `'mmt_status'` to `obs.source`. `settings.live_source = 'mmt_status'` replaces the hard-coded `'ntes_status'` defaults in `msynd/engine/__main__.py`, `priority.py`, `evidence.py`'s tie-break, `api/app.py` and `ops/nightly.py`. There is no board, exception-list or history store: MMT has no such pages, and RSTGCN history is Task 42.
 
-- [x] Tests, including `msynd/eval/baselines.py:b2_eta(conn, run_id, station, occ, kind, t)` (create it here):
+- [ ] Tests, including `msynd/eval/baselines.py:b2_eta(conn, run_id, station, occ, kind, t)` (create it here):
 ```python
 def test_eta_confirmation_per_key(db):    # A3 / R3-3
     # 09:00 ok page: ETA B=10:30, C=11:00 ; 10:00 ok page: C=11:00 only ; 10:20 ok page: B=10:30 unchanged
@@ -782,7 +782,7 @@ def test_dirty_in_same_txn(db): ...               # rollback of store → no dir
 def test_repeated_station_keys(db): ...           # RF3: occ 1 and 2 stored separately
 def test_enrichment_never_rekeys(db): ...         # passing station → new route version, event keys identical
 ```
-- [x] Implement; commit `task 20: evidence store`.
+- [ ] Implement; commit `task 20: evidence store`.
 
 ### Task 21: Run lifecycle and exceptions (spec §7.3, A11)
 
@@ -794,14 +794,14 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 - `apply_exception(conn, row, fetch) -> None` (rows come from `ParsedStatus.exceptions`; MMT has no network-wide list) handles cancelled, `resched_min`, `diverted_from` and `part_cancelled`, then calls `mark_dirty`.
 - `obs.exception_rev.detail` is `{"kind": "cancelled"|"part_cancelled"|"rescheduled"|"diverted"|"none", ...}` (Task 10 `ExceptionRow.kind`; `none` withdraws an exception). A (train, start_date) is fully cancelled as of t when its latest revision with `received_at ≤ t` has `kind = 'cancelled'`; any later revision of another kind clears it (monitor, 2026-10-08). Each `obs.exception_rev.detail` it writes carries the run's **full cumulative** exception state (resched, diversion, part_cancelled), because evidence assembly (Task 16) reads the latest detail as complete state.
 
-- [x] Tests:
+- [ ] Tests:
   - `test_creates_only_matching_weekdays`;
   - `test_ist_start_date_at_utc_evening` (RF2: at 2026-10-07 19:00 UTC the IST date is 10-08);
   - `test_cancelled_not_created`;
   - `test_expiry_rule_both_conditions`;
   - `test_expired_never_completed`;
   - `test_exception_marks_dirty`.
-- [x] Implement; commit `task 21: run lifecycle`.
+- [ ] Implement; commit `task 21: run lifecycle`.
 
 ### Task 22: Admission and the collector main loop (spec §7.2, §7.5)
 
@@ -811,11 +811,11 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 - `next_job(state, now) -> Job`. Order: (1) nothing while the host is `stopped`; (2) overdue runs (not fetched within `T_max = 1.25·R·h/rate`); (3) targeted polls by `obs.poll_queue.priority`, falling back to age when no row exists. MMT has no boards, exception list or backfill.
 - `python -m msynd.collect` runs the MMT host task, plus hourly `create_runs`, `expire_runs`, body retention (Task 23) and the disk check.
 
-- [x] Tests:
+- [ ] Tests:
   - `test_no_run_starves_beyond_tmax` (simulate 300 runs with skewed priorities for 6 simulated hours: every run is fetched within T_max);
   - `test_job_order`;
   - `test_stopped_host_issues_nothing`.
-- [x] Implement; commit `task 22: admission and collector loop`.
+- [ ] Implement; commit `task 22: admission and collector loop`.
 
 ### Task 23: Retention, disk guard, backup (spec §12, §13, A3, A5)
 
@@ -838,8 +838,8 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 
 **Files:** create `Dockerfile` (python:3.12-slim, multi-arch, `uv sync --frozen`), and modify `compose.yaml` to add the services `collector`, `engine`, `api`, `caddy` and an `ops` profile (`restart: unless-stopped`, health checks, json-file logging 10m×5, volumes `/data/{pg,models,backups,tiles}`). Create `Caddyfile` (DuckDNS host, basic auth on everything, `/api/*` → api:8000 with WebSocket, static `web/dist`, `/tiles/*`), extend `.env.example`, and write `docs/deploy.md` (≤ 60 lines: VM firewall 80/443 open, 22 restricted to the user's IP, crontab lines for nightly 21:00 UTC and weekly Sat 20:30 UTC).
 
-- [x] Verify: `docker buildx build --platform linux/arm64,linux/amd64 .` succeeds, and `docker compose --profile ops run --rm ops python -c "import lightgbm, onnxruntime, numba"` passes.
-- [x] Commit `task 24: image and compose`.
+- [ ] Verify: `docker buildx build --platform linux/arm64,linux/amd64 .` succeeds, and `docker compose --profile ops run --rm ops python -c "import lightgbm, onnxruntime, numba"` passes.
+- [ ] Commit `task 24: image and compose`.
 
 ### Task 25: Gate and exit report CLI → 🛑 CP-3
 
@@ -854,7 +854,7 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 
 - [x] Tests: `test_a5_window_counts` (61 starts within 60 s are detected); `test_a1_aggregates_metric_rows` (inserted `a1_*` rows → expected mean, minimum and target verdict).
 - [x] Commit `task 25: reports`.
-- [x] **🛑 CP-3 (user and monitor):**
+- [ ] **🛑 CP-3 (user and monitor):**
   1. The user reviews the G2 results and decides on h, S, board share, T_max and F. If 1 req/s freshness is unacceptable, the user chooses between accepting it, changing the rate, changing the source, or reducing scope. Record this in §18.
   2. **G5:** the user gets an Oracle A1 allocation. The monitor deploys per `docs/deploy.md`, runs the image smoke test, measures storage from the G2 bodies, runs a restore drill into a fresh container (timed), and runs `engine.bench` on the VM. Results go to `docs/gates/G5.md` and `G8-vm.md`.
   3. Start the live collector. After 7 continuous days, run `report phase2` with the Phase 2 exit criteria: A5 holds, the evidence-age distribution and A8 are reported, `invalid` < 1 %, and the restore drill passed.
@@ -925,14 +925,14 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 - `n_curve(cases, Ns=(1k,5k,10k,50k,100k)) -> chosen_N` picks the smallest N with MC error ≤ 0.25 min at P05/P95 for 6 h.
 - `interp_error(...)` measures delay-level interpolation against direct model calls.
 
-- [x] Tests:
+- [ ] Tests:
   - `test_horizon_bucket_independent_of_outcome`;
   - `test_identical_eligible_cases_across_baselines`;
   - `test_b2_ineligible_when_stale`;
   - `test_bootstrap_ci_excludes_zero_on_clear_gain`;
   - `test_promotion_rule_rejects_class_regression`.
-- [x] Implement; commit `task 29: evaluation harness`.
-- [x] **Phase 3 exit (monitor, after ≥ 4 weeks of live data):** R/W beat B1 on CRPS at 2 h (CI > 0), with coverage within ±5 points. Write `docs/gates/phase3.md`, set N from the N-curve, and record both in §18.
+- [ ] Implement; commit `task 29: evaluation harness`.
+- [ ] **Phase 3 exit (monitor, after ≥ 4 weeks of live data):** R/W beat B1 on CRPS at 2 h (CI > 0), with coverage within ±5 points. Write `docs/gates/phase3.md`, set N from the N-curve, and record both in §18.
 
 ### Task 30: G4 etrain meaning (gated: ≥ 2 weeks of live NTES data, plus G1 allowing etrain)
 
@@ -940,9 +940,9 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 
 **Interface:** `python -m msynd.ops.g4 --trains 20` compares `obs.history_daily` against NTES actuals where arrival and departure delays differ by ≥ 5 min. It covers origin, long intermediate dwell, destination, overnight, multi-day, early running, non-daily and repeated stations, and decides whether `run_date` is the origin date.
 
-- [x] Test `test_discriminating_cases_only` (cases where the delays are equal are excluded).
-- [x] Commit `task 30: g4`.
-- [x] **🛑** Record the verdict in §18. **Pass** → history features, plus composite model C as cold start until R/W/O have 4 weeks of labels (a follow-up task added then). **Fail** → history stays quarantined; the cold start is the live empirical models from the first 2 weeks.
+- [ ] Test `test_discriminating_cases_only` (cases where the delays are equal are excluded).
+- [ ] Commit `task 30: g4`.
+- [ ] **🛑** Record the verdict in §18. **Pass** → history features, plus composite model C as cold start until R/W/O have 4 weeks of labels (a follow-up task added then). **Fail** → history stays quarantined; the cold start is the live empirical models from the first 2 weeks.
 
 ---
 
@@ -1004,9 +1004,9 @@ def test_late_event_frame_equals_fresh_replay(db_url): ...    # RF4
 
 **Files:** create `tests/e2e/test_replay_day.py` (marked `slow`; skipped unless `MSYND_REPLAY_DAY=<dir>`), and `msynd/ops/replay_day.py`, which exports one pilot or live day of `ok` bodies with their receipt times into that directory.
 
-- [x] The test feeds the bodies in `received_at` order at 60× through parsers → store → engine on a test database. It asserts: A1 reported, A6 p95 measured, `invalid` < 1 %, no unhandled exceptions, and frames are produced for every discovered run.
-- [x] Commit `task 33: replay-day e2e`.
-- [x] **🛑 Monitor:** run it on a recorded day; run G8 on the VM with all services up (apply §9.7 only to a measured bottleneck); run 7 days live and record A1, A2 and A6, and that `sim.forecast_issue` is populating, in `docs/gates/phase4.md`.
+- [ ] The test feeds the bodies in `received_at` order at 60× through parsers → store → engine on a test database. It asserts: A1 reported, A6 p95 measured, `invalid` < 1 %, no unhandled exceptions, and frames are produced for every discovered run.
+- [ ] Commit `task 33: replay-day e2e`.
+- [ ] **🛑 Monitor:** run it on a recorded day; run G8 on the VM with all services up (apply §9.7 only to a measured bottleneck); run 7 days live and record A1, A2 and A6, and that `sim.forecast_issue` is populating, in `docs/gates/phase4.md`.
 
 ---
 
@@ -1058,9 +1058,9 @@ Contents (spec §11):
 - Search.
 - Drop to K = 8 when fps < 30 for 3 s.
 
-- [x] Tests (`timeline.test.ts`): zone selection for a given simTime; the LIVE offset; the K fallback trigger logic.
-- [x] Commit `task 36: dashboard`.
-- [x] **🛑 Monitor and user:** the monitor generates the tiles once with `pmtiles extract` (India bbox `68,6,98,37`) into `/data/tiles`, and runs a Playwright smoke test (load, WebSocket connects, a train is clickable, reload, network loss and resync, a +6 h jump). The user names their laptop; A7 is measured there (≥ 60 fps at K = 32). Record it in `docs/gates/phase5.md`.
+- [ ] Tests (`timeline.test.ts`): zone selection for a given simTime; the LIVE offset; the K fallback trigger logic.
+- [ ] Commit `task 36: dashboard`.
+- [ ] **🛑 Monitor and user:** the monitor generates the tiles once with `pmtiles extract` (India bbox `68,6,98,37`) into `/data/tiles`, and runs a Playwright smoke test (load, WebSocket connects, a train is clickable, reload, network loss and resync, a +6 h jump). The user names their laptop; A7 is measured there (≥ 60 fps at K = 32). Record it in `docs/gates/phase5.md`.
 
 ### Task 37: OSM geometry for drawing (spec §7.6; deliberately late)
 
@@ -1072,11 +1072,11 @@ Contents (spec §11):
 - scores confidence: 1.0 when both stations matched by `ref` and the path is within ±10 % of timetable km; 0.5 when name-matched within tolerance; 0 otherwise (straight line);
 - updates `ref.segment` and re-exports the network.
 
-- [x] Tests on a tiny synthetic graph:
+- [ ] Tests on a tiny synthetic graph:
   - `test_confidence_rules`;
   - `test_path_length_tolerance`;
   - `test_override_wins`.
-- [x] Commit `task 37: osm geometry`.
+- [ ] Commit `task 37: osm geometry`.
 
 ---
 
@@ -1089,22 +1089,22 @@ Contents (spec §11):
 - **Bias:** over the last 7 days of matured segments, compute the median of (Δrun − active P50) per (halt pair, 3-hour bucket), shrunk by `n/(n+20)`, written as a new `gen` keyed by model (the previous generation is kept).
 - **Weekly:** retrain LightGBM R/W/O on the VM, validate on the most recent 2 full weeks with `promotion_ok`, and promote or keep the active model, logging the decision to `sim.metric` and `docs/gates/weekly-<date>.md`. Any failure keeps the active model.
 
-- [x] Tests:
+- [ ] Tests:
   - `test_bias_shrinkage`;
   - `test_new_model_starts_zero_bias`;
   - `test_failed_training_keeps_active`.
-- [x] Commit `task 38: nightly bias and weekly retrain`.
+- [ ] Commit `task 38: nightly bias and weekly retrain`.
 
 ### Task 39: Kaggle pipeline (gated: G1 allows export **and** 🛑 G6 passes)
 
 **Files:** create `msynd/ops/export.py` (month-partitioned Parquet plus a zip of `msynd`; verify privacy through the API after each version), `kaggle/kernel.py` (feature build, ~12-config sweep, neural candidate: GRU over ≤ 8 observed deltas plus §8.2 features, a 302- or 181-way head, CE on a Gaussian-smoothed target σ = 1.5 bins + 0.5·CRPS, AdamW with a cosine schedule and AMP, ONNX export, `metrics.json`), and extend `msynd/ops/weekly.py` (dataset version → kernel push → poll every 5 min, giving up after 12 h → output → `promotion_ok` against LightGBM on identical cases).
 
-- [x] **🛑 G6 (user and monitor):** private dataset with privacy verified; CLI push, status and output work; GPU confirmed; torch, onnx and lightgbm import offline. If this fails, train on the VM only (Task 38 already covers it).
-- [x] Tests:
+- [ ] **🛑 G6 (user and monitor):** private dataset with privacy verified; CLI push, status and output work; GPU confirmed; torch, onnx and lightgbm import offline. If this fails, train on the VM only (Task 38 already covers it).
+- [ ] Tests:
   - `test_export_partitions_and_excludes_raw_bodies`;
   - `test_onnx_head_dims` (R 302, W 181, O 302);
   - `test_weekly_timeout_keeps_active`.
-- [x] Commit `task 39: kaggle pipeline`. Phase 6 exit: two unattended weekly cycles, with their decisions logged.
+- [ ] Commit `task 39: kaggle pipeline`. Phase 6 exit: two unattended weekly cycles, with their decisions logged.
 
 ### Task 40: Prospective acceptance and the C1 ablation hook (spec §1 A3/A4, §4.4, Phase 7)
 
@@ -1114,10 +1114,10 @@ Contents (spec §11):
   - A3: P50 MAE at 2 h and 6 h against B1 and B2 (the stored `b2`) on identical eligible cases, with a run-day block-bootstrap CI;
   - A4: coverage, width and CRPS, overall and on disruption days (top-decile network surprise counts).
 - C1 (recent observed Δrun residuals of other runs on the same halt pair, as of `received_at`) is enabled only if an ablation shows a CRPS gain with CI > 0 and A4-band calibration. C2 gets its own plan when reached.
-- [x] Tests:
+- [ ] Tests:
   - `test_acceptance_uses_only_frozen_issue_rows`;
   - `test_c1_feature_asof`.
-- [x] Commit `task 40: acceptance and c1 hook`.
+- [ ] Commit `task 40: acceptance and c1 hook`.
 
 ---
 
@@ -1178,11 +1178,11 @@ RSTGCN (github `KoyenaChowdhury/RSTGCN`, no licence) holds Sept 2024: 1.28 M sta
 
 **Interfaces:** `_prior('dwell', d)` becomes `d/2 + Exp(2)` on the `NONNEG` bins (`# ponytail:` fixed half-dwell edge; upgrade: fit the edge from live W labels). The provisional model and the Task 41 smoothing prior both call it, so both pick up the change; nothing else changes.
 
-- [x] Tests:
+- [ ] Tests:
   - `test_dwell_prior_mass_below_scheduled` (d = 10 → bins 5…9 carry mass > 0; bins 0…4 carry 0; masses sum to 1);
   - `test_dwell_prior_zero_dwell` (d = 0 → identical to before);
   - the existing empirical, cache and replay tests still pass.
-- [x] Implement; commit `task 43: dwell prior below scheduled dwell`.
+- [ ] Implement; commit `task 43: dwell prior below scheduled dwell`.
 
 ---
 
