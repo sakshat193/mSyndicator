@@ -46,6 +46,8 @@ class ReplayOut:
     surprise: bool
     flags: tuple[str, ...]
     pits: tuple[float, ...]
+    next_times: np.ndarray | None = None
+    endpoint_p50: tuple[float, float] | None = None
 
 
 def _tables(models):
@@ -152,12 +154,15 @@ def replay(ev: RunEvidence, models: ModelTables, params: Params, key: int) -> Re
     last_actual = max((e.event for e in evidence if e.actual), default=-1)
     halt_q = np.full((len(models.w), 2, 7), np.nan)
     next_q = np.full(7, np.nan)
+    next_times = None
     for e in ev.events:
         if last_actual < e.idx <= stop and e.kind != "pass":
             q = np.quantile(times[:, e.idx], QUANTILES[1:-1])
             halt_q[e.halt_idx, 0 if e.kind == "arr" else 1] = q
             if e.kind == "arr" and np.isnan(next_q).all():
                 next_q = q.copy()
+                next_times = times[:, e.idx].copy()
     flags = tuple(name for name, enabled in (("data_invariant", invariant), ("cold_start", models.cold_start)) if enabled)
     return ReplayOut(halt_q, next_q, times[np.arange(params.k)*params.n//params.k], min_ess,
-                     any(p < .001 or p > .999 for p in pits), flags, tuple(pits))
+                     any(p < .001 or p > .999 for p in pits), flags, tuple(pits), next_times,
+                     tuple(float(x) for x in np.median(times[:, [0, stop]], axis=0)))
