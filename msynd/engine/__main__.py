@@ -21,6 +21,7 @@ from psycopg.rows import dict_row
 from msynd.db.dirty import mark_dirty
 from msynd.engine.evidence import load_run_evidence
 from msynd.engine.frames import encode_run, write_frame
+from msynd.engine.priority import write_periodic
 from msynd.engine.replay import Params
 from msynd.labels import IST
 from msynd.rng import run_key, v_hash
@@ -44,11 +45,11 @@ def _job(args):
         end = len(ev.events) if ev.stop_event is None else ev.stop_event + 1
         paths = np.asarray(out.paths)[:, :end]
         base = math.floor((record['origin_ts'] + float(np.min(paths)) * 60) / 6) * 6
-        return ev.run_id, encode_run(ev.run_id, out, record, datetime.fromtimestamp(base, timezone.utc))
+        return ev.run_id, encode_run(ev.run_id, out, record, datetime.fromtimestamp(base, timezone.utc)), (record, out)
     except (psycopg.Error, OSError, MemoryError):
         raise
     except Exception as exc:
-        return ev.run_id, {'state': 'error', 'error': str(exc), 'versions': ev.versions}
+        return ev.run_id, {'state': 'error', 'error': str(exc), 'versions': ev.versions}, None
 
 
 def _prepare(conn, run_ids, model_source, params, replay_fn):
@@ -101,10 +102,22 @@ def _publish(conn, is_full, versions, runs, tombstones, dirty=()):
 
 def _replay_jobs(jobs, runs, pool):
     results = map(_job, jobs) if pool is None else pool.map(_job, jobs)
-    runs.update(results)
+    cached = {}
+    for run_id, frame, result in results:
+        runs[run_id] = frame
+        if result is not None:
+            cached[run_id] = result
+    return cached
 
 
-def consume(conn, replay_fn, model_source, params=Params(), *, pool=None):
+def _update_cache(cache, runs, tombstones, cached):
+    if cache is not None:
+        for run_id in (*runs, *tombstones):
+            cache.pop(run_id, None)
+        cache.update(cached)
+
+
+def consume(conn, replay_fn, model_source, params=Params(), *, pool=None, cache=None):
     """Publish up to 200 dirty runs, then acknowledge only their captured versions."""
     with conn.transaction():
         conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
@@ -113,19 +126,23 @@ def consume(conn, replay_fn, model_source, params=Params(), *, pool=None):
             return None
         versions = _versions(conn)
         jobs, runs, tombstones = _prepare(conn, [run for run, _ in dirty], model_source, params, replay_fn)
-    _replay_jobs(jobs, runs, pool)
-    return _publish(conn, False, versions, runs, tombstones, dirty)
+    cached = _replay_jobs(jobs, runs, pool)
+    gen = _publish(conn, False, versions, runs, tombstones, dirty)
+    _update_cache(cache, runs, tombstones, cached)
+    return gen
 
 
-def rebuild(conn, replay_fn, model_source, params=Params(), *, pool=None):
+def rebuild(conn, replay_fn, model_source, params=Params(), *, pool=None, cache=None):
     """Startup full replay; dirty rows are left for version-checked consume."""
     with conn.transaction():
         conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
         ids = [row[0] for row in conn.execute(f'SELECT id FROM obs.run WHERE {ACTIVE} ORDER BY id')]
         versions = _versions(conn)
         jobs, runs, tombstones = _prepare(conn, ids, model_source, params, replay_fn)
-    _replay_jobs(jobs, runs, pool)
-    return _publish(conn, True, versions, runs, tombstones)
+    cached = _replay_jobs(jobs, runs, pool)
+    gen = _publish(conn, True, versions, runs, tombstones)
+    _update_cache(cache, runs, tombstones, cached)
+    return gen
 
 
 def _read_frame(conn, gen):
@@ -135,19 +152,22 @@ def _read_frame(conn, gen):
 
 
 def run_loop(conn, replay_fn, model_source, params=Params(), *, pool=None,
-             stop=None, notifications=True, ready=None):
+             stop=None, notifications=True, ready=None, source='ntes_status', T_max=30, F=30):
     """LISTEN before reconciling; one-second poll backs up notification delivery."""
     if pool is None:
         with mp.get_context('spawn').Pool(4) as workers:
             return run_loop(conn, replay_fn, model_source, params, pool=workers,
-                            stop=stop, notifications=notifications, ready=ready)
+                            stop=stop, notifications=notifications, ready=ready,
+                            source=source, T_max=T_max, F=F)
     if notifications:
         conn.execute('LISTEN dirty')
         conn.execute('LISTEN model_changed')
         conn.commit()
-    current = _read_frame(conn, rebuild(conn, replay_fn, model_source, params, pool=pool))
+    cache = {}
+    current = _read_frame(conn, rebuild(conn, replay_fn, model_source, params, pool=pool, cache=cache))
     runs, versions = current['runs'], current['versions']
-    full_at = monotonic() + 300
+    started = monotonic()
+    full_at, poll_at, issue_at, metric_at = started + 300, started + 30, started + 3600, started + 60
     if ready is not None:
         ready.set()
     changed = False
@@ -158,15 +178,29 @@ def run_loop(conn, replay_fn, model_source, params=Params(), *, pool=None,
                 if changed or latest != versions:
                     mark_dirty(conn, [row[0] for row in conn.execute(f'SELECT id FROM obs.run WHERE {ACTIVE}')])
             versions, changed = latest, False
-            gen = consume(conn, replay_fn, model_source, params, pool=pool)
+            gen = consume(conn, replay_fn, model_source, params, pool=pool, cache=cache)
             if gen is not None:
                 delta = _read_frame(conn, gen)
                 runs.update(delta['runs'])
                 for run_id in delta['tombstones']:
                     runs.pop(run_id, None)
-            if monotonic() >= full_at:
+            tick = monotonic()
+            if tick >= full_at:
                 _publish(conn, True, versions, runs, [])
-                full_at = monotonic() + 300
+                full_at = tick + 300
+            polls, issue, metrics = tick >= poll_at, tick >= issue_at, tick >= metric_at
+            if polls or issue or metrics:
+                # ponytail: CP-3 may revise source='ntes_status', T_max=30 and F=30; absent S skips polls.
+                with conn.transaction():
+                    now = conn.execute('SELECT clock_timestamp()').fetchone()[0]
+                    write_periodic(conn, cache, now, polls=polls, issue=issue, metrics=metrics,
+                                   S=params.s_tables.get(source), T_max=T_max, F=F)
+                if polls:
+                    poll_at = tick + 30
+                if issue:
+                    issue_at = tick + 3600
+                if metrics:
+                    metric_at = tick + 60
             # Drain backlog immediately instead of adding a poll delay per batch.
             if gen is not None:
                 continue
