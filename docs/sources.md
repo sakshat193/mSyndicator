@@ -81,3 +81,22 @@ The user chose **“Change to a permitted live source”** after reviewing the N
 The user subsequently chose a **RailRadar sandbox integration, offline only**: client/parser against documented shapes with MockTransport fixtures, behind `MSYND_LIVE`; no account creation or API requests. The monitor revises Tasks 7–11 and 20–25. [Integration details](railradar-sandbox.md).
 
 RailRadar's https://railradar.in/docs explicitly advertises developer REST API integration with a free 1,000-request/month sandbox and Bearer authentication. https://railradar.in/terms describes an independent crowd-powered service and GPS telemetry grants from contributors to RailRadar. These terms do not explicitly grant API consumers historical retention, model training or Kaggle export; those uses remain unclear. The API's `/trains/{number}/live` documentation specifies `date` as the journey start date in IST. It offers `authoritative=true` to bypass caches; the prepared client uses `false`. No API request was made to verify runtime response quality or coverage.
+
+## Live source decision (2026-10-08, user)
+
+The user chose **MakeMyTrip RIS live status** (`POST https://rails-ris.makemytrip.com/api/ris/train/livestatus/v2`, the endpoint behind MakeMyTrip and Goibibo train status) as the live source, for **personal gathering only**:
+
+- rate 0.2 req/s, one Dispatcher, live traffic only with `MSYND_LIVE=1`; the first live discovery is a monitor step confirmed by the user;
+- raw bodies and derived evidence stay on the user's PC or VM: no export, Kaggle or publication;
+- no public developer terms or API documentation were found. The Goibibo user agreement could not be retrieved, so its terms remain unverified. Training on it for personal use is the user's call; any sharing is not approved;
+- actual times are read only where the station's `arrived`/`departed` flag is set; unflagged times are ETAs (A3).
+
+RailRadar stays an offline sandbox (no account). The plan's Tasks 7–11 and 20–22 were revised for MMT on 2026-10-08.
+
+## RSTGCN (2026-10-08, user)
+
+URL: https://github.com/KoyenaChowdhury/RSTGCN (commit `160da04`, `Indian-Railway-Network-and-Delays.zip`, sha256 `f8a6fe9e…af91`). The repository has **no licence**. The user accepted it for personal use only: import into `obs.history_daily`, station zones and cold-start models (plan Task 42). It is never redistributed.
+
+## m-Indicator (2026-10-08)
+
+Its live tracking is crowd-sourced GPS from opted-in commuters on Mumbai suburban lines (out of scope). It has no public feed or API, so it is not used.

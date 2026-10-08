@@ -37,7 +37,7 @@ Implement Task NN of docs/superpowers/plans/2026-10-07-live-train-tracker.md.
 Read AGENTS.md, then the plan's "Global Constraints", "Contract amendments (v2.2)" and Task NN,
 then the spec sections Task NN cites. Implement ONLY Task NN, tests first, following its steps.
 Run the task's verify commands and `uv run pytest -q`. Commit as `task NN: <title>`.
-Never edit the spec or the plan. Never send HTTP to enquiry.indianrail.gov.in or etrain.info.
+Never edit the spec or the plan. Never send HTTP to enquiry.indianrail.gov.in, etrain.info, api.railradar.in, makemytrip.com or goibibo.com hosts.
 If a step needs a decision the plan does not make, stop and start your final message with "BLOCKED:".
 ```
 
@@ -52,7 +52,7 @@ These are copied from the spec; every task implicitly includes them.
 - Python 3.12, with dependencies locked by `uv`. Runtime dependencies: `httpx selectolax zstandard psycopg[binary,pool] numpy numba lightgbm onnxruntime pyarrow fastapi uvicorn websockets msgpack`. Ops extras: `kaggle oci-cli`. Import extras: `networkx` plus the `osmium-tool` binary. Dev: `pytest`. **No new runtime dependency without a plan change.**
 - Postgres 16. Timestamps are UTC `timestamptz` and are displayed in IST. Offsets are run-clock minutes (float), counted from 00:00 IST on the origin start date. Migrations are numbered SQL files applied by `msynd/db/migrate.py`.
 - Deliberately absent: PostGIS, Redis, Kafka, persisted particle state, Rust.
-- HTTP: one Dispatcher per host. Request **starts** are spaced ≥ 1/rate apart, with no burst and one request in flight. Tokens, session pages and retries all count. `NTES_RATE=1.0`, `ETRAIN_RATE=0.2`, pilot ≤ 0.3 req/s. Changing a rate is the user's decision. The user agent is `m-syndicator/<ver> (personal research)`.
+- HTTP: one Dispatcher per host. Request **starts** are spaced ≥ 1/rate apart, with no burst and one request in flight. Tokens, session pages and retries all count. `MMT_RATE=0.2` (live source, spec §18 2026-10-08); `NTES_RATE`/`ETRAIN_RATE` are unused (not approved). Changing a rate is the user's decision. The user agent is `m-syndicator/<ver> (personal research)`.
 - `V_MAX = 160` km/h. Every prediction distance is timetable km. The physical floor is `60 × km / V_MAX` minutes.
 - Event keys are `(run_id, station, occ, kind)`, never a sequence number. Forecasts address halts by `schedule_stop.idx`. The canonical order at one station is `arr < pass < dep`.
 - As-of rule: anything computed as of *t* uses only revisions with `received_at ≤ t`. An expected time never becomes an actual.
@@ -61,7 +61,7 @@ These are copied from the spec; every task implicitly includes them.
 - Frames are msgpack plus permessage-deflate. Each display-path event is `uint16 route_idx` + `uint16` time in 0.1 min from the frame base.
 - Dashboard: Vite + TypeScript, MapLibre, deck.gl `PathLayer`/`TripsLayer`/`ScatterplotLayer`, and a self-hosted Protomaps PMTiles extract of India in a dark style.
 - Personal use only. Raw source data never leaves the VM or the user's PC unless G1 allows it.
-- **Live-traffic guard:** the real httpx transport for NTES and etrain is built only when `MSYND_LIVE=1`. Tests use `httpx.MockTransport`.
+- **Live-traffic guard:** the real httpx transport for any source (MMT, RailRadar) is built only when `MSYND_LIVE=1`. Tests use `httpx.MockTransport`.
 
 ## Contract amendments (v2.2)
 
@@ -165,7 +165,7 @@ kaggle/kernel.py (Phase 6 only)
 | Milestone | Tasks | Ends with |
 |---|---|---|
 | M0 Foundations | 0–5 | Schema, dispatcher and static network, all offline |
-| M1 Source access | 6–11 | 🛑 CP-1 (G1 and live approval) → fixtures (G3) → parsers → 🛑 CP-2 (7-day G2 pilot starts) |
+| M1 Source access | 6–11 | 🛑 CP-1 (G1: MMT, personal gathering) → 🛑 discovery → fixtures (G3) → parser → 🛑 CP-2 (7-day G2 pilot at 0.2 req/s) |
 | M2 Correctness core | 12–19 | 🛑 G7 gate passes. Runs during the pilot |
 | M3 Collector | 20–25 | 🛑 CP-3: G2 decisions, G5 VM, 7-day Phase 2 live run, Phase 2 exit |
 | M4 Models and eval | 26–30 | Phase 3 exit once there are ≥ 4 weeks of live data; G4 is gated |
@@ -383,123 +383,126 @@ Steps:
 
 - [x] Codex (network allowed, terms pages only; no enquiry endpoints) records, for each source, the URL, retrieval date and quoted relevant terms: NTES (including the Disclaimer page), etrain (Tripozo terms), the GTFS repo licence, OSM ODbL, Protomaps and datameet. Each is mapped against four uses: automated collection, model training, export to Kaggle, portfolio display. Unknowns are marked "unclear", never assumed.
 - [x] Commit `task 06: G1 data-use draft`.
-- [ ] **🛑 CP-1 (user):** decide G1 per use and record it in spec §18. Explicitly approve:
+- [x] **🛑 CP-1 (user):** decided 2026-10-08: live source MakeMyTrip RIS, personal gathering only at 0.2 req/s; NTES/etrain not approved; Kaggle export not approved (spec §18). Decide G1 per use and record it in spec §18. Explicitly approve:
   - (a) protocol discovery and fixture capture, ≈ 150 requests at ≤ 0.3 req/s;
   - (b) the 7-day G2 pilot at ≤ 0.3 req/s;
   - (c) whether etrain backfill and Kaggle export are allowed.
 
   Without (a) and (b), M1 stops and M2 continues alone.
 
-### Task 7: Capture CLI and protocol discovery
+### Task 7: Capture CLI → 🛑 MMT discovery
+
+Live source since CP-1 is MakeMyTrip RIS (spec §18, 2026-10-08): `MMT_HOST = rails-ris.makemytrip.com`, `MMT_RATE = 0.2`.
 
 **Files:** create `msynd/collect/capture.py`, `tests/collect/test_capture.py`.
 
-**Interfaces:** `python -m msynd.collect.capture plan.json --out tests/fixtures/<host>/`. `plan.json` is a list of `{name, purpose, method, url, form?}`. Each item goes through the `Dispatcher` (rate from `--rate`, default 0.3). It writes `<name>.body` plus a `manifest.json` with status, sha256, received_at and outcome; cookies and token values are redacted.
+**Interfaces:** `python -m msynd.collect.capture plan.json --out <dir> [--rate 0.2]`. `plan.json` is a list of `{name, purpose, method, url, json?}`, one Dispatcher per host. It writes `<name>.body` plus `manifest.json` (status, response headers minus `Set-Cookie`, sha256, received_at, outcome). The transport is `real_transport()`, so it runs only with `MSYND_LIVE=1`.
 
-- [ ] Test with MockTransport: the files and manifest are written, and the redaction removes `Set-Cookie` and any `csrf`-like values.
+- [ ] Tests with MockTransport:
+  - the files and manifest are written;
+  - `Set-Cookie` and any `auth`/`token`/`csrf`-like header values are redacted;
+  - starts are spaced ≥ 1/rate;
+  - without `MSYND_LIVE=1` the CLI exits before any request.
 - [ ] Implement; commit `task 07: capture cli`.
-- [ ] **Monitor (live, after CP-1a):** `MSYND_LIVE=1 python -m msynd.collect.capture discovery.json`. This fetches the NTES landing page, `mntes.js`, `mntes_utility.js`, `LibraryFunctions.js`, one `GetCSRFToken`, the etrain search suggestion for 12951 and the etrain JS. Commit the fixtures.
+- [ ] **🛑 Monitor (live; the user confirms first):** `MSYND_LIVE=1 python -m msynd.collect.capture discovery.json --out data/mmt_capture/discovery/` at 0.2 req/s, ≤ 10 requests:
+  - the autosuggest for 12951;
+  - livestatus for 12951 today and for one train not yet started.
 
-### Task 8: NTES and etrain clients (spec §2, §7.1)
+  Record h (expected 1), required headers or cookies, and the response shape in `docs/gates/G3.md`. Raw bodies stay under the gitignored `data/mmt_capture/`.
 
-**Files:** create `msynd/collect/clients.py`, `tests/collect/test_clients.py`.
+### Task 8: Shared status types and MMT client (spec §2, §7.1)
+
+**Files:** create `msynd/collect/status.py` and `msynd/collect/mmt.py`; modify `msynd/collect/railradar.py` (import the moved types) and `msynd/config.py` (`mmt_rate=0.2` from `MMT_RATE`); create `tests/collect/test_mmt.py`.
 
 **Interfaces:**
 ```python
-class NtesClient:
+# status.py — moved unchanged from railradar.py, plus Eta and ParsedStatus.etas
+class InvalidResponse(ValueError): ...
+Event, Pending, PassingStation                      # as in railradar.py
+@dataclass(frozen=True)
+class Eta: station: str; occ: int; kind: str; eta_ts: datetime
+ParsedStatus(..., flags, etas: tuple[Eta, ...] = ())
+# mmt.py
+HOST = "rails-ris.makemytrip.com"
+class MmtClient:
     def __init__(self, d: Dispatcher): ...
-    async def ensure_session(self) -> None            # landing page sets cookie (purpose 'session')
-    async def submit(self, purpose: str, path: str, form: dict, *, key=None, run_id=None) -> FetchResult
-        # fresh GetCSRFToken (purpose 'token') then the form request: h = 2, never reuses a token
-    async def train_running(self, train: str, start: date, run_id=None) -> FetchResult  # ShowRunCStn&refDate
-    async def live_station(self, stn: str, hours: int) -> FetchResult
-    async def exceptions(self) -> FetchResult
-    async def schedule(self, train: str) -> FetchResult
-class EtrainClient:
-    async def history(self, train: str, period: str = '1y') -> FetchResult   # suggestion -> slug -> history (2 requests)
+    @classmethod
+    def from_env(cls): ...                           # Dispatcher(HOST, settings.mmt_rate, ..., real_transport())
+    async def train_running(self, train: str, start: date, run_id=None) -> FetchResult
+        # one POST /api/ris/train/livestatus/v2, json {"trainNumber": train,
+        #   "dateOfJourney": start.strftime("%d-%m-%Y"), "findNextRunningDate": False}
+def classify(purpose, response) -> str               # ok | invalid | challenge (403, HTML body, captcha marker)
 ```
-The token placement (header or form field) and the form field names come from the discovered JS fixtures.
+Any headers that discovery records as required are added here. Without the Task 7 discovery, use only `Content-Type: application/json` and the UA.
 
-- [ ] Tests with MockTransport and the discovered fixtures:
-  - every `submit` issues exactly 2 requests (token, then form) and never reuses a token;
-  - `empty` triggers `ensure_session` once;
-  - `EtrainClient.history` makes 2 requests and parses the slug from the suggestion fixture.
-- [ ] Implement; commit `task 08: ntes and etrain clients`.
+- [ ] Tests:
+  - exactly one POST per enquiry, with the exact JSON body;
+  - `findNextRunningDate` is always false;
+  - `from_env` raises without `MSYND_LIVE=1`;
+  - `classify` maps 403 or an HTML body to `challenge` and malformed JSON to `invalid`;
+  - the RailRadar tests still pass after the type move.
+- [ ] Implement; commit `task 08: shared status types and mmt client`.
 
-### Task 9: G3 fixture capture (monitor, live)
+### Task 9: G3 fixture capture (monitor, live 🛑)
 
-- [ ] Monitor builds `fixtures_plan.json`:
-  - NTES running status for: normal running; not started; completed; cancelled, diverted and rescheduled (trains taken from a fresh exceptions page); a multi-day train and a repeated-station train (both from GTFS); one with passing stations;
-  - Live Station boards: NDLS 2 h, a quiet station, and one capture near 23:45 IST;
-  - exceptions; one schedule; one map spot (to document that it is not GPS);
-  - etrain history `1y` and `1m` for 12951.
-- [ ] Run it live at 0.3 req/s and commit to `tests/fixtures/ntes|etrain/`. Record in `docs/gates/G3.md` which edge cases were captured and which could not be found.
+- [ ] After the user confirms, capture ≤ 40 livestatus bodies at 0.2 req/s:
+  - normal running; not started; completed;
+  - cancelled, rescheduled and diverted (if found);
+  - a multi-day train and a repeated-station train (from GTFS);
+  - one passing through midnight IST; one with a delay > 3 h.
+- [ ] Copy the chosen bodies, trimmed to the fields the parser reads and labelled, into `tests/fixtures/mmt/`. Record in `docs/gates/G3.md` which edge cases were captured and which could not be found.
 
-### Task 10: Parsers and semantic validation (spec §7.1 Validation, §7.4)
+### Task 10: MMT parser and semantic validation (spec §7.1 Validation, §7.4, A3)
 
-**Files:** create `msynd/collect/parse_ntes.py`, `msynd/collect/parse_etrain.py`, `msynd/collect/validate.py`, `tests/collect/test_parse_*.py`, `tests/fixtures/**/<name>.expected.json` (golden files; the monitor hand-checks the first version of each against the page).
+**Files:** create `msynd/collect/parse_mmt.py`, `tests/collect/test_parse_mmt.py`, `tests/fixtures/mmt/<name>.expected.json` (golden files; the monitor hand-checks the first version of each).
 
-**Interfaces:**
-```python
-@dataclass(frozen=True)
-class ParsedEvent: station: str; occ: int; kind: str; ts: datetime          # actual only (explicit actual marker)
-@dataclass(frozen=True)
-class ParsedEta: station: str; occ: int; kind: str; ts: datetime
-@dataclass(frozen=True)
-class StatusPage: train: str; start_date: date; events: list[ParsedEvent]; pending: list[tuple[str,int,str]]
-                  etas: list[ParsedEta]; passing: list[tuple[str, float | None]]  # (station, km or None)
-                  flags: list[str]                                              # e.g. 'delay_gt_24h'
-def parse_status(html: bytes) -> StatusPage
-def parse_board(html: bytes) -> BoardPage          # rows: train, start_date?, arr/dep (actual vs '*' expected)
-def parse_exceptions(html: bytes) -> list[ExceptionRow]   # kind: cancelled|part_cancelled|rescheduled|diverted
-def parse_schedule(html: bytes) -> ScheduleRows
-def parse_etrain_search(body: bytes) -> str          # slug
-def parse_etrain_history(html: bytes) -> list[HistoryRow]
-def validate_status(req_train: str, req_start: date, page: StatusPage) -> str   # 'ok' | 'invalid'
-```
-Validation rules (spec §7.1): the train and start date must match the request; actual and expected markers must be explicit; times must be monotone along the route after day offsets; no expected time may appear as an actual; a delay > 24 h is kept with `flags += ['delay_gt_24h']`. Occurrences are assigned by counting repeats in page order.
+**Interfaces:** `parse_status(body: bytes, train: str, start: date) -> ParsedStatus` (from `status.py`); `validate` raises `InvalidResponse`.
 
-- [ ] Tests (one per fixture, comparing against the golden JSON), plus:
-  - `test_status_for_other_start_date_is_invalid` (Review Focus 1);
+Rules:
+- An actual exists only where the station's `arrived`/`departed` flag is true. A time without its flag is an `Eta` (A3), never an actual. `distanceCovered`, `currentStation` and `totalLateMins` never become events.
+- The train and journey date must match the request. A response for another date (for example `findNextRunningDate` behaviour) is invalid.
+- Day offsets (day count) make run-clock times monotone. Occurrence numbers follow page order.
+- A delay > 24 h is kept and flagged `delay_gt_24h`.
+- Non-halt rows with a time become `PassingStation` (km from the response).
+- A cancellation, reschedule or diversion indicated by the response becomes an `exceptions` entry in the same `detail` form as Task 21. If the response has none, the tuple is empty.
+
+- [ ] Tests (one per fixture, comparing against its golden file), plus:
+  - `test_status_for_other_start_date_is_invalid` (RF1);
   - `test_multiday_offsets_monotone` (RF2);
   - `test_repeated_station_occ` (RF3);
   - `test_delay_over_24h_kept_flagged` (RF5);
-  - `test_expected_never_actual` (a starred time never appears in `events`);
-  - `test_empty_body_raises_empty` (the caller maps it to `empty`);
-  - `test_last_report_line_departed_from` (the "Departed from ADAVALI (ADVI) on 07-Oct-2026 14:19" form).
-- [ ] Implement; commit `task 10: parsers and validation`.
+  - `test_unflagged_time_is_eta_never_actual`;
+  - `test_empty_body_invalid`.
+- [ ] Implement; commit `task 10: mmt parser and validation`.
 
 ### Task 11: G2 pilot runner and analysis → 🛑 CP-2
 
 **Files:** create `msynd/collect/pilot.py`, `tests/collect/test_pilot.py`, `docs/gates/G2.md` (written by the analysis).
 
 **Interfaces:**
-- `python -m msynd.collect.pilot run --days 7 --rate 0.3` stores everything in `obs.fetch` with bodies kept (no 24 h retention during the pilot). The scheduler:
-  - discovers candidates from boards;
-  - keeps a rotating simultaneous cohort `n_sim = floor(0.7·rate·120/h)`;
-  - polls each cohort run's status every 120 s from 20 min before to 60 min after each expected event;
-  - follows ≥ 30 train-station pairs on boards;
-  - targets ≥ 40 distinct runs in total and 50 trains for passing-station prevalence;
+- `python -m msynd.collect.pilot run --days 7 --rate 0.2` stores everything in `obs.fetch` with bodies kept (no 24 h retention during the pilot). The scheduler:
+  - discovers candidates from our own inventory (runs whose scheduled window covers now) — MMT has no boards;
+  - keeps a rotating simultaneous cohort `n_sim = floor(0.7·rate·120/h)` (16 at h = 1);
+  - polls each cohort run every 120 s from 20 min before to 60 min after each expected event;
+  - targets ≥ 40 distinct runs and 50 trains for passing-station prevalence;
   - samples the active-run count each hour.
 - `python -m msynd.collect.pilot analyse --out docs/gates/G2.md --params data/params.json` measures:
-  - `h` (requests per enquiry);
-  - token lifetime (probe: reuse after 1, 5, 15, 60 s on ≤ 20 probes);
-  - the empty-200 rate;
-  - S per source: lag = first `received_at` showing the actual − actual time, interval-censored by the previous poll (midpoint, `# ponytail:` → Turnbull), with an exponential tail fitted above P90, ε with a Wilson CI, and unfinished runs right-censored;
+  - h and the empty/invalid/challenge rates;
+  - S for `mmt_status`: lag = first `received_at` showing the actual − the actual time, interval-censored by the previous poll (midpoint, `# ponytail:` → Turnbull), an exponential tail fitted above P90, ε with a Wilson CI, unfinished runs right-censored;
   - pending-after-actual counts;
-  - board retention and yield per request;
+  - ETA revision rate;
   - passing-station prevalence;
   - the active-run curve.
 
-  It writes `data/params.json` with `{"S": {"ntes_status": {...}, "ntes_board": {...}}, "minute": "trunc", "provisional": false}`. Before G2, `data/params.json` is committed with `provisional: true`: lag P50 10 min, exponential, ε = 0.05.
+  It writes `data/params.json` as `{"S": {"mmt_status": {...}}, "minute": "trunc", "provisional": false}`. Before G2, the file is committed with `provisional: true`: lag P50 10 min, exponential, ε = 0.05.
 
 - [ ] Tests:
-  - `test_cohort_bound` (h = 2, rate 0.3 → 12);
+  - `test_cohort_bound` (h = 1, rate 0.2 → 16);
   - `test_s_fit_recovers_synthetic` (synthetic lags with a known exponential tail and ε = 0.03, polled every 120 s → the fitted median is within 1 min and the ε CI contains 0.03);
   - `test_right_censored_not_counted_unpublished`;
   - `test_never_hard_bound` (zero counterexamples → the output still has ε > 0 and a soft tail).
 - [ ] Implement; commit `task 11: g2 pilot`.
-- [ ] **🛑 CP-2 (user):** choose the pilot host (PC or VM; it must stay up for 7 days). The monitor then starts it with `MSYND_LIVE=1`, checks it daily (fetch-log rate ≤ 0.3/s, no challenge) and runs `analyse` at the end.
+- [ ] **🛑 CP-2 (user):** choose the pilot host (PC or VM; it must stay up for 7 days). The monitor then starts it with `MSYND_LIVE=1`, checks it daily (fetch-log rate ≤ 0.2/s, no challenge) and runs `analyse` at the end.
 
 ---
 
@@ -750,15 +753,16 @@ Every case runs at N = 10k and 100k, with the A8 tolerance.
 
 **Files:** create `msynd/collect/store.py`, `tests/collect/test_store.py`.
 
-**Interfaces:** `store_status(conn, run_id, fetch: FetchResult, page: StatusPage) -> StoreResult(changed: bool)`. In one transaction it:
+**Interfaces:** `store_status(conn, run_id, fetch: FetchResult, page: ParsedStatus, source='mmt_status') -> StoreResult(changed: bool)`. In one transaction it:
 - inserts `event_rev` only when a key is new or its `actual_ts` changed;
 - writes `pending_rev` for every pending key;
-- writes `ntes_eta_rev` for **every** present ETA (A3);
+- writes `ntes_eta_rev` (the name stays; it holds MMT ETAs) for **every** `page.etas` entry (A3);
+- passes each `page.exceptions` entry to Task 21 `apply_exception`;
 - turns new passing stations into a new route version and rebinds runs with identical halts (dirty);
 - applies lifecycle transitions (running / completed);
 - calls `mark_dirty` if anything changed.
 
-It also has `store_board(...)`, `store_exceptions(...)` and `store_history(...)`; history rows go to `obs.history_daily` only.
+Migration `0003_mmt_source.sql` adds `'mmt_status'` to `obs.source`. `settings.live_source = 'mmt_status'` replaces the hard-coded `'ntes_status'` defaults in `msynd/engine/__main__.py`, `priority.py`, `evidence.py`'s tie-break, `api/app.py` and `ops/nightly.py`. There is no board, exception-list or history store: MMT has no such pages, and RSTGCN history is Task 42.
 
 - [ ] Tests, including `msynd/eval/baselines.py:b2_eta(conn, run_id, station, occ, kind, t)` (create it here):
 ```python
@@ -770,7 +774,7 @@ def test_eta_confirmation_per_key(db):    # A3 / R3-3
     # 10:40 page: B=10:45 (changed)
     assert b2_eta(db, r, 'B', 1, 'arr', ist('10:39')) == ist('10:30')     # post-cutoff confirmation unused
     assert b2_eta(db, r, 'B', 1, 'arr', ist('10:41')) == ist('10:45')
-def test_token_fetch_never_confirms(db): ...      # token/session fetch rows → zero eta rows
+def test_non_status_fetch_never_confirms(db): ... # autosuggest/capture fetch rows → zero eta rows
 def test_unchanged_actual_not_reinserted(db): ...
 def test_expected_never_stored_as_actual(db): ...
 def test_dirty_in_same_txn(db): ...               # rollback of store → no dirty row
@@ -786,7 +790,7 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 **Interfaces:**
 - `create_runs(conn, now) -> int` covers the next 24 h of origin dates (IST), using versions valid on the date with a matching `days_of_run` bit, minus cancellations, bound to the latest route version.
 - `expire_runs(conn, now) -> int` applies: no actual for 12 h **and** now > scheduled destination arrival + max(12 h, 2 × last observed delay).
-- `apply_exception(conn, row, fetch) -> None` handles cancelled, `resched_min`, `diverted_from` and `part_cancelled`, then calls `mark_dirty`.
+- `apply_exception(conn, row, fetch) -> None` (rows come from `ParsedStatus.exceptions`; MMT has no network-wide list) handles cancelled, `resched_min`, `diverted_from` and `part_cancelled`, then calls `mark_dirty`.
 - `obs.exception_rev.detail` is `{"kind": "cancelled"|"part_cancelled"|"rescheduled"|"diverted"|"none", ...}` (Task 10 `ExceptionRow.kind`; `none` withdraws an exception). A (train, start_date) is fully cancelled as of t when its latest revision with `received_at ≤ t` has `kind = 'cancelled'`; any later revision of another kind clears it (monitor, 2026-10-08). Each `obs.exception_rev.detail` it writes carries the run's **full cumulative** exception state (resched, diversion, part_cancelled), because evidence assembly (Task 16) reads the latest detail as complete state.
 
 - [ ] Tests:
@@ -803,15 +807,13 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 **Files:** create `msynd/collect/admission.py`, `msynd/collect/__main__.py`, `tests/collect/test_admission.py`.
 
 **Interfaces:**
-- `next_job(state, now) -> Job`. Order: (1) challenge/session recovery; (2) overdue runs (not fetched within `T_max = 1.25·R·h/(rate·share)`); (3) exceptions every 30 min; (4) targeted polls by `obs.poll_queue.priority`, falling back to age when no row exists; (5) boards at their `params.board_share` (default 0.10, discovery and pending only); (6) schedule refresh.
-- `python -m msynd.collect` runs one asyncio task per host, plus hourly `create_runs`, `expire_runs`, body retention (Task 23) and the disk check.
-- etrain backfill runs only if `ETRAIN_BACKFILL=1` (set after G1). It is resumable, and its monthly top-up uses `d=1m`.
+- `next_job(state, now) -> Job`. Order: (1) nothing while the host is `stopped`; (2) overdue runs (not fetched within `T_max = 1.25·R·h/rate`); (3) targeted polls by `obs.poll_queue.priority`, falling back to age when no row exists. MMT has no boards, exception list or backfill.
+- `python -m msynd.collect` runs the MMT host task, plus hourly `create_runs`, `expire_runs`, body retention (Task 23) and the disk check.
 
 - [ ] Tests:
   - `test_no_run_starves_beyond_tmax` (simulate 300 runs with skewed priorities for 6 simulated hours: every run is fetched within T_max);
   - `test_job_order`;
-  - `test_board_share_respected`;
-  - `test_backfill_disabled_by_default`.
+  - `test_stopped_host_issues_nothing`.
 - [ ] Implement; commit `task 22: admission and collector loop`.
 
 ### Task 23: Retention, disk guard, backup (spec §12, §13, A3, A5)
@@ -1118,12 +1120,58 @@ Contents (spec §11):
 
 ---
 
+## Follow-ups (2026-10-08)
+
+### Task 41: Smooth fitted empirical histograms (Task 27 follow-up)
+
+An unsmoothed histogram gives zero mass to unseen bins. An observed actual there gives every particle W = 0 and forces the `data_invariant` override. The RSTGCN prototype hit this 92 times in 13,510 origin cases.
+
+**Files:** modify `msynd/models/empirical.py` and `tests/models/test_empirical.py`.
+
+**Interfaces:** every histogram `fit_empirical` stores (class-pooled and W dwell buckets) becomes `0.99·fitted + 0.01·prior`, where the prior is the matching `_prior(role, dwell)` masses (the bucket's dwell for W). Tails take `tau = max(fitted, prior)` per side. `provisional_models()` is unchanged. Mark the 1 % with `# ponytail:` (fixed mix weight; upgrade: fit it on validation log-score).
+
+- [ ] Tests:
+  - `test_unseen_bin_has_nonzero_mass` (labels all 0 → the mass of the bin for +100 is > 0 for run and origin, and for a W bucket);
+  - `test_smoothed_masses_sum_to_one`;
+  - the existing empirical and cache tests still pass.
+- [ ] Implement; commit `task 41: smooth empirical histograms`.
+
+### Task 42: RSTGCN history import, station zones, cold-start O and R
+
+RSTGCN (github `KoyenaChowdhury/RSTGCN`, no licence) holds Sept 2024: 1.28 M station rows, 57,485 runs. Use is personal only; the raw data never leaves the PC or VM. Meaning (spec §18, 2026-10-08): one arrival-delay value per station (departure is derived), early running clipped to 0. G4 does not apply.
+
+**Files:** create `msynd/ops/rstgcn.py`, `tests/ops/test_rstgcn.py`, `tests/fixtures/rstgcn_mini/` (a hand-written CSV with 3 runs, a zone JSON with 3 stations); modify `data/static_sources.json` (`"rstgcn": {"repo": "KoyenaChowdhury/RSTGCN", "sha": "160da04cd3b5dd72588b6cc72b08e84e0b7210b4", "path": "Indian-Railway-Network-and-Delays.zip", "sha256": "f8a6fe9e70972acb8ad98bbe5b7eb594c5b6b3475e21efd6d3b9e19049bdaf91"}`).
+
+**Interfaces:**
+- `python -m msynd.ops.rstgcn import --zip PATH` verifies the sha256, then:
+  - loads `train_routes_delays_Sep2024.csv` into `obs.history_daily` (`value_min = arr_delay`, `occ` by repeats in file order within a run, `fetch_id` NULL; re-import is idempotent);
+  - fills `ref.station.zone` where it is NULL from `stations_zones_mapping.json`, never overwriting a non-NULL value.
+- `python -m msynd.ops.rstgcn fit --models-dir DIR` builds labels from `obs.history_daily` for runs dated 2024-09:
+  - O = the first value of each run;
+  - R ≈ composite = value(B) − value(A) for consecutive rows. `# ponytail:` the composite includes dwell, so R is over-dispersed while W stays provisional; live R replaces it after 4 weeks (Task 38);
+  - class from `ref.train` (UNKNOWN otherwise); split train = days 1–23, valid = 24–30;
+  - `fit_empirical(labels, role)` for `origin` and `run`, with `cold_start=True`;
+  - inserts `ml.model` rows (`kind='empirical'`, `train_window`, `metrics` = mean validation log-score of the candidate and of the provisional prior);
+  - promotes through `registry.promote` only when the candidate's validation log-score beats the provisional prior's.
+- `build_live_labels` (Task 12) still never reads `obs.history_daily`.
+
+- [ ] Tests:
+  - `test_import_occ_and_idempotent`;
+  - `test_zone_fill_never_overwrites`;
+  - `test_bad_sha_refuses`;
+  - `test_labels_origin_and_composite`;
+  - `test_fit_marks_cold_start_and_promotes_only_on_gain`.
+- [ ] Implement; commit `task 42: rstgcn history and cold-start models`.
+- [ ] **Monitor:** run `import` with the downloaded zip and `fit` against the dev DB. Record the counts and log-scores in `docs/gates/rstgcn.md`.
+
+---
+
 ## Spec coverage check
 
 | Spec section | Task(s) |
 |---|---|
 | §1 G1–G6, A1–A8 | 25 (A1, A2, A5, A8), 31 and 33 (A6), 36 (A7), 40 (A3, A4) |
-| §2 Source facts, §15 G1–G8 | 6 (G1), 11 (G2), 9 (G3), 30 (G4), CP-3 (G5), 39 (G6), 18 (G7), 19 and 33 (G8) |
+| §2 Source facts, §15 G1–G8 | 6 (G1), 11 (G2), 7 and 9 (G3), 30 (G4; n/a to RSTGCN, 42), CP-3 (G5), 39 (G6), 18 (G7), 19 and 33 (G8) |
 | §3.1 Identity | 2, 4, 5, 16, 20 |
 | §3.2 Clock | 12, 17 |
 | §3.3 Availability | 2, 16, 20 (A3) |
@@ -1136,10 +1184,10 @@ Contents (spec §11):
 | §7.1 Dispatcher | 3, 8 |
 | §7.2 Admission | 22, 32 |
 | §7.3 Lifecycle | 20, 21 |
-| §7.4 Parsing | 10 |
-| §7.5 Backfill | 22 |
+| §7.4 Parsing | 8, 10 |
+| §7.5 Backfill | none approved; RSTGCN one-off import 42 |
 | §7.6 Static | 4, 5, 37 |
-| §8 Learning | 26–30, 38, 39 |
+| §8 Learning | 26–30, 38, 39, 41, 42 |
 | §9 Engine | 13–17, 19, 27, 31, 32 |
 | §10 API | 34 |
 | §11 Dashboard | 35, 36 |
