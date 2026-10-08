@@ -1,0 +1,254 @@
+{
+ "success": true,
+ "error": null,
+ "response": {
+  "lastUpdated": "08-10-2026 08:42:00",
+  "trainDetails": {
+   "trainNumber": "12951",
+   "startDate": "07-10-2026 00:00:00",
+   "departed": true,
+   "terminated": true,
+   "totalLateMins": 10,
+   "cancelledFromStation": null,
+   "cancelledToStation": null,
+   "currentStation": {
+    "code": "NDLS",
+    "name": "NEW DELHI"
+   }
+  },
+  "stations": [
+   {
+    "station": {
+     "code": "MMCT",
+     "name": "MUMBAI CENTRAL"
+    },
+    "distance": "0",
+    "dayDetails": {
+     "dayCnt": 1
+    },
+    "arrivalDetails": {
+     "schArrTime": "17:00",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "17:00",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 0,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "17:00",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "17:00",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 0,
+     "departed": true
+    },
+    "haltMinutes": 0,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "BVI",
+     "name": "BORIVALI"
+    },
+    "distance": "30",
+    "dayDetails": {
+     "dayCnt": 1
+    },
+    "arrivalDetails": {
+     "schArrTime": "17:20",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "17:34",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 14,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "17:22",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "17:36",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 14,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "ST",
+     "name": "SURAT"
+    },
+    "distance": "263",
+    "dayDetails": {
+     "dayCnt": 1
+    },
+    "arrivalDetails": {
+     "schArrTime": "19:43",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "19:49",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 6,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "19:48",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "19:55",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 7,
+     "departed": true
+    },
+    "haltMinutes": 5,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "BRC",
+     "name": "VADODARA JN"
+    },
+    "distance": "392",
+    "dayDetails": {
+     "dayCnt": 1
+    },
+    "arrivalDetails": {
+     "schArrTime": "21:06",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "21:17",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 11,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "21:16",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "21:26",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 10,
+     "departed": true
+    },
+    "haltMinutes": 10,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "RTM",
+     "name": "RATLAM JN"
+    },
+    "distance": "653",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "00:25",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "00:25",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 0,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "00:28",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "00:29",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 1,
+     "departed": true
+    },
+    "haltMinutes": 3,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "NAD",
+     "name": "NAGDA JN"
+    },
+    "distance": "695",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "01:08",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "01:08",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 0,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "01:10",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "01:10",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 0,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "KOTA",
+     "name": "KOTA JN"
+    },
+    "distance": "920",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "03:15",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "03:19",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 4,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "03:20",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "03:27",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 7,
+     "departed": true
+    },
+    "haltMinutes": 5,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "NDLS",
+     "name": "NEW DELHI"
+    },
+    "distance": "1384",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "08:32",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "08:42",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 10,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": null,
+     "schDepDate": null,
+     "actDepTime": null,
+     "actDepDate": null,
+     "depDelay": null,
+     "departed": null
+    },
+    "haltMinutes": 0,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   }
+  ]
+ }
+}

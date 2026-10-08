@@ -1,0 +1,1982 @@
+{
+ "success": true,
+ "error": null,
+ "response": {
+  "lastUpdated": "08-10-2026 17:38:00",
+  "trainDetails": {
+   "trainNumber": "22503",
+   "startDate": "05-10-2026 00:00:00",
+   "departed": true,
+   "terminated": false,
+   "totalLateMins": 412,
+   "cancelledFromStation": null,
+   "cancelledToStation": null,
+   "currentStation": {
+    "code": "JID",
+    "name": "JAGI ROAD"
+   }
+  },
+  "stations": [
+   {
+    "station": {
+     "code": "CAPE",
+     "name": "KANNIYAKUMARI"
+    },
+    "distance": "0",
+    "dayDetails": {
+     "dayCnt": 1
+    },
+    "arrivalDetails": {
+     "schArrTime": "17:25",
+     "schArrDate": "05-10-2026 00:00:00",
+     "actArrTime": "17:25",
+     "actArrDate": "05-10-2026 00:00:00",
+     "arrDelay": 0,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "17:25",
+     "schDepDate": "05-10-2026 00:00:00",
+     "actDepTime": "20:33",
+     "actDepDate": "05-10-2026 00:00:00",
+     "depDelay": 188,
+     "departed": true
+    },
+    "haltMinutes": 0,
+    "intermediateStations": [
+     {
+      "station": {
+       "code": "AJRE",
+       "name": "Aujuri"
+      },
+      "distance": "3662.0",
+      "day": 4,
+      "arrivalDetails": {
+       "schArrTime": "10:24",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "10:24",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     },
+     {
+      "station": {
+       "code": "SNBR",
+       "name": "Sonuabori"
+      },
+      "distance": "3667.0",
+      "day": 4,
+      "arrivalDetails": {
+       "schArrTime": "10:28",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "10:28",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     },
+     {
+      "station": {
+       "code": "DML",
+       "name": "Dharamtul"
+      },
+      "distance": "3673.0",
+      "day": 4,
+      "arrivalDetails": {
+       "schArrTime": "10:32",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "10:32",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     },
+     {
+      "station": {
+       "code": "TGE",
+       "name": "Thekeraguri"
+      },
+      "distance": "3680.0",
+      "day": 4,
+      "arrivalDetails": {
+       "schArrTime": "10:37",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "10:37",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     },
+     {
+      "station": {
+       "code": "CPK",
+       "name": "Chaparmukh Jn"
+      },
+      "distance": "3688.0",
+      "day": 4,
+      "arrivalDetails": {
+       "schArrTime": "10:42",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "10:42",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     },
+     {
+      "station": {
+       "code": "LPN",
+       "name": "Laopani"
+      },
+      "distance": "3697.0",
+      "day": 4,
+      "arrivalDetails": {
+       "schArrTime": "10:48",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "10:48",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     },
+     {
+      "station": {
+       "code": "KWM",
+       "name": "Kampur"
+      },
+      "distance": "3706.0",
+      "day": 4,
+      "arrivalDetails": {
+       "schArrTime": "10:54",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "10:54",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     },
+     {
+      "station": {
+       "code": "JMK",
+       "name": "Jamunamukh"
+      },
+      "distance": "3716.0",
+      "day": 4,
+      "arrivalDetails": {
+       "schArrTime": "11:02",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "11:02",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     },
+     {
+      "station": {
+       "code": "JGJN",
+       "name": "Jugijan"
+      },
+      "distance": "3726.0",
+      "day": 4,
+      "arrivalDetails": {
+       "schArrTime": "11:08",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "11:08",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     }
+    ],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "NCJ",
+     "name": "NAGERCOIL JN"
+    },
+    "distance": "16",
+    "dayDetails": {
+     "dayCnt": 1
+    },
+    "arrivalDetails": {
+     "schArrTime": "17:40",
+     "schArrDate": "05-10-2026 00:00:00",
+     "actArrTime": "21:17",
+     "actArrDate": "05-10-2026 00:00:00",
+     "arrDelay": 217,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "17:45",
+     "schDepDate": "05-10-2026 00:00:00",
+     "actDepTime": "21:23",
+     "actDepDate": "05-10-2026 00:00:00",
+     "depDelay": 218,
+     "departed": true
+    },
+    "haltMinutes": 5,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "TVC",
+     "name": "THIRUVANANTHAPURAM CENTRAL"
+    },
+    "distance": "87",
+    "dayDetails": {
+     "dayCnt": 1
+    },
+    "arrivalDetails": {
+     "schArrTime": "19:35",
+     "schArrDate": "05-10-2026 00:00:00",
+     "actArrTime": "23:38",
+     "actArrDate": "05-10-2026 00:00:00",
+     "arrDelay": 243,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "19:40",
+     "schDepDate": "05-10-2026 00:00:00",
+     "actDepTime": "23:46",
+     "actDepDate": "05-10-2026 00:00:00",
+     "depDelay": 246,
+     "departed": true
+    },
+    "haltMinutes": 5,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "QLN",
+     "name": "KOLLAM JN"
+    },
+    "distance": "152",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "20:42",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "00:45",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 243,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "20:45",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "00:48",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 243,
+     "departed": true
+    },
+    "haltMinutes": 3,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "CNGR",
+     "name": "CHENGANNUR"
+    },
+    "distance": "213",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "21:34",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "01:44",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 250,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "21:36",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "01:47",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 251,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "KTYM",
+     "name": "KOTTAYAM"
+    },
+    "distance": "247",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "22:03",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "02:14",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 251,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "22:06",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "02:18",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 252,
+     "departed": true
+    },
+    "haltMinutes": 3,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "ERN",
+     "name": "ERNAKULAM TOWN"
+    },
+    "distance": "310",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "23:35",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "03:12",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 217,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "23:40",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "03:49",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 249,
+     "departed": true
+    },
+    "haltMinutes": 5,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "AWY",
+     "name": "ALUVA"
+    },
+    "distance": "326",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "00:13",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "04:09",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 236,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "00:15",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "04:13",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 238,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "TCR",
+     "name": "THRISUR"
+    },
+    "distance": "381",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "01:07",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "05:13",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 246,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "01:10",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "05:18",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 248,
+     "departed": true
+    },
+    "haltMinutes": 3,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "PGT",
+     "name": "PALAKKAD JN"
+    },
+    "distance": "458",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "02:37",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "06:49",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 252,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "02:40",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "07:02",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 262,
+     "departed": true
+    },
+    "haltMinutes": 3,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "CBE",
+     "name": "COIMBATORE JN"
+    },
+    "distance": "513",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "04:10",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "08:25",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 255,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "04:15",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "08:31",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 256,
+     "departed": true
+    },
+    "haltMinutes": 5,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "TUP",
+     "name": "TIRUPPUR"
+    },
+    "distance": "563",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "04:58",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "09:14",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 256,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "05:00",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "09:17",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 257,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "ED",
+     "name": "ERODE JN"
+    },
+    "distance": "613",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "05:40",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "09:58",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 258,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "05:50",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "10:27",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 277,
+     "departed": true
+    },
+    "haltMinutes": 10,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "SA",
+     "name": "SALEM JN"
+    },
+    "distance": "676",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "06:45",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "11:24",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 279,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "06:50",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "11:28",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 278,
+     "departed": true
+    },
+    "haltMinutes": 5,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "KPD",
+     "name": "KATPADI JN"
+    },
+    "distance": "879",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "09:55",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "14:14",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 259,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "10:00",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "14:19",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 259,
+     "departed": true
+    },
+    "haltMinutes": 5,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "RU",
+     "name": "RENIGUNTA JN"
+    },
+    "distance": "1012",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "12:10",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "16:35",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 265,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "12:20",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "16:46",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 266,
+     "departed": true
+    },
+    "haltMinutes": 10,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "NLR",
+     "name": "NELLORE"
+    },
+    "distance": "1134",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "14:09",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "18:30",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 261,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "14:10",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "18:31",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 261,
+     "departed": true
+    },
+    "haltMinutes": 1,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "OGL",
+     "name": "ONGOLE"
+    },
+    "distance": "1250",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "15:38",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "19:36",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 238,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "15:40",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "19:37",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 237,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "BZA",
+     "name": "VIJAYAWADA JN"
+    },
+    "distance": "1388",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "17:40",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "22:20",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 280,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "17:50",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "22:36",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 286,
+     "departed": true
+    },
+    "haltMinutes": 10,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "EE",
+     "name": "ELURU"
+    },
+    "distance": "1448",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "18:43",
+     "schArrDate": "06-10-2026 00:00:00",
+     "actArrTime": "23:47",
+     "actArrDate": "06-10-2026 00:00:00",
+     "arrDelay": 304,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "18:45",
+     "schDepDate": "06-10-2026 00:00:00",
+     "actDepTime": "23:49",
+     "actDepDate": "06-10-2026 00:00:00",
+     "depDelay": 304,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "RJY",
+     "name": "RAJAMUNDRY"
+    },
+    "distance": "1537",
+    "dayDetails": {
+     "dayCnt": 3
+    },
+    "arrivalDetails": {
+     "schArrTime": "20:13",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "00:53",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 280,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "20:15",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "00:57",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 282,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "SLO",
+     "name": "SAMALKOT JN"
+    },
+    "distance": "1588",
+    "dayDetails": {
+     "dayCnt": 3
+    },
+    "arrivalDetails": {
+     "schArrTime": "20:58",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "01:50",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 292,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "21:00",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "01:53",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 293,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "DVD",
+     "name": "DUVVADA"
+    },
+    "distance": "1721",
+    "dayDetails": {
+     "dayCnt": 3
+    },
+    "arrivalDetails": {
+     "schArrTime": "23:15",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "03:37",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 262,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "23:17",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "03:40",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 263,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "VSKP",
+     "name": "VISAKHAPATNAM"
+    },
+    "distance": "1738",
+    "dayDetails": {
+     "dayCnt": 3
+    },
+    "arrivalDetails": {
+     "schArrTime": "23:50",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "04:18",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 268,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "00:10",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "04:43",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 273,
+     "departed": true
+    },
+    "haltMinutes": 20,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "VZM",
+     "name": "VIZIANAGRAM JN"
+    },
+    "distance": "1799",
+    "dayDetails": {
+     "dayCnt": 3
+    },
+    "arrivalDetails": {
+     "schArrTime": "00:55",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "05:31",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 276,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "01:00",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "05:35",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 275,
+     "departed": true
+    },
+    "haltMinutes": 5,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "CHE",
+     "name": "SRIKAKULAM ROAD"
+    },
+    "distance": "1868",
+    "dayDetails": {
+     "dayCnt": 3
+    },
+    "arrivalDetails": {
+     "schArrTime": "01:48",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "06:39",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 291,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "01:50",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "06:40",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 290,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "PSA",
+     "name": "PALASA"
+    },
+    "distance": "1941",
+    "dayDetails": {
+     "dayCnt": 3
+    },
+    "arrivalDetails": {
+     "schArrTime": "03:00",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "07:30",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 270,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "03:02",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "07:32",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 270,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "BAM",
+     "name": "BRAHMAPUR"
+    },
+    "distance": "2015",
+    "dayDetails": {
+     "dayCnt": 3
+    },
+    "arrivalDetails": {
+     "schArrTime": "03:57",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "08:25",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 268,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "04:02",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "08:28",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 266,
+     "departed": true
+    },
+    "haltMinutes": 5,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "KUR",
+     "name": "KHURDA ROAD JN"
+    },
+    "distance": "2162",
+    "dayDetails": {
+     "dayCnt": 3
+    },
+    "arrivalDetails": {
+     "schArrTime": "06:00",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "10:28",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 268,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "06:20",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "10:48",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 268,
+     "departed": true
+    },
+    "haltMinutes": 20,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "BBS",
+     "name": "BHUBANESWAR"
+    },
+    "distance": "2181",
+    "dayDetails": {
+     "dayCnt": 3
+    },
+    "arrivalDetails": {
+     "schArrTime": "06:45",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "11:16",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 271,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "06:50",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "11:22",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 272,
+     "departed": true
+    },
+    "haltMinutes": 5,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "CTC",
+     "name": "CUTTACK"
+    },
+    "distance": "2208",
+    "dayDetails": {
+     "dayCnt": 3
+    },
+    "arrivalDetails": {
+     "schArrTime": "07:05",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "12:15",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 310,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "07:10",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "12:22",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 312,
+     "departed": true
+    },
+    "haltMinutes": 5,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "BHC",
+     "name": "BHADRAKH"
+    },
+    "distance": "2324",
+    "dayDetails": {
+     "dayCnt": 3
+    },
+    "arrivalDetails": {
+     "schArrTime": "09:08",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "14:07",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 299,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "09:10",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "14:09",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 299,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "BLS",
+     "name": "BALASORE"
+    },
+    "distance": "2386",
+    "dayDetails": {
+     "dayCnt": 3
+    },
+    "arrivalDetails": {
+     "schArrTime": "09:50",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "14:54",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 304,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "09:52",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "14:56",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 304,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "KGP",
+     "name": "KHARAGPUR JN"
+    },
+    "distance": "2504",
+    "dayDetails": {
+     "dayCnt": 3
+    },
+    "arrivalDetails": {
+     "schArrTime": "11:25",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "16:10",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 285,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "11:35",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "16:15",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 280,
+     "departed": true
+    },
+    "haltMinutes": 10,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "DKAE",
+     "name": "DANKUNI"
+    },
+    "distance": "2626",
+    "dayDetails": {
+     "dayCnt": 3
+    },
+    "arrivalDetails": {
+     "schArrTime": "14:35",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "21:04",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 389,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "14:40",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "21:05",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 385,
+     "departed": true
+    },
+    "haltMinutes": 5,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "BWN",
+     "name": "BARDHAMAN"
+    },
+    "distance": "2706",
+    "dayDetails": {
+     "dayCnt": 3
+    },
+    "arrivalDetails": {
+     "schArrTime": "15:26",
+     "schArrDate": "07-10-2026 00:00:00",
+     "actArrTime": "22:13",
+     "actArrDate": "07-10-2026 00:00:00",
+     "arrDelay": 407,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "15:28",
+     "schDepDate": "07-10-2026 00:00:00",
+     "actDepTime": "22:15",
+     "actDepDate": "07-10-2026 00:00:00",
+     "depDelay": 407,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "RPH",
+     "name": "RAMPUR HAT"
+    },
+    "distance": "2818",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "17:15",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "00:47",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 452,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "17:25",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "00:54",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 449,
+     "departed": true
+    },
+    "haltMinutes": 10,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "MLDT",
+     "name": "MALDA TOWN"
+    },
+    "distance": "2939",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "19:55",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "03:10",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 435,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "20:05",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "03:21",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 436,
+     "departed": true
+    },
+    "haltMinutes": 10,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "KNE",
+     "name": "KISHANGANJ"
+    },
+    "distance": "3084",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "22:10",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "05:49",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 459,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "22:12",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "05:51",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 459,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "NJP",
+     "name": "NEW JALPAIGURI"
+    },
+    "distance": "3172",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "23:45",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "07:06",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 441,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "23:55",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "07:24",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 449,
+     "departed": true
+    },
+    "haltMinutes": 10,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "JPE",
+     "name": "JALPAIGURI ROAD"
+    },
+    "distance": "3205",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "00:40",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "07:59",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 439,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "00:42",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "08:01",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 439,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "MHBA",
+     "name": "MATHABHANGA"
+    },
+    "distance": "3268",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "01:43",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "08:57",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 434,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "01:45",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "08:59",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 434,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "NCB",
+     "name": "NEW COOCH BEHAR"
+    },
+    "distance": "3299",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "02:15",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "09:31",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 436,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "02:20",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "09:35",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 435,
+     "departed": true
+    },
+    "haltMinutes": 5,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "NOQ",
+     "name": "NEW ALIPURDUAR"
+    },
+    "distance": "3317",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "02:40",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "09:53",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 433,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "02:45",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "09:57",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 432,
+     "departed": true
+    },
+    "haltMinutes": 5,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "KOJ",
+     "name": "KOKRAJHAR"
+    },
+    "distance": "3396",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "03:33",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "11:04",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 451,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "03:35",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "11:06",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 451,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "NBQ",
+     "name": "NEW BONGAIGAON"
+    },
+    "distance": "3424",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "04:20",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "11:39",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 439,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "04:30",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "11:48",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 438,
+     "departed": true
+    },
+    "haltMinutes": 10,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "AYU",
+     "name": "ABHAYAPURI ASAM"
+    },
+    "distance": "3442",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "04:44",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "12:10",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 446,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "04:46",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "12:12",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 446,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "GLPT",
+     "name": "GOALPARA TOWN"
+    },
+    "distance": "3504",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "05:10",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "12:42",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 452,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "05:12",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "12:44",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 452,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "GHY",
+     "name": "GUWAHATI"
+    },
+    "distance": "3632",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "09:05",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "15:04",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 359,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "09:20",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "15:58",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 398,
+     "departed": true
+    },
+    "haltMinutes": 15,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "JID",
+     "name": "JAGI ROAD"
+    },
+    "distance": "3689",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "10:17",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "17:07",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 410,
+     "arrived": true
+    },
+    "departureDetails": {
+     "schDepTime": "10:19",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "17:09",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 410,
+     "departed": true
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": {
+     "code": "CPK",
+     "name": "CHAPARMUKH JN"
+    }
+   },
+   {
+    "station": {
+     "code": "HJI",
+     "name": "HOJAI"
+    },
+    "distance": "3768",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "11:13",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "18:03",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 410,
+     "arrived": false
+    },
+    "departureDetails": {
+     "schDepTime": "11:15",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "18:04",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 409,
+     "departed": false
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "LMG",
+     "name": "LUMDING JN"
+    },
+    "distance": "3813",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "12:00",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "18:31",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 391,
+     "arrived": false
+    },
+    "departureDetails": {
+     "schDepTime": "12:10",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "18:36",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 386,
+     "departed": false
+    },
+    "haltMinutes": 10,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "DPU",
+     "name": "DIPHU"
+    },
+    "distance": "3845",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "12:50",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "19:16",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 386,
+     "arrived": false
+    },
+    "departureDetails": {
+     "schDepTime": "12:52",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "19:17",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 385,
+     "departed": false
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "DMV",
+     "name": "DIMAPUR"
+    },
+    "distance": "3882",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "13:33",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "19:50",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 377,
+     "arrived": false
+    },
+    "departureDetails": {
+     "schDepTime": "13:40",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "19:55",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 375,
+     "departed": false
+    },
+    "haltMinutes": 7,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "FKG",
+     "name": "FURKATING JN"
+    },
+    "distance": "3952",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "15:35",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "21:27",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 352,
+     "arrived": false
+    },
+    "departureDetails": {
+     "schDepTime": "15:37",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "21:28",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 351,
+     "departed": false
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "MXN",
+     "name": "MARIANI JN"
+    },
+    "distance": "3990",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "16:15",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "22:06",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 351,
+     "arrived": false
+    },
+    "departureDetails": {
+     "schDepTime": "16:25",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "22:11",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 346,
+     "departed": false
+    },
+    "haltMinutes": 10,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "SLGR",
+     "name": "SIMALUGURI JN"
+    },
+    "distance": "4044",
+    "dayDetails": {
+     "dayCnt": 4
+    },
+    "arrivalDetails": {
+     "schArrTime": "17:13",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "22:59",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 346,
+     "arrived": false
+    },
+    "departureDetails": {
+     "schDepTime": "17:15",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "23:00",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 345,
+     "departed": false
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "NHK",
+     "name": "NAHARKATIYA"
+    },
+    "distance": "4122",
+    "dayDetails": {
+     "dayCnt": 5
+    },
+    "arrivalDetails": {
+     "schArrTime": "18:23",
+     "schArrDate": "09-10-2026 00:00:00",
+     "actArrTime": "00:08",
+     "actArrDate": "09-10-2026 00:00:00",
+     "arrDelay": 345,
+     "arrived": false
+    },
+    "departureDetails": {
+     "schDepTime": "18:25",
+     "schDepDate": "09-10-2026 00:00:00",
+     "actDepTime": "00:09",
+     "actDepDate": "09-10-2026 00:00:00",
+     "depDelay": 344,
+     "departed": false
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "NTSK",
+     "name": "NEW TINSUKIA"
+    },
+    "distance": "4147",
+    "dayDetails": {
+     "dayCnt": 5
+    },
+    "arrivalDetails": {
+     "schArrTime": "19:00",
+     "schArrDate": "09-10-2026 00:00:00",
+     "actArrTime": "00:44",
+     "actArrDate": "09-10-2026 00:00:00",
+     "arrDelay": 344,
+     "arrived": false
+    },
+    "departureDetails": {
+     "schDepTime": "19:10",
+     "schDepDate": "09-10-2026 00:00:00",
+     "actDepTime": "00:49",
+     "actDepDate": "09-10-2026 00:00:00",
+     "depDelay": 339,
+     "departed": false
+    },
+    "haltMinutes": 10,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "DBRG",
+     "name": "DIBRUGARH"
+    },
+    "distance": "4188",
+    "dayDetails": {
+     "dayCnt": 5
+    },
+    "arrivalDetails": {
+     "schArrTime": "21:00",
+     "schArrDate": "09-10-2026 00:00:00",
+     "actArrTime": "02:17",
+     "actArrDate": "09-10-2026 00:00:00",
+     "arrDelay": 317,
+     "arrived": false
+    },
+    "departureDetails": {
+     "schDepTime": null,
+     "schDepDate": null,
+     "actDepTime": null,
+     "actDepDate": null,
+     "depDelay": null,
+     "departed": null
+    },
+    "haltMinutes": 0,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   }
+  ]
+ }
+}

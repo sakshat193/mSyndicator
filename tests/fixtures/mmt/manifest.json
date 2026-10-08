@@ -1,0 +1,83 @@
+[
+ {
+  "label": "running_12723",
+  "case": "normal running",
+  "train": "12723",
+  "date": "2026-10-08",
+  "http_status": 200,
+  "received_at": "2026-10-08T12:02:41.303410+00:00",
+  "sha256_raw": "ce76ecd83460af0900c5f9723359bec664c7f59aa641149089676bb49bf98045"
+ },
+ {
+  "label": "not_started_12426",
+  "case": "not started",
+  "train": "12426",
+  "date": "2026-10-08",
+  "http_status": 200,
+  "received_at": "2026-10-08T12:02:46.016400+00:00",
+  "sha256_raw": "eb93baa6efe2641f81bfc075b7b49b2542d15fd57aebc7d4cc996d0689a91b73"
+ },
+ {
+  "label": "completed_12951",
+  "case": "completed",
+  "train": "12951",
+  "date": "2026-10-07",
+  "http_status": 200,
+  "received_at": "2026-10-08T12:02:51.028470+00:00",
+  "sha256_raw": "25b4ffbd1dfec267436c86319000365e68e2e3b53220b80e3833b5029ae7cdf4"
+ },
+ {
+  "label": "multiday_16318",
+  "case": "multi-day, on day 4 of 4",
+  "train": "16318",
+  "date": "2026-10-05",
+  "http_status": 200,
+  "received_at": "2026-10-08T12:03:03.588582+00:00",
+  "sha256_raw": "a98a5113676ad60c141af7f887bc8eac4fb5b1b02cc3f92757f5dedb7124f923"
+ },
+ {
+  "label": "repeated_station_11014",
+  "case": "repeated station BNC",
+  "train": "11014",
+  "date": "2026-10-08",
+  "http_status": 200,
+  "received_at": "2026-10-08T12:03:08.183190+00:00",
+  "sha256_raw": "76b55f28d2b7e793b8bc82d2ec8f8378e8f20460c7197bfc0a31fb3757a8bbd3"
+ },
+ {
+  "label": "midnight_12626",
+  "case": "past midnight IST",
+  "train": "12626",
+  "date": "2026-10-07",
+  "http_status": 200,
+  "received_at": "2026-10-08T12:03:11.746186+00:00",
+  "sha256_raw": "c33efc2b0c3f3ed756b4390cadeddb7e2529df7d406c196294b5d9efc39388bb"
+ },
+ {
+  "label": "delay_gt_3h_12503",
+  "case": "delay > 3 h (874 min), multi-day",
+  "train": "12503",
+  "date": "2026-10-06",
+  "http_status": 200,
+  "received_at": "2026-10-08T12:13:21.737054+00:00",
+  "sha256_raw": "d0abf604ea6dc567a3d3d28f5b709e6d114df1dcedad1111cb3e90cdc196875d"
+ },
+ {
+  "label": "five_day_22503",
+  "case": "dayCnt 1..5, delay > 3 h",
+  "train": "22503",
+  "date": "2026-10-05",
+  "http_status": 200,
+  "received_at": "2026-10-08T12:13:02.873013+00:00",
+  "sha256_raw": "fd14d929408a8f08ea6706c09a3db17143677b5c5f72f798d6d4121978d7347c"
+ },
+ {
+  "label": "not_running_16318",
+  "case": "date not a run day: HTTP 400, error 1001",
+  "train": "16318",
+  "date": "2026-10-07",
+  "http_status": 400,
+  "received_at": "2026-10-08T12:03:21.054745+00:00",
+  "sha256_raw": "a56c239d23ae819068b0f6db0e0049d11021882c6c696b0361af803542f6fe96"
+ }
+]

@@ -1,0 +1,8 @@
+{
+ "success": false,
+ "error": {
+  "errorCode": 1001,
+  "errorDescription": "Train is not running on given date"
+ },
+ "response": null
+}

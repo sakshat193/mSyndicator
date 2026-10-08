@@ -1,0 +1,384 @@
+{
+ "success": true,
+ "error": null,
+ "response": {
+  "lastUpdated": "07-10-2026 00:05:00",
+  "trainDetails": {
+   "trainNumber": "12426",
+   "startDate": "08-10-2026 00:00:00",
+   "departed": false,
+   "terminated": false,
+   "totalLateMins": 0,
+   "cancelledFromStation": null,
+   "cancelledToStation": null,
+   "currentStation": {
+    "code": "JAT",
+    "name": "JAMMUTAVI"
+   }
+  },
+  "stations": [
+   {
+    "station": {
+     "code": "JAT",
+     "name": "JAMMUTAVI"
+    },
+    "distance": "0",
+    "dayDetails": {
+     "dayCnt": 1
+    },
+    "arrivalDetails": {
+     "schArrTime": "21:25",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "21:25",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 0,
+     "arrived": false
+    },
+    "departureDetails": {
+     "schDepTime": "21:25",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "21:25",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 0,
+     "departed": false
+    },
+    "haltMinutes": 0,
+    "intermediateStations": [
+     {
+      "station": {
+       "code": "BBMN",
+       "name": "Bari Brahman"
+      },
+      "distance": "9.0",
+      "day": 1,
+      "arrivalDetails": {
+       "schArrTime": "21:32",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "21:32",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     },
+     {
+      "station": {
+       "code": "VJPJ",
+       "name": "Vijaypur Jammu"
+      },
+      "distance": "21.0",
+      "day": 1,
+      "arrivalDetails": {
+       "schArrTime": "21:43",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "21:43",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     },
+     {
+      "station": {
+       "code": "BHBT",
+       "name": "Basantar Block Hut"
+      },
+      "distance": "26.0",
+      "day": 1,
+      "arrivalDetails": {
+       "schArrTime": "21:47",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "21:47",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     },
+     {
+      "station": {
+       "code": "SMBX",
+       "name": "Samba"
+      },
+      "distance": "32.0",
+      "day": 1,
+      "arrivalDetails": {
+       "schArrTime": "21:53",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "21:53",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     },
+     {
+      "station": {
+       "code": "GHGL",
+       "name": "Ghagwal"
+      },
+      "distance": "42.0",
+      "day": 1,
+      "arrivalDetails": {
+       "schArrTime": "22:01",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "22:01",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     },
+     {
+      "station": {
+       "code": "HRNR",
+       "name": "Hira Nagar"
+      },
+      "distance": "47.0",
+      "day": 1,
+      "arrivalDetails": {
+       "schArrTime": "22:06",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "22:06",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     },
+     {
+      "station": {
+       "code": "CKDL",
+       "name": "Chak Dayala"
+      },
+      "distance": "51.0",
+      "day": 1,
+      "arrivalDetails": {
+       "schArrTime": "22:09",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "22:09",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     },
+     {
+      "station": {
+       "code": "CHNR",
+       "name": "Chhan Arorian"
+      },
+      "distance": "56.0",
+      "day": 1,
+      "arrivalDetails": {
+       "schArrTime": "22:14",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "22:14",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     },
+     {
+      "station": {
+       "code": "BDHY",
+       "name": "Budhi"
+      },
+      "distance": "64.0",
+      "day": 1,
+      "arrivalDetails": {
+       "schArrTime": "22:20",
+       "schArrDate": null,
+       "actArrTime": null,
+       "actArrDate": null,
+       "arrDelay": null,
+       "arrived": null
+      },
+      "departureDetails": {
+       "schDepTime": "22:20",
+       "schDepDate": null,
+       "actDepTime": null,
+       "actDepDate": null,
+       "depDelay": null,
+       "departed": null
+      }
+     }
+    ],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "MSKT",
+     "name": "MSKT KATHUA"
+    },
+    "distance": "77",
+    "dayDetails": {
+     "dayCnt": 1
+    },
+    "arrivalDetails": {
+     "schArrTime": "22:31",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "22:31",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 0,
+     "arrived": false
+    },
+    "departureDetails": {
+     "schDepTime": "22:33",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "22:33",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 0,
+     "departed": false
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "PTKC",
+     "name": "PATHANKOT CANTT"
+    },
+    "distance": "100",
+    "dayDetails": {
+     "dayCnt": 1
+    },
+    "arrivalDetails": {
+     "schArrTime": "23:05",
+     "schArrDate": "08-10-2026 00:00:00",
+     "actArrTime": "23:05",
+     "actArrDate": "08-10-2026 00:00:00",
+     "arrDelay": 0,
+     "arrived": false
+    },
+    "departureDetails": {
+     "schDepTime": "23:07",
+     "schDepDate": "08-10-2026 00:00:00",
+     "actDepTime": "23:07",
+     "actDepDate": "08-10-2026 00:00:00",
+     "depDelay": 0,
+     "departed": false
+    },
+    "haltMinutes": 2,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "LDH",
+     "name": "LUDHIANA JN"
+    },
+    "distance": "265",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "01:35",
+     "schArrDate": "09-10-2026 00:00:00",
+     "actArrTime": "01:35",
+     "actArrDate": "09-10-2026 00:00:00",
+     "arrDelay": 0,
+     "arrived": false
+    },
+    "departureDetails": {
+     "schDepTime": "01:45",
+     "schDepDate": "09-10-2026 00:00:00",
+     "actDepTime": "01:45",
+     "actDepDate": "09-10-2026 00:00:00",
+     "depDelay": 0,
+     "departed": false
+    },
+    "haltMinutes": 10,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   },
+   {
+    "station": {
+     "code": "NDLS",
+     "name": "NEW DELHI"
+    },
+    "distance": "577",
+    "dayDetails": {
+     "dayCnt": 2
+    },
+    "arrivalDetails": {
+     "schArrTime": "05:55",
+     "schArrDate": "09-10-2026 00:00:00",
+     "actArrTime": "05:55",
+     "actArrDate": "09-10-2026 00:00:00",
+     "arrDelay": 0,
+     "arrived": false
+    },
+    "departureDetails": {
+     "schDepTime": null,
+     "schDepDate": null,
+     "actDepTime": null,
+     "actDepDate": null,
+     "depDelay": null,
+     "departed": null
+    },
+    "haltMinutes": 0,
+    "intermediateStations": [],
+    "currentIntermediateStation": null
+   }
+  ]
+ }
+}

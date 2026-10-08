@@ -446,12 +446,12 @@ Any headers that discovery records as required are added here. Without the Task 
 
 ### Task 9: G3 fixture capture (monitor, live 🛑)
 
-- [ ] After the user confirms, capture ≤ 40 livestatus bodies at 0.2 req/s:
+- [x] After the user confirms, capture ≤ 40 livestatus bodies at 0.2 req/s:
   - normal running; not started; completed;
   - cancelled, rescheduled and diverted (if found);
   - a multi-day train and a repeated-station train (from GTFS);
   - one passing through midnight IST; one with a delay > 3 h.
-- [ ] Copy the chosen bodies, trimmed to the fields the parser reads and labelled, into `tests/fixtures/mmt/`. Record in `docs/gates/G3.md` which edge cases were captured and which could not be found.
+- [x] Copy the chosen bodies, trimmed to the fields the parser reads and labelled, into `tests/fixtures/mmt/`. Record in `docs/gates/G3.md` which edge cases were captured and which could not be found.
 
 ### Task 10: MMT parser and semantic validation (spec §7.1 Validation, §7.4, A3)
 
