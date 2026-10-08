@@ -1139,6 +1139,7 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
   - A training row's as-of cutoff is the `received_at` of the segment's departure event at A (the live moment a run forecast is issued).
   - W scheduled-dwell buckets are data-driven: quintile edges of scheduled dwell over the fold's training rows (duplicate edges merged), stored in the artifact. An empty or unseen bucket falls back to the class-pooled histogram, then the provisional prior.
   - `websockets` becomes a runtime dependency as uvicorn's WebSocket backend.
+  - Model tables carry one tail pair per segment (R) and one scale per halt (W): the CDF cache takes the max of the per-level LightGBM scales. Per-level τ in the kernel is the upgrade path.
 
 ---
 
