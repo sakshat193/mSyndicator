@@ -18,6 +18,7 @@ import numpy as np
 import psycopg
 from psycopg.rows import dict_row
 
+from msynd.config import settings
 from msynd.db.dirty import mark_dirty
 from msynd.engine.evidence import load_run_evidence
 from msynd.engine.frames import encode_run, write_frame
@@ -152,7 +153,7 @@ def _read_frame(conn, gen):
 
 
 def run_loop(conn, replay_fn, model_source, params=Params(), *, pool=None,
-             stop=None, notifications=True, ready=None, source='ntes_status', T_max=30, F=30):
+             stop=None, notifications=True, ready=None, source=settings.live_source, T_max=30, F=30):
     """LISTEN before reconciling; one-second poll backs up notification delivery."""
     if pool is None:
         with mp.get_context('spawn').Pool(4) as workers:
@@ -190,7 +191,7 @@ def run_loop(conn, replay_fn, model_source, params=Params(), *, pool=None,
                 full_at = tick + 300
             polls, issue, metrics = tick >= poll_at, tick >= issue_at, tick >= metric_at
             if polls or issue or metrics:
-                # ponytail: CP-3 may revise source='ntes_status', T_max=30 and F=30; absent S skips polls.
+                # ponytail: CP-3 may revise T_max=30 and F=30; absent live-source S skips polls.
                 with conn.transaction():
                     now = conn.execute('SELECT clock_timestamp()').fetchone()[0]
                     write_periodic(conn, cache, now, polls=polls, issue=issue, metrics=metrics,

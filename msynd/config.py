@@ -13,6 +13,7 @@ class Settings:
     k_paths: int = 32
     f_minutes: float = 60
     mmt_rate: float = 0.2
+    live_source: str = 'mmt_status'
 
     def __post_init__(self):
         for value in (self.ntes_rate, self.etrain_rate, self.mmt_rate, self.f_minutes):

@@ -40,11 +40,11 @@ def test_latest_pending_only_across_sources(db):
     assert load_run_evidence(db, run).evidence == (Evidence(1, False, 3, "ntes_board"),)
 
 
-def test_pending_tie_prefers_ntes_status(db):
+def test_pending_tie_prefers_mmt_status(db):
     run = make_run(db)
     pending(db, run, 3, "ntes_board")
-    pending(db, run, 3, "ntes_status")
-    assert load_run_evidence(db, run).evidence == (Evidence(1, False, 3, "ntes_status"),)
+    pending(db, run, 3, "mmt_status")
+    assert load_run_evidence(db, run).evidence == (Evidence(1, False, 3, "mmt_status"),)
 
 
 def test_asof_excludes_later_received(db):

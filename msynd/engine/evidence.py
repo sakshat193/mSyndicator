@@ -85,7 +85,7 @@ def load_run_evidence(conn, run_id: int, asof: datetime | None = None) -> RunEvi
               (SELECT jsonb_agg(to_jsonb(p)) FROM (
                 SELECT DISTINCT ON (station,occ,kind) * FROM obs.pending_rev
                 WHERE run_id=r.id AND received_at <= %(cutoff)s
-                ORDER BY station,occ,kind,received_at DESC,(source='ntes_status') DESC
+                ORDER BY station,occ,kind,received_at DESC,(source=%(source)s) DESC
               ) p) AS pending,
               (SELECT jsonb_agg(to_jsonb(x) ORDER BY x.received_at DESC)
                 FROM obs.exception_rev x WHERE x.train=r.train AND x.start_date=r.start_date
@@ -96,7 +96,8 @@ def load_run_evidence(conn, run_id: int, asof: datetime | None = None) -> RunEvi
               (SELECT COALESCE(max(b.gen),0) FROM ml.leg_bias b
                 JOIN ml.model m ON m.id=b.model_id WHERE m.active) AS bias_gen
             FROM r
-        """, {"run": run_id, "cutoff": asof if asof is not None else "infinity"})
+        """, {"run": run_id, "cutoff": asof if asof is not None else "infinity",
+              "source": settings.live_source})
         row = cur.fetchone()
     if row is None:
         raise ValueError(f"unknown run {run_id}")
