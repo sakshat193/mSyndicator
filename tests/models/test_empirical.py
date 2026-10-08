@@ -54,8 +54,8 @@ def test_dwell_buckets_and_fallback(tmp_path):
     assert m[0, 0, 3] == pytest.approx(.99)
     assert m[1, 0, 90] == pytest.approx(.99 + .01*math.exp(-45)*(1-math.exp(-.5)))  # empty Y bucket -> Y pool
     np.testing.assert_allclose(m[2, 0, 1:6], [.198] * 5)  # outside fitted edges -> pool
-    assert m[3, 0, :5].sum() == 0.  # unseen class -> sched dwell + Exp(2)
-    assert m[3, 0, 5] == pytest.approx(1-math.exp(-.5))
+    assert m[3, 0, :2].sum() == 0.  # unseen class -> half sched dwell + Exp(2)
+    assert m[3, 0, 2] == pytest.approx(1-math.exp(-.25))
     path = tmp_path / "w.json"
     model.save(path)
     assert ModelArtifact.load(path).dwell_edges == model.dwell_edges
@@ -73,8 +73,8 @@ def test_provisional_flags_cold_start():
     assert r[0, 0, -1] == pytest.approx(.5*math.exp(-48), rel=1e-12, abs=0.)
     w, _, hi = models["dwell"].predict_distribution(query(["X"], [10.]))
     assert hi[0, 0] == 2.
-    assert w[0, 0, :10].sum() == 0.
-    assert w[0, 0, 10] == pytest.approx(1-math.exp(-.5))
+    assert w[0, 0, :5].sum() == 0.
+    assert w[0, 0, 5] == pytest.approx(1-math.exp(-.5))
     o, _, hi = models["origin"].predict_distribution(query(["X"]))
     assert hi[0, 0] == 10.
     assert o[0, 0, :61].sum() == pytest.approx(1-math.exp(-.2))
@@ -93,7 +93,7 @@ def test_empty_and_training_only_fallback():
     assert model.dwell_edges == [5.]
     m = model.predict_distribution(query(["X"], [5.]))[0][0,0]
     assert m[1] == pytest.approx(.99)
-    assert m[5] == pytest.approx(.01*(1-math.exp(-.5)))
+    assert m[5] == pytest.approx(.01*math.exp(-1.25)*(1-math.exp(-.5)))
 
 
 @pytest.mark.parametrize("role", ["run", "origin", "dwell"])
@@ -104,7 +104,7 @@ def test_unseen_bin_has_nonzero_mass(role):
     m, lo, hi = model.predict_distribution(query(["X"], [5.]))
     index = 100 if role == "dwell" else 161
     scale = {"run": 5., "origin": 10., "dwell": 2.}[role]
-    shift = {"run": 0., "origin": -2., "dwell": 5.}[role]
+    shift = {"run": 0., "origin": -2., "dwell": 2.5}[role]
     factor = .5 if role == "run" else 1.
     expected = .01*factor*math.exp(-(100-shift)/scale)*(1-math.exp(-1/scale))
     assert m[0, 0, index] > 0.
@@ -136,10 +136,10 @@ def test_dwell_smoothing_uses_each_histograms_mean_training_dwell():
     model = fit_empirical(rows, "dwell")
     # Pool mean is 5; first bucket contains dwells 0 and 1, so its mean is .5.
     assert model.pooled["X"][0] == pytest.approx(.99)
-    assert model.pooled["X"][5] == pytest.approx(.01*(1-math.exp(-.5)))
+    assert model.pooled["X"][5] == pytest.approx(.01*math.exp(-1.25)*(1-math.exp(-.5)))
     m, _, hi = model.predict_distribution(query(["X", "X"], [0., 100.]))
-    assert m[0, 0, 0] == pytest.approx(.99 + .01*(1-math.exp(-.25)))
-    assert m[0, 0, 1] == pytest.approx(.01*(math.exp(-.25)-math.exp(-.75)))
+    assert m[0, 0, 0] == pytest.approx(.99 + .01*(1-math.exp(-.375)))
+    assert m[0, 0, 1] == pytest.approx(.01*(math.exp(-.375)-math.exp(-.875)))
     np.testing.assert_array_equal(m[1, 0], model.pooled["X"])
     assert np.all(hi == 2.)
 
@@ -190,3 +190,22 @@ def test_promote_single_active_and_notifies(db, db_url, tmp_path):
             assert registry.active(db)["run"][0] == ids[1]
         finally:
             db.execute("DELETE FROM ml.model WHERE id=ANY(%s)", (ids,))
+
+
+def test_dwell_prior_mass_below_scheduled():
+    from msynd.models.empirical import _prior
+
+    masses, _, hi = _prior("dwell", 10.)
+    assert masses[:5].sum() == 0.
+    assert np.all(masses[5:10] > 0.)
+    assert masses.sum() == pytest.approx(1.)
+    assert hi == 2.
+
+
+def test_dwell_prior_zero_dwell():
+    from msynd.models.empirical import _prior
+
+    masses, _, hi = _prior("dwell", 0.)
+    expected = np.r_[np.exp(-np.arange(180)/2)*(1-math.exp(-.5)), math.exp(-90)]
+    np.testing.assert_allclose(masses, expected, rtol=1e-12, atol=0.)
+    assert hi == 2.

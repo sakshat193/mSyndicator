@@ -31,7 +31,8 @@ def _prior(role, dwell):
         survival[~negative] = .5 * np.exp(-edges[~negative] / 5)
         lo, hi = 5., 5.
     else:
-        shift, hi = (dwell, 2.) if role == "dwell" else (-2., 10.)
+        # ponytail: fixed half-dwell edge; upgrade: fit the edge from live W labels.
+        shift, hi = (dwell/2, 2.) if role == "dwell" else (-2., 10.)
         cdf = -np.expm1(-np.maximum(0., edges-shift) / hi)
         survival = np.exp(-np.maximum(0., edges-shift) / hi)
         lo = .5

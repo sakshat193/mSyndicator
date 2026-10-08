@@ -20,7 +20,8 @@ def test_cache_hit_on_same_v(db):
     assert cache.tables_for(db, ev, models, 0) is a
     assert (a.r.shape, a.w.shape, a.o.shape) == ((2, 16, 302), (3, 16, 181), (302,))
     assert a.cold_start
-    assert a.w[1, 0, :5].sum() == 0.
+    assert a.w[1, 0, :2].sum() == 0.
+    assert a.w[1, 0, 2:5].sum() > 0.
     b = cache.tables_for(db, ev, models, 1)
     assert b is not a
     assert cache.tables_for(db, replace(ev, versions=ev.versions | {"N": 2000}), models, 1) is not b
