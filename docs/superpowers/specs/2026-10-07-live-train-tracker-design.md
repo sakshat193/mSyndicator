@@ -1144,6 +1144,10 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
   - A2 zone: the zone of the station of the run's last event; runs with no event use the origin zone.
   - A1 denominator comes from the simulation: a run is scheduled-active at t when its simulated origin departure P50 ≤ t, its simulated destination arrival P50 > t, and it is not cancelled as of t. Observed late runs stay active while the posterior says they are running; unseen runs leave at their prior P50. The engine writes the triple to `sim.metric` each minute; the report only aggregates. Cold-start priors make the denominator rough, so the share of minutes on cold-start tables is reported.
 
+- **Live source (2026-10-08, user):** MakeMyTrip RIS live status replaces NTES. Personal gathering only, 0.2 req/s, raw data stays on the PC/VM, no export. An actual requires the station's arrived/departed flag; unflagged times are ETAs (A3). S is keyed `mmt_status`. Boards, the network exception list and etrain backfill are dropped; exceptions come from per-run status (`docs/sources.md`).
+- **RSTGCN history (2026-10-08, user):** Sept 2024 delays from github KoyenaChowdhury/RSTGCN (no licence; personal use) go into `obs.history_daily`. Meaning, measured: one arrival-delay value per station (departure delay is identical, i.e. derived), early running clipped to 0, so it carries no dwell information. G4 cannot run (no overlapping live runs), so the data is used only for a cold start: O and R ≈ composite (over-dispersed, W stays provisional), promoted only on a validation log-score gain over the day-1 priors. It also fills `ref.station.zone`.
+- **Empirical smoothing (2026-10-08, user):** fitted histograms mix 1 % of the day-1 prior, so no bin has zero mass.
+
 ---
 
 ## 19. Review resolution map
