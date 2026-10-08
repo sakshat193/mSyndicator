@@ -1,3 +1,25 @@
+x-python: &python
+  image: msynd:local
+  build: .
+  restart: unless-stopped
+  environment: &environment
+    DATABASE_URL: postgresql://msynd:msynd@db:5432/msynd
+    MSYND_LIVE: "0"
+    N_PARTICLES: ${N_PARTICLES:-10000}
+    K_PATHS: ${K_PATHS:-32}
+    F_MINUTES: ${F_MINUTES:-60}
+  logging: &logging
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+  healthcheck: &database-health
+    test: ["CMD", "python", "-c", "from msynd.db import connect; c=connect(); assert c.execute('SELECT 1').fetchone() == (1,); c.close()"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 60s
+
 services:
   db:
     image: postgres:16
@@ -14,5 +36,84 @@ services:
       interval: 2s
       timeout: 5s
       retries: 30
+  collector:
+    <<: *python
+    profiles: [app]
+    command: ["python", "-m", "msynd.collect"]
+    environment:
+      <<: *environment
+      MSYND_LIVE: ${MSYND_LIVE:-0}
+      MMT_RATE: ${MMT_RATE:-0.2}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - /data:/data
+    # ponytail: probe checks DB connectivity; add a collector heartbeat when Task 22 exposes one.
+  engine:
+    <<: *python
+    profiles: [app]
+    command: ["python", "-m", "msynd.engine"]
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - /data/models:/data/models:ro
+      - ./data/params.json:/app/data/params.json:ro
+    healthcheck:
+      <<: *database-health
+      test: ["CMD", "python", "-c", "from msynd.db import connect; c=connect(); assert c.execute(\"SELECT EXISTS (SELECT 1 FROM sim.frame WHERE ts > clock_timestamp()-interval '6 minutes')\").fetchone()[0]; c.close()"]
+      start_period: 5m
+  api:
+    <<: *python
+    profiles: [app]
+    command: ["uvicorn", "msynd.api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./data/static:/app/data/static:ro
+    healthcheck:
+      <<: *database-health
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/api/health', timeout=5).close()"]
+  caddy:
+    image: caddy:2
+    profiles: [app]
+    restart: unless-stopped
+    environment:
+      DUCKDNS_HOST: ${DUCKDNS_HOST:-}
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
+      BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./web/dist:/srv/web:ro
+      - /data/tiles:/srv/tiles:ro
+      - /data/caddy:/data
+      - /data/caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  ops:
+    <<: *python
+    profiles: [ops]
+    # Cron owns retries; a completed backup must not run again in a restart loop.
+    restart: "no"
+    command: ["python", "-c", "import lightgbm, onnxruntime, numba"]
+    environment:
+      <<: *environment
+      OCI_BUCKET_NAME: ${OCI_BUCKET_NAME:-}
+    volumes:
+      - /data:/data
+      - ${OCI_CONFIG_DIR:-/data/oci}:/root/.oci:ro
 volumes:
   pgdata:

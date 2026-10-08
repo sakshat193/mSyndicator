@@ -216,3 +216,22 @@ def run_loop(conn, replay_fn, model_source, params=Params(), *, pool=None,
         else:
             sleep(1)
 
+
+def main():
+    from msynd.db import connect
+    from msynd.engine.cache import tables_for
+    from msynd.engine.replay import replay
+    from msynd.models.registry import active
+
+    def model_source(conn, ev):
+        return tables_for(conn, ev, active(conn), ev.versions['bias_gen'])
+
+    with connect(settings.database_url) as conn:
+        # ponytail: use loop defaults per Task 24 ruling; wire fitted S and tuned Params at CP-3.
+        run_loop(conn, replay, model_source)
+
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    main()
+
