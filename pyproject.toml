@@ -2,7 +2,21 @@
 name = "msynd"
 version = "0.1.0"
 requires-python = ">=3.12,<3.13"
-dependencies = ["httpx", "selectolax", "zstandard", "psycopg[binary,pool]", "numpy", "numba", "lightgbm", "onnxruntime", "pyarrow", "fastapi", "uvicorn", "msgpack"]
+dependencies = [
+    "httpx",
+    "selectolax",
+    "zstandard",
+    "psycopg[binary,pool]",
+    "numpy",
+    "numba",
+    "lightgbm",
+    "onnxruntime",
+    "pyarrow",
+    "fastapi",
+    "uvicorn",
+    "msgpack",
+    "websockets>=17.2",
+]
 
 [project.optional-dependencies]
 ops = ["kaggle", "oci-cli"]
