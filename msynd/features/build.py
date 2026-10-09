@@ -17,6 +17,14 @@ from psycopg.rows import dict_row
 from msynd.labels import IST, build_live_labels, run_label
 
 
+MODEL_FEATURES = (
+    "class", "zone", "segments_remaining", "is_last", "km", "sched_dep",
+    "sched_run", "sched_dwell", "last_delta_run", "segments_since_observed",
+    "hour_sin", "hour_cos", "weekday", "month", "fog_north", "holiday",
+    "train_encoded", "slack", "d",
+)
+
+
 @dataclass(frozen=True)
 class Fold:
     train_weeks: tuple[date, ...]
@@ -111,6 +119,15 @@ class FoldEncoders:
     mean: float
     train_means: dict
     pair_p05: dict
+
+    def to_json(self) -> dict:
+        return {"mean": self.mean, "train_means": self.train_means,
+                "pair_p05": {"|".join(pair): value for pair, value in self.pair_p05.items()}}
+
+    @classmethod
+    def from_json(cls, data: dict):
+        return cls(data["mean"], data["train_means"],
+                   {tuple(pair.split("|")): value for pair, value in data["pair_p05"].items()})
 
     @classmethod
     def fit(cls, train_rows):

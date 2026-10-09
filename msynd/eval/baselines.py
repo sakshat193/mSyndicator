@@ -5,14 +5,10 @@ from datetime import timedelta
 import hashlib
 import json
 
-import numpy as np
-import pyarrow as pa
-
-from msynd.engine.cache import _predict
+from msynd.engine.cache import tables_for
 from msynd.engine.evidence import load_run_evidence
-from msynd.engine.replay import ModelTables, Params, load_s_tables, replay
+from msynd.engine.replay import Params, load_s_tables, replay
 from msynd.features import FEATURE_VER
-from msynd.features.build import segment_queries
 from msynd.models.registry import active
 from msynd.rng import run_key, v_hash
 
@@ -55,33 +51,21 @@ def b3_active(conn, *, models=None, params=None):
     def forecast(case, *, n=None, replicate=0):
         nonlocal cached
         ev = load_run_evidence(conn, case.run_id, case.issued_at)
-        queries = segment_queries(conn, case.run_id, case.issued_at)
-        rows = queries.to_pylist()
-        if not rows:
-            raise ValueError("run has no scheduled segments")
         # Only the run's immutable schedule/route identity comes from loaded metadata.
         versions = ev.versions | frozen_versions
         ev = replace(ev, versions=versions)
+        tables = tables_for(conn, ev, models, None, asof=case.issued_at)
         count = params.n if n is None else n
-        key = (ev, json.dumps(rows, sort_keys=True, default=str), count, replicate)
-        if cached is None or cached[0] != key:
-            r_model, w_model, o_model = (models[role][1] for role in ("run", "dwell", "origin"))
-            r, rlo, rhi = _predict(conn, r_model, queries)
-            terminal = rows[-1] | {"idx": rows[-1]["idx"]+1, "sched_dwell": 0.}
-            w, _, whi = _predict(conn, w_model, pa.Table.from_pylist(rows+[terminal], schema=queries.schema))
-            origin = queries.slice(ev.events[0].halt_idx, 1).append_column("resched_min", pa.array([ev.resched_min]))
-            o, olo, ohi = _predict(conn, o_model, origin, delay=0.)
-            cold = any(getattr(model, "cold_start", False) for model in (r_model, w_model, o_model))
-            tables = ModelTables(r, np.column_stack((rlo.max(axis=1), rhi.max(axis=1))), np.zeros(len(rows)),
-                                 w, whi.max(axis=1), o[0, 0], np.array([olo[0, 0], ohi[0, 0]]), cold)
+        key = (ev, count, replicate)
+        if cached is None or cached[0] != key or cached[1] is not tables:
             # ponytail: retain all N paths for exact empirical scores; upgrade to streaming event marginals if eval memory warrants it.
             out = replay(ev, tables, replace(params, n=count, k=count),
                          int(run_key(v_hash(versions | {"N": count}), case.run_id, replicate)))
-            cached = key, out.paths
+            cached = key, tables, out.paths
         event = next((e for e in ev.events if e.halt_idx == case.halt_idx and e.kind == "arr"), None)
         last = max((e.event for e in ev.evidence if e.actual), default=-1)
         if event is None or event.idx <= last or (ev.stop_event is not None and event.idx > ev.stop_event):
             return None
-        return cached[1][:, event.idx].copy()
+        return cached[2][:, event.idx].copy()
 
     return forecast

@@ -1,4 +1,5 @@
 import math
+import json
 
 import numpy as np
 import pyarrow as pa
@@ -56,7 +57,9 @@ def test_signed_o_negative_labels_roundtrip(tmp_path):
     artifact = train_lgbm(X, y - 15, "origin")
     path = tmp_path / "model.json"  # The value stored in ml.model.path.
     artifact.save(path)
+    assert "encoders" not in json.loads(path.read_text(encoding="utf-8"))
     restored = ModelArtifact.load(path)
+    assert restored.encoders is None
     before = artifact.predict_distribution(queries())
     after = restored.predict_distribution(queries())
     for a, b in zip(before, after):
@@ -65,6 +68,32 @@ def test_signed_o_negative_labels_roundtrip(tmp_path):
     assert restored.role == "origin"
     assert np.all(restored.predict_quantiles(queries())[:, :, 4] < 0)
     assert np.all(after[0][:, :, :61].sum(axis=-1) > .5)
+
+
+def test_lgbm_artifact_saves_encoders(tmp_path):
+    from msynd.features.build import FoldEncoders
+
+    encoders = FoldEncoders.fit(pa.Table.from_pylist([
+        dict(train="A", from_stn="X", to_stn="Y", value=0., observed_running=100.),
+        dict(train="B", from_stn="Y", to_stn="Z", value=10., observed_running=130.),
+    ]))
+    X, y = training()
+    artifact = train_lgbm(X, y, "run", encoders=encoders)
+    assert artifact.encoders == encoders
+    path = tmp_path / "model.json"
+    artifact.save(path)
+    assert json.loads(path.read_text(encoding="utf-8"))["encoders"] == encoders.to_json()
+    restored = ModelArtifact.load(path)
+    assert restored.encoders == encoders
+    np.testing.assert_array_equal(predict_masses(restored, queries()), predict_masses(artifact, queries()))
+
+
+@pytest.mark.parametrize("column", ["run_id", "start_date", "train", "idx", "from_stn", "to_stn", "split"])
+def test_train_lgbm_rejects_identifier_columns(column):
+    X, y = training()
+    X = X.append_column(column, pa.array(["identifier"] * len(y)))
+    with pytest.raises(ValueError, match=column):
+        train_lgbm(X, y, "run")
 
 
 def test_noncrossing_after_sort():
