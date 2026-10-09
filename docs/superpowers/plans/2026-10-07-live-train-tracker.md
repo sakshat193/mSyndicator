@@ -1385,14 +1385,14 @@ From the training-data review (spec §18 "Training data"; Phase 3 gate unchanged
   - Promotion stays manual (`registry.promote`), because the Phase 3 gate is unchanged.
 - `fit-empirical` is kept unchanged.
 
-- [ ] Tests (small synthetic data; lower the floors through a module constant `FLOORS` monkeypatched in tests):
+- [x] Tests (small synthetic data; lower the floors through a module constant `FLOORS` monkeypatched in tests):
   - `test_insufficient_support_fits_nothing`;
   - `test_candidates_never_see_validation_rows` (a label in a validation week changes nothing in the saved candidate artifacts);
   - `test_scores_on_identical_cases` (candidate and active records have the same keys);
   - `test_below_floor_class_reported`;
   - `test_never_promotes` (no `ml.model` row becomes active);
   - `test_failure_leaves_no_rows_or_files`.
-- [ ] Commit `task 50: weekly holdout fit and evaluation`.
+- [x] Commit `task 50: weekly holdout fit and evaluation`.
 
 ---
 
