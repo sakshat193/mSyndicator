@@ -1410,11 +1410,11 @@ From the G2 decision (spec §18). `data/params.json` now holds the measured `S.m
   - `_lag_table(S.mmt_status)` accepts the table;
   - `0 < eps <= eps_ci[1]` and `tau > 0`.
 
-- [ ] Tests:
+- [x] Tests:
   - the renamed params test;
   - the new cases pass under `uv run pytest -q -m slow tests/g7 -k measured`.
-- [ ] Commit `task 51: g7(d) at measured publication lag`.
-- [ ] Monitor: append the two cases' numbers to `docs/gates/G7.md`.
+- [x] Commit `task 51: g7(d) at measured publication lag`.
+- [x] Monitor: append the two cases' numbers to `docs/gates/G7.md`.
 
 ---
 
