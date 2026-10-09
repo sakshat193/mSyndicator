@@ -1100,6 +1100,25 @@ Contents (spec §11):
 
 ## M7 — Ops, GPU, acceptance
 
+### Task 38a (amendment 2026-10-09): first live empirical fit, unpromoted
+
+User-approved (spec §18 "Training data"). It proves the real-data path on runs that are already bridged and sends no MMT requests.
+
+**Files:** create `msynd/ops/weekly.py` and `tests/ops/test_weekly.py`.
+
+**Interfaces:** `python -m msynd.ops.weekly fit-empirical --models-dir DIR`, and `fit_empirical_live(conn, models_dir, now) -> dict[role, model_id]`.
+- Labels come from `build_live_labels(conn, now - 6 h)`. They are enriched per run with `ref.train.class`, and for W with the scheduled dwell `dep_off - arr_off` from `ref.schedule_stop` of the bound version.
+- For each role in run/dwell/origin, it calls `fit_empirical` with `cold_start = True`, saves to `DIR/live-<role>-<uuid>.json`, and inserts an `ml.model` row (kind `empirical`, train_window = min/max start_date). The metrics hold support counts: rows, distinct runs, distinct trains and service dates, per class.
+- **Never `registry.promote`.** A role with zero labels is skipped and reported. As in `rstgcn.fit`, saved files are deleted if the transaction fails.
+
+- [ ] Tests:
+  - the labels of a synthetic completed run give three unpromoted models with the correct support counts;
+  - the active models are unchanged;
+  - a role with no labels is skipped;
+  - a failure removes the written files.
+- [ ] Commit `task 38a: live empirical fit`.
+- [ ] Monitor: run it against `msynd_view` (never `msynd`) and report the support counts.
+
 ### Task 38: Nightly leg bias, weekly VM retrain and promotion (spec §12, §8.4–8.6)
 
 **Files:** modify `msynd/ops/nightly.py`; create `msynd/ops/weekly.py` and `tests/ops/test_bias.py`.
