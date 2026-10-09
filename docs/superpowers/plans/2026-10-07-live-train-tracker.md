@@ -1255,13 +1255,13 @@ User-approved (spec §18 "Training data"). Harvested and polled fetches stay sou
 - Bridge: no code change; the pilot only polls, so copied rows take the default `'poll'`, and flags come from `store_status`.
 - `build_live_labels`: a run is ineligible (no labels at all) when any of its fetches has flag `exception_unparsed`. `delay_gt_24h` stays eligible (spec: kept, flagged). Maturity unchanged (actual time ≤ cutoff); receipts are never invented.
 
-- [ ] Tests:
+- [x] Tests:
   - `test_fetch_mode_check` (mode 'weird' → CheckViolation; default 'poll'; flags default empty);
   - `test_store_records_parser_flags` (page with `delay_gt_24h` → fetch row flags `{delay_gt_24h}`, run_id set);
   - `test_unparsed_exception_run_has_no_labels` (completed matured run with a flagged fetch → no labels; same run without the flag → labels);
   - `test_delay_gt_24h_run_keeps_labels`;
   - the bridge tests still pass, and a copied row has `mode='poll'`.
-- [ ] Commit `task 45: fetch provenance and label eligibility`.
+- [x] Commit `task 45: fetch provenance and label eligibility`.
 
 ### Task 46 (amendment 2026-10-09): per-attempt daily budgets by collection mode (Task 3/22 follow-up)
 
