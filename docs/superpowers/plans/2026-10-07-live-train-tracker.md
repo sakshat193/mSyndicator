@@ -1358,14 +1358,14 @@ From the training-data review (spec §18 "Training data"). Three serving gaps:
 - `cache.tables_for(conn, ev, active, bias_gen, asof=None)`: `asof=None` keeps `statement_timestamp()`; otherwise `segment_queries` reads at `asof`. `bias_gen=None` means zero bias (no `ml.leg_bias` read). The cache key already includes the feature rows, so different `asof` values never share an entry.
 - `b3_active` builds its tables with `tables_for(conn, ev, models, None, asof=case.issued_at)` and deletes its duplicated table code. Its frozen-version, replay and return behaviour is unchanged.
 
-- [ ] Tests:
+- [x] Tests:
   - `test_encoders_json_roundtrip`;
   - `test_lgbm_artifact_saves_and_applies_encoders` (train with encoders, save, load; serving a query whose `train_encoded`/`slack` are empty gives the same masses as serving the encoder-transformed query to the in-memory model);
   - `test_train_lgbm_rejects_identifier_columns`;
   - `test_tables_for_asof_ignores_later_events` (an event received after `asof` changes `tables_for` output at `now` but not at `asof`);
   - `test_tables_for_no_bias_reads_none` (`bias_gen=None` → zero bias even when `ml.leg_bias` has rows);
   - existing cache, lgbm, baselines and engine tests still pass.
-- [ ] Commit `task 49: persisted encoders and issue-time model tables`.
+- [x] Commit `task 49: persisted encoders and issue-time model tables`.
 
 ### Task 50 (amendment 2026-10-09): weekly holdout fit and evaluation (Task 29/38 follow-up)
 
