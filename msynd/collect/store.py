@@ -84,6 +84,9 @@ def store_status(conn, run_id, fetch: FetchResult, page: ParsedStatus,
             FROM obs.run WHERE id=%s FOR UPDATE''', (run_id,)).fetchone()
         if (train, start) != (page.train, page.start_date):
             raise ValueError('status belongs to another train or origin date')
+        if page.flags:
+            conn.execute('UPDATE obs.fetch SET flags=%s,run_id=COALESCE(run_id,%s) WHERE id=%s',
+                         (sorted(page.flags), run_id, fetch.fetch_id))
         if page.exceptions and logged[2] is None:
             conn.execute('UPDATE obs.fetch SET run_id=%s WHERE id=%s', (run_id, fetch.fetch_id))
         dirty = _enrich(conn, schedule[0], route, page.passing_stations)

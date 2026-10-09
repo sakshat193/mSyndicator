@@ -36,6 +36,8 @@ def build_live_labels(conn, matured_before):
         LEFT JOIN obs.event d ON d.run_id=r.id AND d.station=s.station AND d.occ=s.occ AND d.kind='dep'
           AND d.actual_ts <= %s
         WHERE r.lifecycle IN ('completed','expired_unknown')
+          AND NOT EXISTS (SELECT 1 FROM obs.fetch f
+            WHERE f.run_id=r.id AND 'exception_unparsed'=ANY(f.flags))
         ORDER BY r.id,s.idx
     """, (matured_before, matured_before)).fetchall()
     labels, previous = [], None
