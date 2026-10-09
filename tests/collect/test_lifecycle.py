@@ -41,6 +41,62 @@ def revision(db, minute, detail):
                (Jsonb(detail), at(minute)))
 
 
+def test_ensure_run_creates_old_run(db):
+    from msynd.collect.lifecycle import create_runs, ensure_run
+
+    version, route = schedule(db)
+    start = (BASE - timedelta(days=30)).date()
+    assert create_runs(db, BASE) > 0
+    assert db.execute('SELECT id FROM obs.run WHERE start_date=%s', (start,)).fetchone() is None
+    db.execute('INSERT INTO obs.exception_rev VALUES (%s,%s,%s,NULL,%s)',
+               ('12951', start, Jsonb({'kind': 'rescheduled', 'resched_min': 60}), BASE))
+    run = ensure_run(db, '12951', start)
+    assert run is not None
+    assert db.execute('''SELECT train,start_date,schedule_version_id,route_version_id,resched_min
+        FROM obs.run WHERE id=%s''', (run,)).fetchone() == ('12951', start, version, route, 0)
+    assert ensure_run(db, '12951', start) == run
+    assert db.execute('SELECT count(*) FROM obs.run WHERE start_date=%s', (start,)).fetchone() == (1,)
+
+
+def test_ensure_run_keeps_existing_binding(db):
+    from msynd.collect.lifecycle import ensure_run
+
+    run = make_run(db)
+    before = db.execute('SELECT * FROM obs.run WHERE id=%s', (run,)).fetchone()
+    version = db.execute('SELECT schedule_version_id FROM obs.run WHERE id=%s', (run,)).fetchone()[0]
+    db.execute('''INSERT INTO ref.route_version(schedule_version_id,content_hash,dist_src)
+        VALUES (%s,'new','gtfs')''', (version,))
+    assert ensure_run(db, '12951', BASE.date()) == run
+    assert db.execute('SELECT * FROM obs.run WHERE id=%s', (run,)).fetchone() == before
+
+
+def test_ensure_run_selects_date_valid_version(db):
+    from msynd.collect.lifecycle import ensure_run
+
+    old, route = schedule(db)
+    db.execute("UPDATE ref.schedule_version SET valid_to='2026-10-07' WHERE id=%s", (old,))
+    newer = db.execute('''INSERT INTO ref.schedule_version(train,valid_from,days_of_run,source,content_hash)
+        VALUES ('12951','2026-10-08',127,'gtfs','new') RETURNING id''').fetchone()[0]
+    db.execute('''INSERT INTO ref.schedule_stop
+        SELECT %s,idx,station,occ,arr_off,dep_off,dist_km FROM ref.schedule_stop WHERE version_id=%s''',
+               (newer, old))
+    newer_route = db.execute('''INSERT INTO ref.route_version(schedule_version_id,content_hash,dist_src)
+        VALUES (%s,'new','gtfs') RETURNING id''', (newer,)).fetchone()[0]
+    for start, binding in [(date(2026, 10, 7), (old, route)),
+                           (date(2026, 10, 8), (newer, newer_route))]:
+        run = ensure_run(db, '12951', start)
+        assert db.execute('SELECT schedule_version_id,route_version_id FROM obs.run WHERE id=%s',
+                          (run,)).fetchone() == binding
+
+
+def test_ensure_run_no_version_returns_none(db):
+    from msynd.collect.lifecycle import ensure_run
+
+    schedule(db, days=2)  # Tuesday only; start is Wednesday.
+    assert ensure_run(db, '12951', BASE.date()) is None
+    assert db.execute('SELECT count(*) FROM obs.run').fetchone() == (0,)
+
+
 def test_creates_only_matching_weekdays(db):
     from msynd.collect.lifecycle import create_runs
 

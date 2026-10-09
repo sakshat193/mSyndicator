@@ -8,7 +8,7 @@ import psycopg
 import zstandard
 
 from msynd.collect.dispatcher import FetchResult
-from msynd.collect.lifecycle import LATEST_ROUTE_SQL, SCHEDULES_SQL
+from msynd.collect.lifecycle import ensure_run
 from msynd.collect.parse_mmt import parse_status
 from msynd.collect.status import InvalidResponse
 from msynd.collect.store import store_status
@@ -21,22 +21,9 @@ def open_source(dsn):
         yield conn
 
 
-def _run(conn, train, start):
-    run = conn.execute('SELECT id FROM obs.run WHERE train=%s AND start_date=%s',
-                       (train, start)).fetchone()
-    if run is None:
-        run = conn.execute(f'''
-            WITH dates AS (SELECT %s::date AS day), schedules AS ({SCHEDULES_SQL})
-            INSERT INTO obs.run(train,start_date,schedule_version_id,route_version_id)
-            SELECT s.train,s.day,s.id,r.id FROM schedules s
-            JOIN LATERAL ({LATEST_ROUTE_SQL}) r ON true WHERE s.train=%s
-            ON CONFLICT (train,start_date) DO UPDATE SET train=EXCLUDED.train
-            RETURNING id''', (start, train)).fetchone()
-    return None if run is None else run[0]
-
-
 def bridge_once(source, target) -> int:
     applied = invalid = no_version = 0
+    skipped = []
     with open_source(source) as src, psycopg.connect(target, connect_timeout=5) as dst:
         # ponytail: one pilot source per target; use source-keyed cursors before bridging multiple pilots.
         with dst.transaction():
@@ -60,9 +47,11 @@ def bridge_once(source, target) -> int:
                 except (InvalidResponse, ValueError, TypeError, AttributeError, zstandard.ZstdError):
                     invalid += 1
                 else:
-                    run_id = _run(dst, train, start)
+                    run_id = ensure_run(dst, train, start)
                     if run_id is None:
                         no_version += 1
+                        if key not in skipped and len(skipped) < 20:
+                            skipped.append(key)
                     else:
                         copied = dst.execute('''INSERT INTO obs.fetch
                             (host,purpose,key,run_id,started_at,received_at,outcome,http_status)
@@ -71,7 +60,7 @@ def bridge_once(source, target) -> int:
                         store_status(dst, run_id, FetchResult(copied, outcome, status, payload, received), page)
                         applied += 1
                 dst.execute('UPDATE obs.pilot_bridge_cursor SET last_fetch_id=%s', (fetch_id,))
-    print(f'applied={applied} no_version={no_version} invalid={invalid}')
+    print(f'applied={applied} no_version={no_version} invalid={invalid} skipped={",".join(skipped)}')
     return applied
 
 
