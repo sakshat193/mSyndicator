@@ -193,15 +193,15 @@ def test_pilot_command_requires_live_guard_before_transport(monkeypatch):
         main(["run", "--days", "7", "--rate", ".2"])
 
 
-def test_provisional_params_are_usable():
+def test_measured_params_are_usable():
     from msynd.engine.replay import _lag_table
 
     params = json.loads((Path(__file__).parents[2] / "data/params.json").read_text())
-    assert params["provisional"] is True and params["minute"] == "trunc"
+    assert params["provisional"] is False and params["minute"] == "trunc"
     table = params["S"]["mmt_status"]
     grid, values, tau, eps = _lag_table(table)
-    assert eps == .05 and table["p50"] == 10
-    assert tau == pytest.approx(10 / math.log(2))
+    assert 0 < eps <= table["eps_ci"][1]
+    assert tau > 0
 
 
 @pytest.mark.db

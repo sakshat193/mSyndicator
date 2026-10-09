@@ -6,7 +6,9 @@ enumeration exact while Task 17 separately pins delay interpolation.
 """
 from dataclasses import dataclass, replace
 from itertools import product
+import json
 import math
+from pathlib import Path
 
 import numpy as np
 
@@ -16,6 +18,7 @@ from msynd.rng import run_key, v_hash
 
 CASE_NAMES = (
     "a_upstream", "b_bridge", "c_pass", "d_soft_lag", "d_epsilon_upper", "d_tail_x2",
+    "d_measured_eps_upper", "d_measured_tail_x2",
     "e_infeasible", "f_three_blocks", "g_degenerate", "h_rare", "i_floor_atom",
     "j_mixed_ancestors", "k_repeated_pending", "l_negative_origin", "m_rescheduled",
 )
@@ -71,6 +74,13 @@ def make_case(name):
             table["eps"] = (p+z*z/(2*count)+z*math.sqrt(p*(1-p)/count+z*z/(4*count*count)))/(1+z*z/count)
         if name == "d_tail_x2":
             table["tau"] *= 2
+        if name in ("d_measured_eps_upper", "d_measured_tail_x2"):
+            measured = json.loads((Path(__file__).parents[2] / "data/params.json").read_text())["S"]["mmt_status"]
+            table = {key: measured[key] for key in ("lag", "survival", "tau", "eps")}
+            if name == "d_measured_eps_upper":
+                table["eps"] = measured["eps_ci"][1]
+            else:
+                table["tau"] *= 2
     elif name in ("e_infeasible", "i_floor_atom"):
         run, floor, r_values = 10, 5, [-10, -5]
         minute = 1 if name == "e_infeasible" else 5
