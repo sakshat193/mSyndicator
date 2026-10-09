@@ -1305,7 +1305,7 @@ User-approved (spec §18 "Training data"). Scope: route ≥ 150 timetable km, an
 - `run_loop` stores harvest results with `store_status` exactly like polls.
 - Older runs (destination + 48 h passed) are backfill, which needs its own user-approved task; never admitted here.
 
-- [ ] Tests:
+- [x] Tests:
   - `test_scope_excludes_short_routes` (149 km route → never polled or harvested; 150 km → eligible);
   - `test_cohort_bounded_and_kept_across_restart`;
   - `test_vacancy_prefers_unseen_train`;
@@ -1316,7 +1316,7 @@ User-approved (spec §18 "Training data"). Scope: route ≥ 150 timetable km, an
   - `test_harvest_budget_exhausted_skips_until_next_ist_day`;
   - `test_harvest_completes_run` (MockTransport page with the destination actual → run `completed`, fetch `mode='harvest'`);
   - existing admission and collector tests still pass (update them only where polling now uses slots).
-- [ ] Commit `task 47: scoped polling slots and harvest admission`.
+- [x] Commit `task 47: scoped polling slots and harvest admission`.
 
 ### Task 48 (amendment 2026-10-09): frozen fit boundary and week-block cross-fitted encoders (Task 26 follow-up)
 
