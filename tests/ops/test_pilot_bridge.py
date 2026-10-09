@@ -2,6 +2,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 import json
 import os
+from dataclasses import replace
+from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 import psycopg
@@ -187,7 +189,8 @@ def test_cli_follow_sleeps_between_passes(monkeypatch):
 
 
 @pytest.mark.parametrize('workers', [None, '2'])
-def test_engine_main_configuration(monkeypatch, workers):
+@pytest.mark.parametrize('check', ['s_tables', 'pending_replay'])
+def test_engine_main_configuration(monkeypatch, workers, check):
     from msynd import db
     from msynd.config import Settings
     from msynd.engine import __main__ as engine
@@ -215,6 +218,23 @@ def test_engine_main_configuration(monkeypatch, workers):
         assert connection is conn
         assert (params.n, params.k) == (64, 8)
         assert pool is pool_object
+        if check == 's_tables':
+            assert params.s_tables == json.loads(
+                (Path(__file__).resolve().parents[2] / 'data/params.json').read_text())['S']
+        else:
+            from msynd.engine.evidence import Evidence
+            from msynd.engine.worker import _job
+            from tests.engine.test_replay import fixture
+
+            ev, tables, _ = fixture()
+            ev = replace(ev, evidence=(Evidence(1, False, 202, 'mmt_status'),))
+            record = dict(evidence=ev, origin_ts=0, lifecycle='running',
+                          last_received=RECEIVED, asof=RECEIVED,
+                          diverted_from=None, part_cancelled=False)
+            _, frame, result = _job((record, tables, params, replay))
+            assert frame['state'] == 'observed', frame
+            assert result is not None
+            assert frame['path_shape'] == (8, 4, 2)
         calls.append('loop')
 
     pool_object = pool

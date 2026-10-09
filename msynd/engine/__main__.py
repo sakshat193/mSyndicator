@@ -21,7 +21,7 @@ from msynd.db.dirty import mark_dirty
 from msynd.engine.evidence import load_run_evidence
 from msynd.engine.frames import write_frame
 from msynd.engine.priority import write_periodic
-from msynd.engine.replay import Params
+from msynd.engine.replay import Params, load_s_tables
 from msynd.engine.worker import _job
 from msynd.labels import IST
 
@@ -212,7 +212,7 @@ def main():
         return tables_for(conn, ev, active(conn), ev.versions['bias_gen'])
 
     with connect(settings.database_url) as conn:
-        params = Params(n=settings.n_particles, k=settings.k_paths)
+        params = Params(n=settings.n_particles, k=settings.k_paths, s_tables=load_s_tables())
         with mp.get_context('spawn').Pool(int(os.environ.get('ENGINE_WORKERS', '4'))) as workers:
             run_loop(conn, replay, model_source, params, pool=workers)
 

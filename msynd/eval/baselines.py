@@ -4,14 +4,13 @@ from dataclasses import replace
 from datetime import timedelta
 import hashlib
 import json
-from pathlib import Path
 
 import numpy as np
 import pyarrow as pa
 
 from msynd.engine.cache import _predict
 from msynd.engine.evidence import load_run_evidence
-from msynd.engine.replay import ModelTables, Params, replay
+from msynd.engine.replay import ModelTables, Params, load_s_tables, replay
 from msynd.features import FEATURE_VER
 from msynd.features.build import segment_queries
 from msynd.models.registry import active
@@ -45,8 +44,7 @@ def b3_active(conn, *, models=None, params=None):
     """
     models = active(conn) if models is None else models
     if params is None:
-        data = json.loads((Path(__file__).resolve().parents[2]/"data/params.json").read_text())
-        params = Params(s_tables=data["S"])
+        params = Params(s_tables=load_s_tables())
     frozen_versions = {"models": {role: model[0] for role, model in models.items()},
                        "feature_ver": FEATURE_VER, "bias_gen": 0,
                        "params_hash": hashlib.sha256(json.dumps(
