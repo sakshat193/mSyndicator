@@ -1276,7 +1276,7 @@ User-approved (spec §18 "Training data": ≤ 13,200 attempts/day at 0.2 req/s, 
 - `MmtClient.train_running(..., mode='poll', max_attempts=5)` passes both through.
 - Collector CLI: repeatable `--budget MODE=N` (modes `poll|harvest|probe|backfill`, N ≥ 0); default `poll=5000` only (the approved 16 Oct polling ceiling). The sum of budgets must be ≤ 13,200, else exit with an error. `run_loop` catches `BudgetExhausted` for a poll job, logs it once per IST day, and sleeps 60 s before the next admission.
 
-- [ ] Tests:
+- [x] Tests:
   - `test_budget_counts_every_attempt_including_retries` (budget 3, transport errors → exactly 3 rows, then `BudgetExhausted`);
   - `test_budget_survives_restart` (rows from an earlier dispatcher on the same IST day count);
   - `test_budget_resets_at_ist_midnight` (rows at 23:59 IST do not count at 00:01 IST next day; use a UTC instant in 18:30–24:00 UTC);
@@ -1285,7 +1285,7 @@ User-approved (spec §18 "Training data": ≤ 13,200 attempts/day at 0.2 req/s, 
   - `test_max_attempts_caps_retries`;
   - `test_cli_rejects_budget_sum_over_13200`;
   - existing dispatcher and collector tests still pass.
-- [ ] Commit `task 46: per-attempt daily budgets`.
+- [x] Commit `task 46: per-attempt daily budgets`.
 
 ### Task 47 (amendment 2026-10-09): scoped polling slots and finished-run harvest admission (Task 22 follow-up)
 
@@ -1317,6 +1317,29 @@ User-approved (spec §18 "Training data"). Scope: route ≥ 150 timetable km, an
   - `test_harvest_completes_run` (MockTransport page with the destination actual → run `completed`, fetch `mode='harvest'`);
   - existing admission and collector tests still pass (update them only where polling now uses slots).
 - [ ] Commit `task 47: scoped polling slots and harvest admission`.
+
+### Task 48 (amendment 2026-10-09): frozen fit boundary and week-block cross-fitted encoders (Task 26 follow-up)
+
+From the training-data review (spec §18 "Training data"). Two leaks in `training_frame`:
+- a training row's own target enters its `train_encoded`, and its own observed running time enters its pair `slack` P05;
+- labels and departures are read as current truth at `CURRENT_TIMESTAMP`, so a later fit sees revisions received after the fit date.
+
+**Files:** modify `msynd/features/build.py`, `msynd/labels.py`; tests in `tests/features/test_features.py`, `tests/test_labels.py`.
+
+**Interfaces:**
+- `build_live_labels(conn, matured_before, asof=None)`. `asof=None` keeps today's behaviour. Otherwise every event read is `obs.event_asof(asof)` instead of `obs.event`, the lifecycle check uses only evidence present at `asof` (completed = the bound destination arrival actual exists in `event_asof(asof)`; `expired_unknown` runs are included only if `updated_at ≤ asof`), the `exception_unparsed` exclusion counts only fetches with `received_at ≤ asof`, and `resched_min` already uses receipt order.
+- `training_frame(conn, fold, asof)`: `asof` is required; labels come from `build_live_labels(conn, asof - 6 h, asof)`; departures use `obs.event_asof(asof)`. Remove `CURRENT_TIMESTAMP`.
+- `FoldEncoders.fit(train_rows)` is unchanged (it is the encoder used for validation and serving rows: all training rows).
+- New `FoldEncoders.cross_fit(train_rows) -> pa.Table`: transforms each **training** row with encoders fit on the training rows of the **other** origin weeks only (the global mean too). A row with no other-week training rows gets `train_encoded = None` and `slack = None` (LightGBM treats them as missing). `training_frame` uses `cross_fit` for `split == 'train'` rows and `fit(...).transform` for `split == 'valid'` rows, preserving row order.
+
+- [ ] Tests:
+  - `test_training_row_target_never_in_own_encoding` (two training weeks; changing one row's value changes only the other week's `train_encoded`/`slack`, never its own);
+  - `test_single_training_week_encodes_missing`;
+  - `test_validation_rows_use_all_training_rows` (existing behaviour);
+  - `test_frozen_labels_ignore_later_revisions` (a destination actual received after `asof` → run absent at `asof`, present later; a corrected actual received after `asof` → old value);
+  - `test_training_frame_asof_is_reproducible` (same `asof` before and after inserting later revisions → identical X and y);
+  - existing features, labels and weekly tests still pass.
+- [ ] Commit `task 48: frozen fit boundary and cross-fitted encoders`.
 
 ---
 
