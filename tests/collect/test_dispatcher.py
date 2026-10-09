@@ -226,3 +226,147 @@ def test_restart_respects_last_start(db_url):
         finally:
             await d.close()
     asyncio.run(run())
+
+
+@pytest.fixture
+def budget_url(db_url):
+    with connect(db_url) as conn:
+        conn.execute("delete from obs.fetch where host='h'")
+    return db_url
+
+
+def test_budget_counts_every_attempt_including_retries(budget_url):
+    from msynd.collect.dispatcher import BudgetExhausted
+
+    async def run():
+        starts = []
+        def handle(request):
+            starts.append(1)
+            raise httpx.ReadTimeout('offline timeout')
+        d = dispatcher(budget_url, FakeClock(), handle, budgets={'poll': 3})
+        await d.start()
+        try:
+            with pytest.raises(BudgetExhausted) as exc:
+                await d.request('status', 'GET', 'https://h/x')
+            assert exc.value.mode == 'poll'
+            assert starts == [1, 1, 1]
+            assert d.conn.execute("select mode,outcome from obs.fetch where host='h'").fetchall() == [
+                ('poll', 'transport_error')] * 3
+        finally:
+            await d.close()
+    asyncio.run(run())
+
+
+def test_budget_survives_restart(budget_url):
+    from msynd.collect.dispatcher import BudgetExhausted
+
+    async def run():
+        clock = FakeClock()
+        for restart in range(2):
+            d = dispatcher(budget_url, clock, lambda r: httpx.Response(200, content=b'ok'), budgets={'poll': 1})
+            await d.start()
+            try:
+                if restart:
+                    with pytest.raises(BudgetExhausted):
+                        await d.request('status', 'GET', 'https://h/x')
+                    assert d.conn.execute("select count(*) from obs.fetch where host='h'").fetchone() == (1,)
+                else:
+                    await d.request('status', 'GET', 'https://h/x')
+            finally:
+                await d.close()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('after_wait', [False, True])
+def test_budget_resets_at_ist_midnight(budget_url, after_wait):
+    async def run():
+        clock = FakeClock()
+        clock.base = datetime(2026, 10, 9, 18, 29, 59, tzinfo=timezone.utc)
+        d = dispatcher(budget_url, clock, lambda r: httpx.Response(200, content=b'ok'), budgets={'poll': 1})
+        await d.start()
+        try:
+            await d.request('status', 'GET', 'https://h/x')
+            if not after_wait:
+                clock.t = 61  # 00:01 IST on October 10, still October 9 UTC.
+            await d.request('status', 'GET', 'https://h/x')
+            assert d.conn.execute("select count(*) from obs.fetch where host='h'").fetchone() == (2,)
+        finally:
+            await d.close()
+    asyncio.run(run())
+
+
+def test_budget_per_mode(budget_url):
+    from msynd.collect.dispatcher import BudgetExhausted
+
+    async def run():
+        d = dispatcher(budget_url, FakeClock(), lambda r: httpx.Response(200, content=b'ok'),
+                       budgets={'harvest': 1, 'poll': 1})
+        await d.start()
+        try:
+            await d.request('status', 'GET', 'https://h/x', mode='harvest')
+            with pytest.raises(BudgetExhausted) as exc:
+                await d.request('status', 'GET', 'https://h/x', mode='harvest')
+            assert exc.value.mode == 'harvest'
+            await d.request('status', 'GET', 'https://h/x')
+            assert d.conn.execute("select mode from obs.fetch where host='h' order by id").fetchall() == [('harvest',), ('poll',)]
+        finally:
+            await d.close()
+    asyncio.run(run())
+
+
+def test_missing_mode_budget_is_zero(budget_url):
+    from msynd.collect.dispatcher import BudgetExhausted
+
+    async def run():
+        d = dispatcher(budget_url, FakeClock(), lambda r: pytest.fail('budget must prevent transport'), budgets={})
+        await d.start()
+        try:
+            with pytest.raises(BudgetExhausted):
+                await d.request('status', 'GET', 'https://h/x')
+            assert d.conn.execute("select count(*) from obs.fetch where host='h'").fetchone() == (0,)
+        finally:
+            await d.close()
+    asyncio.run(run())
+
+
+def test_no_budgets_unlimited(budget_url):
+    async def run():
+        d = dispatcher(budget_url, FakeClock(), lambda r: httpx.Response(200, content=b'ok'))
+        await d.start()
+        try:
+            for mode in ('poll', 'harvest', 'probe', 'backfill'):
+                await d.request('status', 'GET', 'https://h/x', mode=mode)
+            assert d.conn.execute("select mode from obs.fetch where host='h' order by id").fetchall() == [
+                ('poll',), ('harvest',), ('probe',), ('backfill',)]
+        finally:
+            await d.close()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('max_attempts', [1, 2, 5])
+@pytest.mark.parametrize('status', [503, 200])
+def test_max_attempts_caps_retries(budget_url, max_attempts, status):
+    async def run():
+        d = dispatcher(budget_url, FakeClock(), lambda r: httpx.Response(status))
+        await d.start()
+        try:
+            result = await d.request('status', 'GET', 'https://h/x', max_attempts=max_attempts)
+            assert result.outcome == ('empty' if status == 200 else 'transport_error')
+            assert d.conn.execute("select count(*) from obs.fetch where host='h'").fetchone() == (
+                min(max_attempts, 2) if status == 200 else max_attempts,)
+        finally:
+            await d.close()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('max_attempts', [0, 6, 1.5, True])
+def test_invalid_max_attempts_rejected(budget_url, max_attempts):
+    async def run():
+        d = dispatcher(budget_url, FakeClock(), lambda r: pytest.fail('invalid request must not be sent'))
+        await d.start()
+        try:
+            with pytest.raises(ValueError):
+                await d.request('status', 'GET', 'https://h/x', max_attempts=max_attempts)
+        finally:
+            await d.close()
+    asyncio.run(run())

@@ -286,3 +286,54 @@ def test_loop_fairness_includes_dispatcher_start_wait(collector_url, tmp_path):
         assert started - previous[train] <= 12.5
         previous[train] = started
     assert all(b[1] - a[1] >= 5 for a, b in zip(starts, starts[1:]))
+
+
+@pytest.mark.parametrize('args', [
+    ['--budget', 'poll=13201'],
+    ['--budget', 'poll=5000', '--budget', 'harvest=8201'],
+])
+def test_cli_rejects_budget_sum_over_13200(args, capsys):
+    from msynd.collect.__main__ import main
+
+    with pytest.raises(SystemExit) as exc:
+        main(args)
+    assert exc.value.code == 2
+    assert '13,200' in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('value', ['poll=-1', 'other=1', 'poll=1.5', 'poll', 'poll='])
+def test_cli_rejects_invalid_budget(value):
+    from msynd.collect.__main__ import main
+
+    with pytest.raises(SystemExit) as exc:
+        main(['--budget', value])
+    assert exc.value.code == 2
+
+
+@pytest.mark.db
+def test_loop_budget_exhaustion_sleeps_and_logs_once_per_ist_day(collector_url, tmp_path, caplog):
+    from msynd.collect.__main__ import run_loop
+
+    with connect(collector_url) as conn:
+        make_run(conn)
+        conn.execute("UPDATE ref.schedule_version SET valid_from='2026-10-07'")
+    clock = FakeClock()
+    clock.base = datetime(2026, 10, 7, 18, 28, tzinfo=timezone.utc)
+    sleeps = []
+    async def sleep(seconds):
+        sleeps.append(seconds)
+        clock.t += seconds
+    clock.sleep = sleep
+    d = Dispatcher(HOST, .2, lambda: connect(collector_url),
+                   httpx.MockTransport(lambda r: pytest.fail('exhausted budget must not send')),
+                   clock=clock, budgets={'poll': 0})
+    async def execute():
+        with connect(collector_url) as conn:
+            await run_loop(MmtClient(d), conn, disk_path=tmp_path, stop=lambda: clock.t >= 240)
+    asyncio.run(execute())
+    assert sleeps == [60, 60, 60, 60]
+    messages = [record for record in caplog.records
+                if record.name == 'msynd.collect.__main__' and 'budget' in record.message.lower()]
+    assert len(messages) == 2
+    with connect(collector_url) as conn:
+        assert conn.execute('SELECT count(*) FROM obs.fetch').fetchone() == (0,)

@@ -33,11 +33,11 @@ def test_single_post_with_origin_date_and_no_next_running_date(db_url):
         client = MmtClient(d)
         await d.start()
         try:
-            result = await client.train_running("12951", date(2026, 10, 7))
+            result = await client.train_running("12951", date(2026, 10, 7), mode='probe', max_attempts=1)
             assert result.outcome == "ok" and len(requests) == 1
             with connect(db_url) as c:
-                assert c.execute("select purpose,key,outcome from obs.fetch where id=%s", (result.fetch_id,)).fetchone() == (
-                    "status", "12951/2026-10-07", "ok",
+                assert c.execute("select purpose,key,outcome,mode from obs.fetch where id=%s", (result.fetch_id,)).fetchone() == (
+                    "status", "12951/2026-10-07", "ok", "probe",
                 )
         finally:
             await d.close()
