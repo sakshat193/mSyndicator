@@ -1147,6 +1147,13 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
 - **Live source (2026-10-08, user):** MakeMyTrip RIS live status replaces NTES. Personal gathering only, 0.2 req/s, raw data stays on the PC/VM, no export. An actual requires the station's arrived/departed flag; unflagged times are ETAs (A3). S is keyed `mmt_status`. Boards, the network exception list and etrain backfill are dropped; exceptions come from per-run status (`docs/sources.md`).
 - **RSTGCN history (2026-10-08, user):** Sept 2024 delays from github KoyenaChowdhury/RSTGCN (no licence; personal use) go into `obs.history_daily`. Meaning, measured: one arrival-delay value per station (departure delay is identical, i.e. derived), early running clipped to 0, so it carries no dwell information. G4 cannot run (no overlapping live runs), so the data is used only for a cold start: O and R ≈ composite (over-dispersed, W stays provisional), promoted only on a validation log-score gain over the day-1 priors. It also fills `ref.station.zone`.
 - **Empirical smoothing (2026-10-08, user):** fitted histograms mix 1 % of the day-1 prior, so no bin has zero mass.
+- **Training data (2026-10-09, user):** decided after the Claude/Codex debate in `.codex-runs/debate/`.
+  - **Scope:** proxied by route length ≥ 150 timetable km, any class (about 3,004 runs/day). Mumbai and other locals stay excluded.
+  - **Collection:** each finished run is fetched once (source stays `mmt_status`, and the collection mode is recorded on the fetch). The 6 h maturity is measured on the actual time, and each row uses its real receipt time, so the as-of contract is unchanged.
+  - **Limits:** at most 13,200 attempts/day including retries, at 0.2 req/s with one owner.
+  - **Ramp from 2026-10-16:** finished-run fetches go 512 → 1,500 → 3,700/day, and polling goes 5,000 → 9,500. Each step requires the previous batch to pass: ≥ 300 due keys, ≥ 80 % usable runs, ≥ 90 % of R/W pairs present, no major class below 70 % (n ≥ 30), zero challenges. Bulk work pauses at ≥ 80 % disk.
+  - **Probe and backfill:** the lookback probe is 4 jobs at ages 8/10/14/30 days, ≤ 20 attempts. Backfill covers 2026-10-09…15 only, oldest first, using residual capacity; a date stops below 50 % yield over ≥ 50 keys. Going further back is a separate decision.
+  - **Use and exit:** personal local training only. The Phase 3 gate (≥ 4 weeks live, genuine validation) is unchanged.
 
 ---
 
