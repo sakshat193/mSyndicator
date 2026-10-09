@@ -1,7 +1,10 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 import multiprocessing as mp
+import os
 import random
+import subprocess
+import sys
 import threading
 import time
 from uuid import uuid4
@@ -314,9 +317,44 @@ def test_late_event_frame_equals_fresh_replay(db_url, runs):
 def test_spawn_pool_replays_plain_arguments(db_url, runs):
     with psycopg.connect(db_url) as conn:
         dirty(conn, runs)
-        with mp.get_context('spawn').Pool(4) as pool:
+        with mp.get_context('spawn').Pool(2) as pool:
             consume(conn, pool=pool)
         assert set(payload(conn)['runs']) == set(runs)
+
+
+@pytest.mark.db
+def test_module_entrypoint_spawn_jobs_complete(db_url, runs):
+    # runpy's __main__ execution matches python -m; stop after the worker jobs.
+    script = '''
+import multiprocessing as mp
+import runpy
+import sys
+import psycopg
+from msynd import db
+from tests.engine.test_loop import PARAMS, fake_replay, tables
+
+def check_jobs(url):
+    engine = sys.modules['__main__']
+    with psycopg.connect(url) as conn:
+        jobs, errors, tombstones = engine._prepare(
+            conn, RUNS, tables, PARAMS, fake_replay)
+        assert len(jobs) == len(RUNS) and not errors and not tombstones
+        with mp.get_context('spawn').Pool(2) as pool:
+            results = pool.map_async(engine._job, jobs).get(timeout=8)
+        assert {run for run, frame, cached in results} == set(RUNS)
+        assert all(frame['state'] == 'schedule_only' and cached is not None
+                   and frame['paths'] for run, frame, cached in results)
+    raise SystemExit(0)
+
+RUNS = [int(run) for run in sys.argv[1:]]
+db.connect = check_jobs
+runpy.run_module('msynd.engine', run_name='__main__', alter_sys=True)
+'''
+    result = subprocess.run(
+        [sys.executable, '-c', script, *map(str, runs)],
+        env=os.environ | {'DATABASE_URL': db_url, 'ENGINE_WORKERS': '2'},
+        capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @pytest.mark.db

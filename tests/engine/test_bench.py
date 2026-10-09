@@ -13,12 +13,12 @@ import numpy as np
 def test_bench_smoke_reports_all_measurements_without_gate_file(tmp_path):
     env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[2])}
     result = subprocess.run(
-        [sys.executable, "-m", "msynd.engine.bench", "--runs", "20", "--n", "1000"],
+        [sys.executable, "-m", "msynd.engine.bench", "--runs", "20", "--workers", "2", "--n", "1000"],
         cwd=tmp_path, env=env, capture_output=True, text=True, timeout=300,
     )
     assert result.returncode == 0, result.stderr
     report = json.loads(result.stdout)
-    assert (report["runs"], report["workers"], report["n"], report["segments"]) == (20, 4, 1000, 40)
+    assert (report["runs"], report["workers"], report["n"], report["segments"]) == (20, 2, 1000, 40)
     assert report["events"] == 80 and report["evidence_events"] == 20
     p = report["replay_ms"]
     assert 0 < p["p50"] <= p["p95"] <= p["p99"]
