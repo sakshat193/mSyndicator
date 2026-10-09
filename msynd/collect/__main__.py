@@ -7,7 +7,7 @@ import logging
 import os
 
 from msynd.collect.admission import AdmissionState, PollRun, next_job
-from msynd.collect.dispatcher import HostStopped
+from msynd.collect.dispatcher import BudgetExhausted, HostStopped
 from msynd.collect.lifecycle import create_runs, expire_runs
 from msynd.collect.mmt import HOST, MmtClient, classify
 from msynd.collect.parse_mmt import parse_status
@@ -15,6 +15,7 @@ from msynd.collect.status import InvalidResponse
 from msynd.collect.store import store_status
 from msynd.config import settings
 from msynd.db import connect
+from msynd.labels import IST
 from msynd.ops.nightly import disk_check, prune_bodies
 
 log = logging.getLogger(__name__)
@@ -59,6 +60,7 @@ def _classify_status(purpose, response):
 async def run_loop(client, conn, *, disk_path='/data', T_max=None, t_max_factor=1.25, stop=None):
     d, clock = client.d, client.d.clock
     next_hour = clock.now()
+    budget_logged_day = None
     try:
         # Acquire the dispatcher's host lock before lifecycle or retention writes.
         await d.start()
@@ -82,6 +84,13 @@ async def run_loop(client, conn, *, disk_path='/data', T_max=None, t_max_factor=
                 continue
             try:
                 result = await client.train_running(job.run.train, job.run.start_date, run_id=job.run.id)
+            except BudgetExhausted as exc:
+                day = clock.now().astimezone(IST).date()
+                if budget_logged_day != day:
+                    log.warning('MMT %s budget exhausted for IST day %s', exc.mode, day)
+                    budget_logged_day = day
+                await clock.sleep(60)
+                continue
             except HostStopped:
                 # Stay alive for housekeeping; a challenge requires a manual process restart.
                 log.error('MMT host stopped by a challenge; manual restart required')
@@ -95,6 +104,24 @@ async def run_loop(client, conn, *, disk_path='/data', T_max=None, t_max_factor=
 
 
 def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--t-max-seconds', type=float)
+    parser.add_argument('--t-max-factor', type=float, default=1.25)
+    parser.add_argument('--disk-path', default='/data')
+    parser.add_argument('--budget', action='append', metavar='MODE=N')
+    args = parser.parse_args(argv)
+    budgets = {}
+    for value in args.budget or ['poll=5000']:
+        mode, sep, amount = value.partition('=')
+        try:
+            amount = int(amount)
+        except ValueError:
+            parser.error('budget must be MODE=N with N a nonnegative integer')
+        if not sep or mode not in ('poll', 'harvest', 'probe', 'backfill') or amount < 0:
+            parser.error('budget requires poll|harvest|probe|backfill and N >= 0')
+        budgets[mode] = amount
+    if sum(budgets.values()) > 13200:
+        parser.error('total daily budgets must be <= 13,200')
     if os.environ.get('MSYND_LIVE') != '1':
         raise RuntimeError('collector requires MSYND_LIVE=1 and checkpoint approval')
     # ponytail: G1/G4 are undecided and there is no etrain client; enable only after both gates.
@@ -102,14 +129,9 @@ def main(argv=None):
         raise RuntimeError('etrain backfill is disabled pending G1/G4')
     if settings.live_source != 'mmt_status':
         raise ValueError('collector supports only the approved mmt_status source')
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--t-max-seconds', type=float)
-    parser.add_argument('--t-max-factor', type=float, default=1.25)
-    parser.add_argument('--disk-path', default='/data')
-    args = parser.parse_args(argv)
     AdmissionState((), T_max=args.t_max_seconds, t_max_factor=args.t_max_factor)
     # ponytail: F remains the F_MINUTES setting (60); CP-3 decides it. MMT has no board share.
-    client = MmtClient.from_env()
+    client = MmtClient.from_env(budgets=budgets)
     with connect() as conn:
         asyncio.run(run_loop(client, conn, disk_path=args.disk_path,
                              T_max=args.t_max_seconds, t_max_factor=args.t_max_factor))

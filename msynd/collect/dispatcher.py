@@ -1,7 +1,7 @@
 import asyncio
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, time as day_time, timedelta, timezone
 from email.utils import parsedate_to_datetime
 import math
 import os
@@ -12,6 +12,7 @@ import httpx
 import zstandard
 
 from msynd import VERSION
+from msynd.labels import IST
 
 
 class HostLocked(Exception):
@@ -20,6 +21,12 @@ class HostLocked(Exception):
 
 class HostStopped(Exception):
     pass
+
+
+class BudgetExhausted(Exception):
+    def __init__(self, mode):
+        super().__init__(mode)
+        self.mode = mode
 
 
 class RealClock:
@@ -47,7 +54,8 @@ def real_transport():
 
 
 class Dispatcher:
-    def __init__(self, host, rate, conn_factory, transport, clock=None, rand=None, classify=None, on_empty=None):
+    def __init__(self, host, rate, conn_factory, transport, clock=None, rand=None, classify=None, on_empty=None,
+                 budgets: dict[str, int] | None = None):
         if not math.isfinite(rate) or rate <= 0:
             raise ValueError("rate must be finite and positive")
         self.host, self.rate = host, rate
@@ -55,6 +63,7 @@ class Dispatcher:
         self.clock = clock or RealClock()
         self.rand = rand or random.Random()
         self.classify, self.on_empty = classify, on_empty
+        self.budgets = budgets
         self.client = httpx.AsyncClient(transport=transport, headers={"User-Agent": f"m-syndicator/{VERSION} (personal research)"}, timeout=30, follow_redirects=False)
         self.lock = asyncio.Lock()
         self.conn = None
@@ -99,7 +108,7 @@ class Dispatcher:
                 return 0
         return max(0, seconds) if math.isfinite(seconds) else 0
 
-    async def _attempt(self, purpose, method, url, key, run_id, kwargs):
+    async def _attempt(self, purpose, method, url, key, run_id, mode, kwargs):
         async with self.lock:
             if self.conn is None:
                 raise RuntimeError("start the dispatcher first")
@@ -108,11 +117,20 @@ class Dispatcher:
             wait = max(self.last_start + 1 / self.rate, self.pause_until) - self.clock.monotonic()
             if wait > 0:
                 await self.clock.sleep(wait)
+            started_at = self.clock.now()
+            if self.budgets is not None:
+                midnight = datetime.combine(started_at.astimezone(IST).date(), day_time(), IST)
+                count = self.conn.execute(
+                    "select count(*) from obs.fetch where host=%s and mode=%s and started_at>=%s and started_at<%s",
+                    (self.host, mode, midnight, midnight + timedelta(days=1)),
+                ).fetchone()[0]
+                if count >= self.budgets.get(mode, 0):
+                    raise BudgetExhausted(mode)
             if self.state == "breaker":
                 self.state = "ok"
                 self.outcomes.clear()
             self.last_start = self.clock.monotonic()
-            fetch_id = self.conn.execute("insert into obs.fetch(host,purpose,key,run_id,started_at,outcome) values (%s,%s,%s,%s,%s,'inflight') returning id", (self.host, purpose, key, run_id, self.clock.now())).fetchone()[0]
+            fetch_id = self.conn.execute("insert into obs.fetch(host,purpose,key,run_id,started_at,mode,outcome) values (%s,%s,%s,%s,%s,%s,'inflight') returning id", (self.host, purpose, key, run_id, started_at, mode)).fetchone()[0]
             status, body, retry_after = None, b"", 0
             cancelled = None
             try:
@@ -147,14 +165,16 @@ class Dispatcher:
                 raise cancelled
             return FetchResult(fetch_id, outcome, status, body, received), retry_after
 
-    async def request(self, purpose, method, url, *, key=None, run_id=None, **httpx_kwargs):
+    async def request(self, purpose, method, url, *, key=None, run_id=None, mode='poll', max_attempts=5, **httpx_kwargs):
+        if type(max_attempts) is not int or not 1 <= max_attempts <= 5:
+            raise ValueError("max_attempts must be an integer from 1 to 5")
         if httpx.URL(url).host != self.host:
             raise ValueError("dispatcher URL must match its locked host")
         if httpx_kwargs.get("follow_redirects"):
             raise ValueError("redirect requests must be dispatched and logged individually")
         refreshed = False
-        for attempt in range(5):
-            result, retry_after = await self._attempt(purpose, method, url, key, run_id, httpx_kwargs)
+        for attempt in range(max_attempts):
+            result, retry_after = await self._attempt(purpose, method, url, key, run_id, mode, httpx_kwargs)
             if result.outcome == "empty" and not refreshed:
                 refreshed = True
                 if self.on_empty is not None and not self._recovering_session:
@@ -164,7 +184,7 @@ class Dispatcher:
                     finally:
                         self._recovering_session = False
                 continue
-            if result.outcome != "transport_error" or attempt == 4:
+            if result.outcome != "transport_error" or attempt == max_attempts - 1:
                 return result
             await self.clock.sleep(max(retry_after, min(300, 2 * 2**attempt) * self.rand.uniform(.5, 1.5)))
         return result
