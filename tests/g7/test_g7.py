@@ -1,5 +1,6 @@
 from dataclasses import replace
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -14,6 +15,24 @@ pytestmark = pytest.mark.slow
 @pytest.fixture(scope="module")
 def references():
     return {}
+
+
+@pytest.mark.parametrize("name,tau_scale", [
+    ("d_measured_eps_upper", 1), ("d_measured_tail_x2", 2),
+])
+def test_measured_cases_use_source_lag_table(name, tau_scale):
+    index = CASE_NAMES.index("d_tail_x2") + 1
+    assert CASE_NAMES[index:index+2] == ("d_measured_eps_upper", "d_measured_tail_x2")
+    measured = json.loads((Path(__file__).parents[2] / "data/params.json").read_text())["S"]["mmt_status"]
+    case, baseline = make_case(name), make_case("d_soft_lag")
+    assert case.ev == baseline.ev and case.grid == baseline.grid
+    assert case.target == baseline.target and case.origin_cut == baseline.origin_cut
+    source = case.ev.evidence[0].source
+    assert case.params.s_tables == {source: {
+        "lag": measured["lag"], "survival": measured["survival"],
+        "tau": measured["tau"] * tau_scale,
+        "eps": measured["eps_ci"][1] if tau_scale == 1 else measured["eps"],
+    }}
 
 
 @pytest.mark.parametrize("n", [10_000, 100_000])
