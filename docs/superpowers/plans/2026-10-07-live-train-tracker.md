@@ -1056,8 +1056,8 @@ User-approved (decisions A–D in `reports/frontend-live-plan.md`): a dashboard 
 - `--follow` repeats every 60 s. There is no HTTP path.
 - Engine `main()`: the pool size comes from `ENGINE_WORKERS` (default 4), and `Params` uses `settings.n_particles` / `settings.k_paths`.
 
-- [ ] Tests: synthetic MMT bodies are stored as evidence; a rerun is idempotent; the source is opened read-only; an unknown train is skipped; the engine's `main()` honours `ENGINE_WORKERS` and `N_PARTICLES`.
-- [ ] Commit `task F1: pilot bridge`.
+- [x] Tests: synthetic MMT bodies are stored as evidence; a rerun is idempotent; the source is opened read-only; an unknown train is skipped; the engine's `main()` honours `ENGINE_WORKERS` and `N_PARTICLES`.
+- [x] Commit `task F1: pilot bridge`.
 
 ### Task 36: Map, layers, timeline, panels → 🛑 A7 and Phase 5 exit (spec §11)
 
