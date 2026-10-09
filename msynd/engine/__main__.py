@@ -5,27 +5,25 @@ returns ModelTables; replay_fn has the existing replay(ev, models, params, key)
 signature. Neither provider clients nor a registry are constructed here.
 """
 from dataclasses import replace
-from datetime import datetime, time, timezone
+from datetime import datetime, time
 import hashlib
 import json
 import logging
-import math
 import multiprocessing as mp
 from time import monotonic, sleep
 
 import msgpack
-import numpy as np
 import psycopg
 from psycopg.rows import dict_row
 
 from msynd.config import settings
 from msynd.db.dirty import mark_dirty
 from msynd.engine.evidence import load_run_evidence
-from msynd.engine.frames import encode_run, write_frame
+from msynd.engine.frames import write_frame
 from msynd.engine.priority import write_periodic
 from msynd.engine.replay import Params
+from msynd.engine.worker import _job
 from msynd.labels import IST
-from msynd.rng import run_key, v_hash
 
 log = logging.getLogger(__name__)
 ACTIVE = "lifecycle IN ('scheduled','running')"
@@ -36,21 +34,6 @@ def _versions(conn):
     bias = conn.execute('SELECT coalesce(max(b.gen),0) FROM ml.leg_bias b JOIN ml.model m ON m.id=b.model_id WHERE m.active').fetchone()[0]
     return {'models': {role: model for model, role, _ in models}, 'bias_gen': bias,
             'feature_ver': max((feature for _, _, feature in models), default=None)}
-
-
-def _job(args):
-    record, models, params, replay_fn = args
-    ev = record['evidence']
-    try:
-        out = replay_fn(ev, models, params, int(run_key(v_hash(ev.versions), ev.run_id)))
-        end = len(ev.events) if ev.stop_event is None else ev.stop_event + 1
-        paths = np.asarray(out.paths)[:, :end]
-        base = math.floor((record['origin_ts'] + float(np.min(paths)) * 60) / 6) * 6
-        return ev.run_id, encode_run(ev.run_id, out, record, datetime.fromtimestamp(base, timezone.utc)), (record, out)
-    except (psycopg.Error, OSError, MemoryError):
-        raise
-    except Exception as exc:
-        return ev.run_id, {'state': 'error', 'error': str(exc), 'versions': ev.versions}, None
 
 
 def _prepare(conn, run_ids, model_source, params, replay_fn):
