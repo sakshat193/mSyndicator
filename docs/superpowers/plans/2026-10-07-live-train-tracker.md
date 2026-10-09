@@ -1221,6 +1221,28 @@ RSTGCN (github `KoyenaChowdhury/RSTGCN`, no licence) holds Sept 2024: 1.28 M sta
   - the existing empirical, cache and replay tests still pass.
 - [x] Implement; commit `task 43: dwell prior below scheduled dwell`.
 
+
+### Task 44 (amendment 2026-10-09): `ensure_run` for historical runs (Task 21 follow-up)
+
+User-approved (spec §18 "Training data"). Harvested finished runs can be days old, and `create_runs` refuses them (three-day recovery window, destination + 12 h filter). The bridge already has a private `_run` that does the right thing; this moves it to the lifecycle owner so the harvester (a later task) and the bridge share it.
+
+**Files:** modify `msynd/collect/lifecycle.py`, `msynd/ops/pilot_bridge.py`, `tests/collect/test_lifecycle.py`, `tests/ops/test_pilot_bridge.py`.
+
+**Interfaces:** `lifecycle.ensure_run(conn, train: str, start: date) -> int | None`.
+- An existing `(train, start_date)` run is returned unchanged; its schedule and route binding are never rewritten.
+- Otherwise it inserts one run bound by `SCHEDULES_SQL` (the version valid on `start` with the weekday bit) and `LATEST_ROUTE_SQL`. No time-window filter. `ON CONFLICT` returns the existing id.
+- No valid version → `None`, nothing inserted.
+- The bridge calls `ensure_run` (delete `_run`) and keeps its `no_version` count. It also prints the skipped `train/start` keys, deduplicated and capped at 20 (`skipped=...`).
+- Exceptions are not applied here (`resched_min` stays 0; `# ponytail:` upgrade: apply the latest exception revision when the harvester stores exceptions).
+
+- [ ] Tests:
+  - `test_ensure_run_creates_old_run` (start 30 days before now → created; `create_runs` at now does not create it);
+  - `test_ensure_run_keeps_existing_binding` (existing run with an older route version → same id, binding unchanged after a newer route version exists);
+  - `test_ensure_run_selects_date_valid_version` (two versions with disjoint validity → the one valid on `start`);
+  - `test_ensure_run_no_version_returns_none` (wrong weekday → `None`, no row);
+  - the bridge tests still pass, and one asserts the skipped key appears in the summary.
+- [ ] Commit `task 44: ensure_run for historical runs`.
+
 ---
 
 ## Spec coverage check
