@@ -504,7 +504,7 @@ Rules:
   - `test_right_censored_not_counted_unpublished`;
   - `test_never_hard_bound` (zero counterexamples → the output still has ε > 0 and a soft tail).
 - [x] Implement; commit `task 11: g2 pilot`.
-- [ ] **🛑 CP-2 (user):** choose the pilot host (PC or VM; it must stay up for 7 days). The monitor then starts it with `MSYND_LIVE=1`, checks it daily (fetch-log rate ≤ 0.2/s, no challenge) and runs `analyse` at the end.
+- [x ] **🛑 CP-2 (user):** choose the pilot host (PC or VM; it must stay up for 7 days). The monitor then starts it with `MSYND_LIVE=1`, checks it daily (fetch-log rate ≤ 0.2/s, no challenge) and runs `analyse` at the end. Done 2026-10-10: PC host, ended at 23.3 h by user decision after the VM move failed (spec §18).
 
 ---
 
@@ -1393,6 +1393,28 @@ From the training-data review (spec §18 "Training data"; Phase 3 gate unchanged
   - `test_never_promotes` (no `ml.model` row becomes active);
   - `test_failure_leaves_no_rows_or_files`.
 - [x] Commit `task 50: weekly holdout fit and evaluation`.
+
+### Task 51 (amendment 2026-10-10): G7(d) at the measured publication lag (G2 follow-up)
+
+From the G2 decision (spec §18). `data/params.json` now holds the measured `S.mmt_status` (`provisional: false`). Spec §15 G2 requires rerunning G7(d) at the ε CI upper bound and at twice the tail scale. The existing `d_epsilon_upper` and `d_tail_x2` cases use a synthetic table (ε = 0.05, τ = 80) and stay as they are.
+
+**Files:** modify `tests/g7/reference.py`, `tests/collect/test_pilot.py`.
+
+**Interfaces:**
+- Two new G7 case names after `d_tail_x2`:
+  - `d_measured_eps_upper`: the `d_soft_lag` case with its S table read from `data/params.json` `S.mmt_status` (keys `lag`, `survival`, `tau`, `eps`), with `eps` replaced by `eps_ci[1]`;
+  - `d_measured_tail_x2`: the same measured table with `tau` doubled (ε unchanged).
+- Same evidence, grid, N (10k and 100k) and A8 tolerance as the other `d_` cases. They are parametrised through `CASE_NAMES` like every other case.
+- `test_provisional_params_are_usable` becomes `test_measured_params_are_usable`:
+  - `provisional is False` and `minute == "trunc"`;
+  - `_lag_table(S.mmt_status)` accepts the table;
+  - `0 < eps <= eps_ci[1]` and `tau > 0`.
+
+- [ ] Tests:
+  - the renamed params test;
+  - the new cases pass under `uv run pytest -q -m slow tests/g7 -k measured`.
+- [ ] Commit `task 51: g7(d) at measured publication lag`.
+- [ ] Monitor: append the two cases' numbers to `docs/gates/G7.md`.
 
 ---
 
