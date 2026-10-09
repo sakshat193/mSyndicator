@@ -17,20 +17,24 @@ _cache = OrderedDict()
 def _predict(conn, artifact, queries, delay=None):
     expanded = queries.take(pa.array(np.repeat(np.arange(len(queries)), 16)))
     expanded = with_delay(conn, expanded, np.tile(LEVELS, len(queries)) if delay is None else delay)
+    if getattr(artifact, "encoders", None) is not None:
+        expanded = artifact.encoders.transform(expanded)
     if hasattr(artifact, "feature_names"):
         expanded = expanded.select(artifact.feature_names)
     return artifact.predict_distribution(expanded)
 
 
-def tables_for(conn, ev, active, bias_gen):
+def tables_for(conn, ev, active, bias_gen, asof=None):
     # Current replay context, read from the caller's DB snapshot; no live source access.
-    asof = conn.execute("SELECT statement_timestamp()").fetchone()[0]
+    if asof is None:
+        asof = conn.execute("SELECT statement_timestamp()").fetchone()[0]
     shared = segment_queries(conn, ev.run_id, asof)
     rows = shared.to_pylist()
     if not rows:
         raise ValueError("run has no scheduled segments")
     key = (json.dumps(ev.versions, sort_keys=True), bias_gen,
-           tuple((role, active[role][0]) for role in ("run", "dwell", "origin")),
+           # Unsaved candidates share id None with the provisional priors; the object tells them apart.
+           tuple((role, active[role][0], id(active[role][1])) for role in ("run", "dwell", "origin")),
            json.dumps(rows, sort_keys=True, default=str), ev.events, ev.resched_min)
     cached = _cache.get(ev.run_id)
     if cached is not None and cached[0] == key:
@@ -46,13 +50,14 @@ def tables_for(conn, ev, active, bias_gen):
     origin = origin.append_column("resched_min", pa.array([ev.resched_min]))
     o, o_lo, o_hi = _predict(conn, o_model, origin, delay=0.)
     bias = np.zeros(len(rows))
-    model_id = active["run"][0]
-    shifts = {(a, b, hour): value for a, b, hour, value in conn.execute("""
-        SELECT from_stn,to_stn,hour_bucket,bias_min FROM ml.leg_bias
-        WHERE model_id=%s AND gen=%s
-    """, (model_id, bias_gen))}
-    for i, row in enumerate(rows):
-        bias[i] = shifts.get((row["from_stn"], row["to_stn"], int(row["sched_dep"] % 1440 // 180)), 0.)
+    if bias_gen is not None:
+        model_id = active["run"][0]
+        shifts = {(a, b, hour): value for a, b, hour, value in conn.execute("""
+            SELECT from_stn,to_stn,hour_bucket,bias_min FROM ml.leg_bias
+            WHERE model_id=%s AND gen=%s
+        """, (model_id, bias_gen))}
+        for i, row in enumerate(rows):
+            bias[i] = shifts.get((row["from_stn"], row["to_stn"], int(row["sched_dep"] % 1440 // 180)), 0.)
     # ponytail: max tau across levels; upgrade to per-level tau in ModelTables/kernel if validation warrants it.
     cold_start = any(getattr(m, "cold_start", False) or
                      (hasattr(m, "pooled") and any(str(row["class"]) not in m.pooled for row in rows))

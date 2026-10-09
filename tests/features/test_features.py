@@ -1,9 +1,38 @@
 from datetime import date, datetime, timedelta, timezone
+import json
 
 import pyarrow as pa
 import pytest
 
 from tests.helpers import make_run, insert_event
+
+
+def test_model_features():
+    from msynd.features.build import MODEL_FEATURES
+
+    assert tuple(MODEL_FEATURES) == (
+        "class", "zone", "segments_remaining", "is_last", "km", "sched_dep",
+        "sched_run", "sched_dwell", "last_delta_run", "segments_since_observed",
+        "hour_sin", "hour_cos", "weekday", "month", "fog_north", "holiday",
+        "train_encoded", "slack", "d",
+    )
+
+
+def test_encoders_json_roundtrip():
+    from msynd.features.build import FoldEncoders
+
+    rows = pa.Table.from_pylist([
+        dict(train="A", from_stn="X", to_stn="Y", value=0., observed_running=100., sched_run=120.),
+        dict(train="B", from_stn="Y", to_stn="X", value=10., observed_running=130., sched_run=150.),
+    ])
+    encoders = FoldEncoders.fit(rows)
+    data = json.loads(json.dumps(encoders.to_json(), allow_nan=False))
+    assert data["pair_p05"] == {"X|Y": 100., "Y|X": 130.}
+    restored = FoldEncoders.from_json(data)
+    assert restored == encoders
+    assert restored.transform(rows).equals(encoders.transform(rows))
+    empty = FoldEncoders(0., {}, {})
+    assert FoldEncoders.from_json(json.loads(json.dumps(empty.to_json()))) == empty
 
 
 def test_encoders_never_see_validation_rows():

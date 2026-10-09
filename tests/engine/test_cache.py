@@ -1,10 +1,92 @@
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pytest
 
 from tests.helpers import make_run, insert_event
+
+
+@pytest.mark.db
+def test_lgbm_artifact_saves_and_applies_encoders(db, tmp_path):
+    import pyarrow as pa
+    from msynd.engine import cache
+    from msynd.features.build import FoldEncoders, segment_queries, with_delay
+    from msynd.models.lgbm import ModelArtifact, train_lgbm
+
+    run = make_run(db)
+    encoders = FoldEncoders(10., {"12951": 40.}, {("MMCT", "BRC"): 280.})
+    encoded = np.repeat([0., 40.], 64)
+    X = pa.table({"class": ["X"] * 128, "train_encoded": encoded,
+                  "slack": np.repeat([0., 20.], 64), "d": np.zeros(128)})
+    model = train_lgbm(X, encoded, "run", encoders=encoders)
+    path = tmp_path / "run.json"
+    model.save(path)
+    loaded = ModelArtifact.load(path)
+    queries = segment_queries(db, run, datetime.now(timezone.utc)).slice(0, 1)
+    assert queries["train_encoded"].to_pylist() == [None]
+    assert queries["slack"].to_pylist() == [None]
+    expanded = with_delay(db, queries.take(pa.array([0] * 16)), cache.LEVELS)
+    expected = model.predict_distribution(encoders.transform(expanded).select(model.feature_names))
+    unencoded = model.predict_distribution(expanded.select(model.feature_names))
+    assert not np.array_equal(expected[0], unencoded[0])
+    for actual, want in zip(cache._predict(db, loaded, queries), expected):
+        np.testing.assert_array_equal(actual, want)
+
+
+@pytest.mark.db
+def test_tables_for_asof_ignores_later_events(db):
+    import pyarrow as pa
+    from msynd.engine import cache
+    from msynd.engine.evidence import load_run_evidence
+    from msynd.models.empirical import provisional_models
+    from msynd.models.lgbm import train_lgbm
+    from msynd.labels import IST
+
+    run = make_run(db, halts=[("A", None, 540, 0), ("B", 600, 605, 100), ("C", 665, None, 200)])
+    base = datetime(2026, 10, 7, tzinfo=IST)
+    asof = base + timedelta(minutes=610)
+    context = np.repeat([0., 60.], 64)
+    model = train_lgbm(pa.table({"class": ["X"] * 128, "last_delta_run": context}),
+                       context, "run")
+    models = {r: (None, m) for r, m in provisional_models().items()}
+    models["run"] = (123, model)
+    ev = load_run_evidence(db, run, asof)
+    before = cache.tables_for(db, ev, models, 0, asof=asof)
+    insert_event(db, run, "A", 1, "dep", base + timedelta(minutes=540), asof + timedelta(minutes=1))
+    insert_event(db, run, "B", 1, "arr", base + timedelta(minutes=660), asof + timedelta(minutes=60))
+    historical = cache.tables_for(db, ev, models, 0, asof=asof)
+    assert historical is before
+    np.testing.assert_array_equal(historical.r, before.r)
+    current = cache.tables_for(db, ev, models, 0)
+    assert not np.array_equal(current.r[1], before.r[1])
+
+
+@pytest.mark.db
+def test_tables_for_no_bias_reads_none(db):
+    from msynd.engine import cache
+    from msynd.engine.evidence import load_run_evidence
+    from msynd.models.empirical import provisional_models
+
+    run = make_run(db, halts=[("A", None, 540, 0), ("B", 600, None, 100)])
+    model_id = db.execute("""INSERT INTO ml.model(role,kind,feature_ver,trained_at,train_window,path,tail,metrics)
+        VALUES ('run','empirical',1,now(),'[2026-09-01,2026-10-01)','unused','{}','{}') RETURNING id""").fetchone()[0]
+    db.execute("INSERT INTO ml.leg_bias VALUES (%s,0,'A','B',3,12,30)", (model_id,))
+    models = {r: (None, m) for r, m in provisional_models().items()}
+    models["run"] = (model_id, models["run"][1])
+    ev = load_run_evidence(db, run)
+    assert cache.tables_for(db, ev, models, 0).bias.tolist() == [12.]
+
+    class NoBiasReads:
+        def execute(self, query, *args):
+            assert "ml.leg_bias" not in query, "zero bias must not query leg_bias"
+            return db.execute(query, *args)
+
+        def cursor(self, *args, **kwargs):
+            return db.cursor(*args, **kwargs)
+
+    result = cache.tables_for(NoBiasReads(), ev, models, None)
+    np.testing.assert_array_equal(result.bias, [0.])
 
 
 @pytest.mark.db
@@ -24,6 +106,8 @@ def test_cache_hit_on_same_v(db):
     assert a.w[1, 0, 2:5].sum() > 0.
     b = cache.tables_for(db, ev, models, 1)
     assert b is not a
+    unsaved = {r: (None, m) for r, m in provisional_models().items()}
+    assert cache.tables_for(db, ev, unsaved, 1) is not b  # Same ids (None), different artifacts.
     assert cache.tables_for(db, replace(ev, versions=ev.versions | {"N": 2000}), models, 1) is not b
     # Context change must miss even when V is unchanged.
     now = datetime.now(timezone.utc)
