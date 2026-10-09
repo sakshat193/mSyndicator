@@ -1121,6 +1121,8 @@ User-approved (spec §18 "Training data"). It proves the real-data path on runs 
 
 ### Task 38: Nightly leg bias, weekly VM retrain and promotion (spec §12, §8.4–8.6)
 
+> Split 2026-10-10: the bias part is Task 38b; the weekly part is Task 50 (holdout fit and evaluation, never promotes). Promotion stays manual (spec §18).
+
 **Files:** modify `msynd/ops/nightly.py`; create `msynd/ops/weekly.py` and `tests/ops/test_bias.py`.
 
 - **Bias:** over the last 7 days of matured segments, compute the median of (Δrun − active P50) per (halt pair, 3-hour bucket), shrunk by `n/(n+20)`, written as a new `gen` keyed by model (the previous generation is kept).
@@ -1131,6 +1133,33 @@ User-approved (spec §18 "Training data"). It proves the real-data path on runs 
   - `test_new_model_starts_zero_bias`;
   - `test_failed_training_keeps_active`.
 - [ ] Commit `task 38: nightly bias and weekly retrain`.
+
+### Task 38b (amendment 2026-10-10): nightly leg bias (Task 38 bias part)
+
+Spec §4.3 and §12.1. It reads only the evidence DB and sends no HTTP.
+
+**Files:** modify `msynd/ops/nightly.py`; create `tests/ops/test_bias.py`.
+
+**Interfaces:**
+- `leg_bias(conn, now, models=None) -> int | None`. `models` defaults to `registry.active(conn)`; tests pass stubs.
+  - The run model is `models["run"]`. If its id is `None` (provisional, unsaved), write nothing and return `None`.
+  - **Segments:** the `role == "run"` labels of `build_live_labels(conn, now - 6 h)` (finished runs, matured events, current truth) whose actual departure at the from-halt (`obs.event`, kind `dep`, halt `idx`) is at or after `now - 7 days`. The departure delay is `d` = actual departure (run clock) − `dep_off`.
+  - **P50:** per run, `segment_queries(conn, run_id, now)`, then `msynd.engine.cache._predict(conn, artifact, queries)`. These are the same masses that `tables_for` builds. P50 = `eff_quantile(Eff(masses[i], True, lo[i].max(), hi[i].max(), j, w, 0, 1, -inf, 0, 1), 0.5)` with `(j, w) = level_weight(d)`. Residual = label − P50.
+  - **Key:** `(from_stn, to_stn, int(sched_dep % 1440 // 180))` from the query row. This is exactly the key `cache.tables_for` reads.
+  - **Value:** `bias_min = median(residuals) * n/(n+20)`, where `n` is the number of residuals.
+  - **Write, in one transaction:** `gen = coalesce(max(gen) for this model_id, 0) + 1`. Insert one row per key. Then delete this model's rows with `gen < new gen - 1` ("keeping the previous one"). Other models' rows are never touched.
+  - With no residuals, write nothing and return `None`.
+- `main()` runs `leg_bias` first, in its own transaction. An exception there is logged with `log.exception`, and retention and backup still run.
+
+- [ ] Tests:
+  - `test_bias_shrinkage`: a stub run model whose P50 differs by delay level; three segments of one pair and bucket, with known labels and departure delays between two levels. Expect `bias_min == median(label - interpolated P50) * 3/23` and `n == 3`.
+  - `test_bucket_matches_engine`: a segment with `sched_dep >= 1440` (multi-day) is written under `int(sched_dep % 1440 // 180)`, and `cache.tables_for` at the new gen returns that bias for the segment.
+  - `test_window_and_maturity`: a departure older than 7 days, an arrival newer than 6 h, and an unfinished run are all excluded.
+  - `test_new_model_starts_zero_bias`: an old active model has gen 3 rows. After `registry.promote` of a new model, the engine's bias generation (`msynd.engine.__main__._versions`) is 0 and `tables_for` gives zero bias. `leg_bias` then writes gen 1 for the new model and leaves the old model's rows untouched.
+  - `test_keeps_previous_generation`: after three calls, only gens 2 and 3 remain.
+  - `test_provisional_run_model_writes_nothing`.
+  - `test_bias_failure_still_runs_retention_and_backup` (`main`'s collaborators monkeypatched).
+- [ ] Commit `task 38b: nightly leg bias`.
 
 ### Task 39: Kaggle pipeline (gated: G1 allows export **and** 🛑 G6 passes)
 
