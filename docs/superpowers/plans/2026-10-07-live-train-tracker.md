@@ -926,13 +926,13 @@ def test_enrichment_never_rekeys(db): ...         # passing station → new rout
 - `n_curve(cases, Ns=(1k,5k,10k,50k,100k)) -> chosen_N` picks the smallest N with MC error ≤ 0.25 min at P05/P95 for 6 h.
 - `interp_error(...)` measures delay-level interpolation against direct model calls.
 
-- [ ] Tests:
+- [x] Tests:
   - `test_horizon_bucket_independent_of_outcome`;
   - `test_identical_eligible_cases_across_baselines`;
   - `test_b2_ineligible_when_stale`;
   - `test_bootstrap_ci_excludes_zero_on_clear_gain`;
   - `test_promotion_rule_rejects_class_regression`.
-- [ ] Implement; commit `task 29: evaluation harness`.
+- [x] Implement; commit `task 29: evaluation harness`.
 - [ ] **Phase 3 exit (monitor, after ≥ 4 weeks of live data):** R/W beat B1 on CRPS at 2 h (CI > 0), with coverage within ±5 points. Write `docs/gates/phase3.md`, set N from the N-curve, and record both in §18.
 
 ### Task 30: G4 etrain meaning (gated: ≥ 2 weeks of live NTES data, plus G1 allowing etrain)
