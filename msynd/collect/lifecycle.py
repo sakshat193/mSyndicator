@@ -1,5 +1,5 @@
 """Collector-owned run creation, expiry and cumulative exception revisions."""
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
@@ -22,6 +22,22 @@ LATEST_ROUTE_SQL = '''
     SELECT id FROM ref.route_version WHERE schedule_version_id=s.id
     ORDER BY created_at DESC,id DESC LIMIT 1
 '''
+
+
+def ensure_run(conn, train: str, start: date) -> int | None:
+    """Return or create a date-bound run without the live recovery window."""
+    run = conn.execute('SELECT id FROM obs.run WHERE train=%s AND start_date=%s',
+                       (train, start)).fetchone()
+    if run is None:
+        # ponytail: exceptions stay at defaults; apply latest revision when the harvester stores exceptions.
+        run = conn.execute(f'''
+            WITH dates AS (SELECT %s::date AS day), schedules AS ({SCHEDULES_SQL})
+            INSERT INTO obs.run(train,start_date,schedule_version_id,route_version_id)
+            SELECT s.train,s.day,s.id,r.id FROM schedules s
+            JOIN LATERAL ({LATEST_ROUTE_SQL}) r ON true WHERE s.train=%s
+            ON CONFLICT (train,start_date) DO UPDATE SET train=EXCLUDED.train
+            RETURNING id''', (start, train)).fetchone()
+    return None if run is None else run[0]
 
 
 def create_runs(conn, now) -> int:

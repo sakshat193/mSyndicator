@@ -104,8 +104,24 @@ def test_skip_unknown_and_parse_failures_advances_cursor(bridge_dbs, capsys):
     assert bridge_once(*bridge_dbs) == 1
     summary = capsys.readouterr().out
     assert 'no_version=1' in summary and 'invalid=3' in summary
+    assert 'skipped=99999/2026-10-07' in summary
     assert bridge_once(*bridge_dbs) == 0
     assert 'no_version=0 invalid=0' in capsys.readouterr().out
+
+
+@pytest.mark.db
+def test_skipped_keys_are_deduplicated_and_capped(bridge_dbs, capsys):
+    from msynd.ops.pilot_bridge import bridge_once
+
+    with psycopg.connect(bridge_dbs[0]) as source:
+        for train in ['90000', '90000', *map(str, range(90001, 90022))]:
+            insert_fetch(source, host='synthetic', key=f'{train}/2026-10-07',
+                         received_at=RECEIVED, body_zstd=zstandard.compress(body(train)))
+    assert bridge_once(*bridge_dbs) == 0
+    summary = capsys.readouterr().out
+    assert 'no_version=23' in summary
+    skipped = summary.split('skipped=')[1].strip().split(',')
+    assert skipped == [f'{train}/2026-10-07' for train in range(90000, 90020)]
 
 
 @pytest.mark.db
