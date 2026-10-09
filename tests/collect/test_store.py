@@ -35,6 +35,32 @@ def store(db, run, parsed, clock='09:00', purpose='status', outcome='ok'):
     return store_status(db, run, FetchResult(fetch_id, outcome, 200, b'', received), parsed)
 
 
+@pytest.mark.parametrize('bound', [False, True])
+@pytest.mark.parametrize('flags', [('delay_gt_24h',), ('exception_unparsed', 'delay_gt_24h')])
+def test_store_records_parser_flags(db, bound, flags):
+    from msynd.collect.store import store_status
+
+    run = make_run(db)
+    received = ist('09:00')
+    fetch = insert_fetch(db, run_id=run if bound else None, received_at=received, started_at=received)
+    store_status(db, run, FetchResult(fetch, 'ok', 200, b'', received), page(flags=flags))
+    assert db.execute('SELECT flags,run_id,received_at FROM obs.fetch WHERE id=%s', (fetch,)).fetchone() == (
+        sorted(flags), run, received)
+
+
+def test_parser_flags_roll_back_with_evidence(db):
+    from msynd.collect.store import store_status
+
+    run = make_run(db)
+    received = ist('09:00')
+    fetch = insert_fetch(db, received_at=received, started_at=received)
+    with pytest.raises(psycopg.errors.InvalidTextRepresentation):
+        store_status(db, run, FetchResult(fetch, 'ok', 200, b'', received),
+                     page(flags=('exception_unparsed',),
+                          events=(Event('BRC', 1, 'invalid_kind', ist('08:30')),)))
+    assert db.execute('SELECT flags,run_id FROM obs.fetch WHERE id=%s', (fetch,)).fetchone() == ([], None)
+
+
 def test_eta_confirmation_per_key(db):
     from msynd.eval.baselines import b2_eta
 

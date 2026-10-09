@@ -73,6 +73,7 @@ def test_bridge_evidence_receipts_and_idempotence(bridge_dbs, capsys):
             ('12951', '2026-10-07', 'completed')]
         assert target.execute('SELECT purpose,key,started_at,received_at,outcome,body_zstd FROM obs.fetch').fetchall() == [
             ('status', '12951/2026-10-07', RECEIVED, RECEIVED, 'ok', None)]
+        assert target.execute('SELECT mode,flags FROM obs.fetch').fetchall() == [('poll', [])]
         assert target.execute('SELECT station,kind,source,received_at FROM obs.event_rev ORDER BY id').fetchall() == [
             ('MMCT', 'dep', 'mmt_status', RECEIVED), ('NDLS', 'arr', 'mmt_status', RECEIVED)]
         assert target.execute('SELECT count(*) FROM obs.event_asof(%s)',
@@ -86,6 +87,23 @@ def test_bridge_evidence_receipts_and_idempotence(bridge_dbs, capsys):
         assert source.read_only is True
         with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
             source.execute("INSERT INTO ref.train VALUES ('99999','forbidden','UNKNOWN')")
+
+
+@pytest.mark.db
+def test_bridge_records_parser_flags(bridge_dbs):
+    from msynd.ops.pilot_bridge import bridge_once
+
+    fetch = seed(bridge_dbs)
+    payload = json.loads(body())
+    payload['response']['trainDetails']['cancelledFromStation'] = 'MMCT'
+    with psycopg.connect(bridge_dbs[0]) as source:
+        source.execute('UPDATE obs.fetch SET body_zstd=%s WHERE id=%s',
+                       (zstandard.compress(json.dumps(payload).encode()), fetch))
+    assert bridge_once(*bridge_dbs) == 1
+    with psycopg.connect(bridge_dbs[1]) as target:
+        run = target.execute('SELECT id FROM obs.run').fetchone()[0]
+        assert target.execute('SELECT mode,flags,run_id FROM obs.fetch').fetchall() == [
+            ('poll', ['exception_unparsed'], run)]
 
 
 @pytest.mark.db
