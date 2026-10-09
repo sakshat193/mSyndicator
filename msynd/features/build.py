@@ -141,18 +141,38 @@ class FoldEncoders:
                 schema = schema.append(pa.field(name, pa.float64()))
         return pa.Table.from_pylist(rows, schema=schema)
 
+    @classmethod
+    def cross_fit(cls, train_rows):
+        """Encode each training week using only the other origin weeks."""
+        rows = [r for r in train_rows.to_pylist() if r.get("split", "train") == "train"]
+        weeks = [r["start_date"] - timedelta(days=r["start_date"].weekday()) for r in rows]
+        schema = train_rows.schema
+        for name in ("train_encoded", "slack"):
+            if name not in schema.names:
+                schema = schema.append(pa.field(name, pa.float64()))
+        result = [r | {"train_encoded": None, "slack": None} for r in rows]
+        for week in dict.fromkeys(weeks):
+            other = [r for r, w in zip(rows, weeks) if w != week]
+            if not other:
+                continue
+            indices = [i for i, w in enumerate(weeks) if w == week]
+            encoders = cls.fit(pa.Table.from_pylist(other, schema=train_rows.schema))
+            encoded = encoders.transform(pa.Table.from_pylist([rows[i] for i in indices], schema=schema))
+            for i, row in zip(indices, encoded.to_pylist()):
+                result[i] = row
+        return pa.Table.from_pylist(result, schema=schema)
 
-def training_frame(conn, fold: Fold):
-    """Matured running labels, departure-receipt features, train-only encoders."""
-    cutoff = conn.execute("SELECT CURRENT_TIMESTAMP - interval '6 hours'").fetchone()[0]
+
+def training_frame(conn, fold: Fold, asof):
+    """Frozen running labels, departure-receipt features, week-cross-fitted training rows."""
     labels = {(r["run_id"], r["idx"]): r["value"] for r in
-              build_live_labels(conn, cutoff).to_pylist() if r["role"] == "run"}
+              build_live_labels(conn, asof - timedelta(hours=6), asof).to_pylist() if r["role"] == "run"}
     departures = conn.execute("""
         SELECT r.id,r.start_date,s.idx,s.dep_off,d.actual_ts,d.received_at
         FROM obs.run r JOIN ref.schedule_stop s ON s.version_id=r.schedule_version_id
-        JOIN obs.event d ON d.run_id=r.id AND d.station=s.station AND d.occ=s.occ AND d.kind='dep'
+        JOIN obs.event_asof(%s) d ON d.run_id=r.id AND d.station=s.station AND d.occ=s.occ AND d.kind='dep'
         ORDER BY r.start_date,r.id,s.idx
-    """).fetchall()
+    """, (asof,)).fetchall()
     rows = []
     # ponytail: per-departure queries; batch receipt cutoffs if weekly training becomes slow.
     for run, start, idx, scheduled, actual, received in departures:
@@ -173,6 +193,10 @@ def training_frame(conn, fold: Fold):
     if not rows:
         return pa.Table.from_pylist([], schema=schema), np.empty(0)
     encoders = FoldEncoders.fit(raw)
-    return encoders.transform(raw).drop(["value", "observed_running"]), np.asarray([r["value"] for r in rows])
+    train = iter(FoldEncoders.cross_fit(raw).to_pylist())
+    valid = iter(encoders.transform(raw.filter(pc.equal(raw["split"], "valid"))).to_pylist())
+    encoded = pa.Table.from_pylist([next(train) if r["split"] == "train" else next(valid) for r in rows],
+                                  schema=raw.schema)
+    return encoded.drop(["value", "observed_running"]), np.asarray([r["value"] for r in rows])
 
 

@@ -88,3 +88,54 @@ def test_delay_gt_24h_run_keeps_labels(db, completed_run):
     assert expected
     insert_fetch(db, run_id=run, flags=['delay_gt_24h'])
     assert build_live_labels(db, cutoff).to_pylist() == expected
+
+
+@pytest.mark.db
+@pytest.mark.parametrize("lifecycle", ["completed", "running"])
+def test_frozen_labels_ignore_later_revisions(db, lifecycle):
+    asof = datetime(2026, 10, 8, tzinfo=timezone.utc)
+    base = datetime(2026, 10, 6, 18, 30, tzinfo=timezone.utc)
+    run = make_run(db, halts=[("A", None, 0, 0), ("B", 60, 65, 100), ("A", 120, None, 200)])
+    db.execute("UPDATE obs.run SET lifecycle=%s WHERE id=%s", (lifecycle, run))
+    for station, occ, kind, minute in [("A", 1, "dep", 10), ("B", 1, "arr", 80),
+                                      ("B", 1, "dep", 90), ("A", 1, "arr", 150)]:
+        insert_event(db, run, station, occ, kind, base+timedelta(minutes=minute),
+                     base+timedelta(minutes=minute+1))
+    cutoff = asof - timedelta(hours=6)
+    assert build_live_labels(db, cutoff, asof).num_rows == 0  # Wrong destination occurrence.
+    later = asof + timedelta(minutes=1)
+    insert_event(db, run, "A", 2, "arr", base+timedelta(minutes=150), later)
+    assert build_live_labels(db, cutoff, asof).num_rows == 0
+    expected = [dict(run_id=run, role=role, idx=idx, value=value) for role, idx, value in
+                [("origin", 0, 10.), ("dwell", 1, 10.), ("run", 0, 10.), ("run", 1, 5.)]]
+    assert build_live_labels(db, cutoff, later).to_pylist() == expected
+    insert_event(db, run, "B", 1, "arr", base+timedelta(minutes=85), later+timedelta(minutes=1))
+    assert build_live_labels(db, cutoff, later).to_pylist() == expected
+    corrected = build_live_labels(db, cutoff, later+timedelta(minutes=1)).to_pylist()
+    assert [r["value"] for r in corrected] == [10., 5., 15., 5.]
+
+
+@pytest.mark.db
+def test_frozen_expiry_requires_updated_at_evidence(db):
+    asof = datetime(2026, 10, 8, tzinfo=timezone.utc)
+    run = make_run(db)
+    db.execute("UPDATE obs.run SET lifecycle='expired_unknown',updated_at=%s WHERE id=%s",
+               (asof+timedelta(seconds=1), run))
+    insert_event(db, run, "MMCT", 1, "dep", asof-timedelta(hours=8), asof-timedelta(hours=7))
+    assert build_live_labels(db, asof-timedelta(hours=6), asof).num_rows == 0
+    db.execute("UPDATE obs.run SET updated_at=%s WHERE id=%s", (asof, run))
+    assert build_live_labels(db, asof-timedelta(hours=6), asof).num_rows == 1
+
+
+@pytest.mark.db
+def test_frozen_unparsed_exclusion_uses_fetch_receipts(db, completed_run):
+    run, asof = completed_run
+    cutoff = asof-timedelta(hours=6)
+    expected = build_live_labels(db, cutoff, asof).to_pylist()
+    assert expected
+    flagged = insert_fetch(db, run_id=run, flags=['exception_unparsed'],
+                           received_at=asof+timedelta(seconds=1))
+    assert build_live_labels(db, cutoff, asof).to_pylist() == expected
+    assert build_live_labels(db, cutoff).num_rows == 0
+    db.execute("UPDATE obs.fetch SET received_at=%s WHERE id=%s", (asof, flagged))
+    assert build_live_labels(db, cutoff, asof).num_rows == 0
