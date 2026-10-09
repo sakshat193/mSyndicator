@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
+import json
 import math
+from pathlib import Path
 
 import numpy as np
 
@@ -7,6 +9,10 @@ from msynd.dist import Eff, LEVELS, QUANTILES
 from msynd.engine import kernel
 from msynd.engine.evidence import RunEvidence
 from msynd.rng import RESAMPLE, uniform
+
+
+def load_s_tables():
+    return json.loads((Path(__file__).resolve().parents[2] / 'data/params.json').read_text())['S']
 
 
 @dataclass(frozen=True)
