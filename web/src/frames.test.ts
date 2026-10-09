@@ -1,9 +1,23 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { encode } from '@msgpack/msgpack';
 import { connectLive, FrameStore, type Frame } from './frames';
+import { displayRun, type Network } from './layers';
 
 const frame = (gen: number, is_full = false, runs = {}, tombstones: number[] = []): Frame =>
   ({ gen, is_full, runs, tombstones, ts: 1000, base_ts: null, versions: {} });
+
+it('applies error runs without display paths in full and delta frames', () => {
+  const store = new FrameStore();
+  const run = { run_id: 42, state: 'error', error: 'bad evidence', versions: { route: 7 } };
+  const network: Network = { stations: [], segments: [],
+    routes: [{ id: 7, stops: [], segments: [] }] };
+  for (const [gen, full] of [[10, true], [11, false]] as const) {
+    expect(store.apply(frame(gen, full, { 42: run }))).toBe('ok');
+    expect(store.gen).toBe(gen);
+    expect(store.runs['42']).toEqual(run);
+    expect(displayRun(store.runs['42'], network, 1000)).toBeNull();
+  }
+});
 
 it('applies sequential deltas and tombstones, including absent runs', () => {
   const store = new FrameStore();
