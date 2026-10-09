@@ -9,31 +9,39 @@ from msynd.engine.evidence import canonical_events
 from msynd.labels import IST
 
 
+SCHEDULES_SQL = '''
+    SELECT DISTINCT ON (v.train,d.day) v.id,v.train,d.day,s.dep_off
+    FROM dates d JOIN ref.schedule_version v
+      ON v.valid_from<=d.day AND (v.valid_to IS NULL OR v.valid_to>=d.day)
+      AND (v.days_of_run & (1 << (extract(isodow FROM d.day)::int-1)))<>0
+    JOIN LATERAL (SELECT dep_off FROM ref.schedule_stop WHERE version_id=v.id
+                  ORDER BY idx LIMIT 1) s ON true
+    ORDER BY v.train,d.day,v.valid_from DESC,v.created_at DESC,v.id DESC
+'''
+LATEST_ROUTE_SQL = '''
+    SELECT id FROM ref.route_version WHERE schedule_version_id=s.id
+    ORDER BY created_at DESC,id DESC LIMIT 1
+'''
+
+
 def create_runs(conn, now) -> int:
     if conn.autocommit:
         raise ValueError('create_runs requires an evidence transaction')
     today = now.astimezone(IST).date()
     with conn.transaction():
         # ponytail: recovery scans three prior IST dates; widen for longer-running services.
-        runs = conn.execute('''
+        runs = conn.execute(f'''
             WITH dates AS (
                 SELECT %s::date+n AS day FROM generate_series(-3,1) AS d(n)
             ), schedules AS (
-                SELECT DISTINCT ON (v.train,d.day) v.id,v.train,d.day,s.dep_off
-                FROM dates d JOIN ref.schedule_version v
-                  ON v.valid_from<=d.day AND (v.valid_to IS NULL OR v.valid_to>=d.day)
-                  AND (v.days_of_run & (1 << (extract(isodow FROM d.day)::int-1)))<>0
-                JOIN LATERAL (SELECT dep_off FROM ref.schedule_stop WHERE version_id=v.id
-                              ORDER BY idx LIMIT 1) s ON true
-                ORDER BY v.train,d.day,v.valid_from DESC,v.created_at DESC,v.id DESC
+                {SCHEDULES_SQL}
             )
             INSERT INTO obs.run(train,start_date,schedule_version_id,route_version_id,
                                 resched_min,diverted_from,part_cancelled,updated_at)
             SELECT s.train,s.day,s.id,r.id,COALESCE((x.detail->>'resched_min')::int,0),
                    x.detail->>'diverted_from',NULLIF(x.detail->'part_cancelled','null'::jsonb),%s
             FROM schedules s JOIN LATERAL (
-                SELECT id FROM ref.route_version WHERE schedule_version_id=s.id
-                ORDER BY created_at DESC,id DESC LIMIT 1
+                {LATEST_ROUTE_SQL}
             ) r ON true JOIN LATERAL (
                 SELECT arr_off FROM ref.schedule_stop WHERE version_id=s.id
                 ORDER BY idx DESC LIMIT 1

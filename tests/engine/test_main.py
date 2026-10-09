@@ -30,7 +30,7 @@ def test_main_wires_configured_database_and_model_source(monkeypatch):
         assert (connection, evidence, active_models, bias_gen) == (conn, ev, models, 7)
         return tables
 
-    def run_loop(connection, replay_fn, model_source):
+    def run_loop(connection, replay_fn, model_source, params, *, pool):
         assert connection is conn
         assert replay_fn is replay
         assert model_source(conn, ev) is tables
@@ -40,5 +40,10 @@ def test_main_wires_configured_database_and_model_source(monkeypatch):
     monkeypatch.setattr(registry, 'active', active)
     monkeypatch.setattr(cache, 'tables_for', tables_for)
     monkeypatch.setattr(engine, 'run_loop', run_loop)
+    @contextmanager
+    def Pool(n):
+        yield object()
+
+    monkeypatch.setattr(engine.mp, 'get_context', lambda method: SimpleNamespace(Pool=Pool))
     engine.main()
     assert calls == ['loop', 'closed']
