@@ -1332,14 +1332,67 @@ From the training-data review (spec §18 "Training data"). Two leaks in `trainin
 - `FoldEncoders.fit(train_rows)` is unchanged (it is the encoder used for validation and serving rows: all training rows).
 - New `FoldEncoders.cross_fit(train_rows) -> pa.Table`: transforms each **training** row with encoders fit on the training rows of the **other** origin weeks only (the global mean too). A row with no other-week training rows gets `train_encoded = None` and `slack = None` (LightGBM treats them as missing). `training_frame` uses `cross_fit` for `split == 'train'` rows and `fit(...).transform` for `split == 'valid'` rows, preserving row order.
 
-- [ ] Tests:
+- [x] Tests:
   - `test_training_row_target_never_in_own_encoding` (two training weeks; changing one row's value changes only the other week's `train_encoded`/`slack`, never its own);
   - `test_single_training_week_encodes_missing`;
   - `test_validation_rows_use_all_training_rows` (existing behaviour);
   - `test_frozen_labels_ignore_later_revisions` (a destination actual received after `asof` → run absent at `asof`, present later; a corrected actual received after `asof` → old value);
   - `test_training_frame_asof_is_reproducible` (same `asof` before and after inserting later revisions → identical X and y);
   - existing features, labels and weekly tests still pass.
-- [ ] Commit `task 48: frozen fit boundary and cross-fitted encoders`.
+- [x] Commit `task 48: frozen fit boundary and cross-fitted encoders`.
+
+### Task 49 (amendment 2026-10-09): persisted encoders, explicit model inputs, issue-time model tables (Task 27/28/31 follow-up)
+
+From the training-data review (spec §18 "Training data"). Three serving gaps:
+- `segment_queries` leaves `train_encoded` and `slack` empty, and no artifact stores the fold encoders, so a LightGBM model trained on encoded rows is served with them missing;
+- `train_lgbm` uses every column it is given, so `training_frame`'s identifiers (`run_id`, `start_date`, `split`, …) would become features;
+- `cache.tables_for` always reads features at `statement_timestamp()`, and `eval.baselines.b3_active` duplicates its table-building code to get issue-time features.
+
+**Files:** modify `msynd/features/build.py`, `msynd/models/lgbm.py`, `msynd/engine/cache.py`, `msynd/eval/baselines.py`; tests in `tests/features/test_features.py`, `tests/models/test_lgbm.py`, `tests/engine/test_cache.py`, `tests/eval/test_baselines.py`.
+
+**Interfaces:**
+- `MODEL_FEATURES` in `msynd/features/build.py`: the R model inputs, in this order: `class, zone, segments_remaining, is_last, km, sched_dep, sched_run, sched_dwell, last_delta_run, segments_since_observed, hour_sin, hour_cos, weekday, month, fog_north, holiday, train_encoded, slack, d`. Identifiers (`run_id, start_date, train, idx, from_stn, to_stn`) and metadata (`split`) are never model inputs; the encoders carry train and halt-pair information.
+- `FoldEncoders.to_json() -> dict` / `FoldEncoders.from_json(dict)`; pair keys are serialised as `"FROM|TO"`. Round trip is exact.
+- `train_lgbm(X, y, role, encoders=None)`: when `encoders` is given it is stored on the artifact and saved/loaded with it (key `"encoders"`, absent for none). `X` must already contain only the model inputs; `train_lgbm` raises `ValueError` if any of `run_id, start_date, train, idx, from_stn, to_stn, split` is a column.
+- `cache._predict`: if the artifact has encoders, apply `encoders.transform` to the expanded queries before selecting `feature_names`. Artifacts without encoders behave as today.
+- `cache.tables_for(conn, ev, active, bias_gen, asof=None)`: `asof=None` keeps `statement_timestamp()`; otherwise `segment_queries` reads at `asof`. `bias_gen=None` means zero bias (no `ml.leg_bias` read). The cache key already includes the feature rows, so different `asof` values never share an entry.
+- `b3_active` builds its tables with `tables_for(conn, ev, models, None, asof=case.issued_at)` and deletes its duplicated table code. Its frozen-version, replay and return behaviour is unchanged.
+
+- [ ] Tests:
+  - `test_encoders_json_roundtrip`;
+  - `test_lgbm_artifact_saves_and_applies_encoders` (train with encoders, save, load; serving a query whose `train_encoded`/`slack` are empty gives the same masses as serving the encoder-transformed query to the in-memory model);
+  - `test_train_lgbm_rejects_identifier_columns`;
+  - `test_tables_for_asof_ignores_later_events` (an event received after `asof` changes `tables_for` output at `now` but not at `asof`);
+  - `test_tables_for_no_bias_reads_none` (`bias_gen=None` → zero bias even when `ml.leg_bias` has rows);
+  - existing cache, lgbm, baselines and engine tests still pass.
+- [ ] Commit `task 49: persisted encoders and issue-time model tables`.
+
+### Task 50 (amendment 2026-10-09): weekly holdout fit and evaluation (Task 29/38 follow-up)
+
+From the training-data review (spec §18 "Training data"; Phase 3 gate unchanged; personal local training only). `fit_empirical_live` fits on every matured label, so no candidate is ever scored on data it did not see. This task adds a frozen, holdout-only weekly cycle. It never promotes on its own.
+
+**Files:** modify `msynd/ops/weekly.py`; tests in `tests/ops/test_weekly.py`.
+
+**Interfaces:**
+- `python -m msynd.ops.weekly evaluate --models-dir DIR [--now ISO]` calls `evaluate_week(conn, models_dir, now) -> dict` and prints it as JSON. Defaults: `now` = current UTC.
+  - **Boundary:** `asof = now`. The validation weeks are the two most recent complete IST Monday–Sunday weeks before `now` (the same window as `promotion_ok`). The training weeks are every earlier week with labels. With no training week, or fewer than 1,000 distinct mature training runs across ≥ 7 service dates, report `{"status": "insufficient", ...support}` and fit nothing.
+  - **Candidates, fitted on training-week rows only, labels frozen at `asof`** (`build_live_labels(conn, asof - 6 h, asof)`):
+    - R: `train_lgbm(X[MODEL_FEATURES], y, 'run', encoders)` with `X, y` = the `split == 'train'` rows of `training_frame(conn, fold, asof)` and `encoders = FoldEncoders.fit(train rows)`;
+    - W and O: `fit_empirical` on the training-week labels (as `fit_empirical_live` builds them).
+  - **Support floors** (debate, approved): R ≥ 100 distinct runs per class; W ≥ 100 runs per class and ≥ 30 runs per class/dwell bucket; O ≥ 200 origins per class. The report lists every class with its count and `below_floor: true|false`. A role whose every class is below its floor is not fitted (active model kept for that role in the candidate set).
+  - **Scoring:** `asof_cases(conn, start of validation weeks, min(end of validation weeks, asof))` scored with `score({"candidate": b3_active(conn, models=candidate_models), "active": b3_active(conn, models=active(conn))})`, so both see identical eligible cases. Then `promotion_ok(result["candidate"], result["active"], now=now)`.
+  - **Recording:** each fitted artifact is saved under `models_dir` and inserted into `ml.model` with `active = false`, `train_window` = the training weeks, and `metrics` = support, floors, overall scores and the decision (accepted + reasons). One `sim.metric` row `weekly_candidate_accepted` (1/0) at `now`. Any exception deletes the saved files and inserts nothing (as `fit_empirical_live`).
+  - Promotion stays manual (`registry.promote`), because the Phase 3 gate is unchanged.
+- `fit-empirical` is kept unchanged.
+
+- [ ] Tests (small synthetic data; lower the floors through a module constant `FLOORS` monkeypatched in tests):
+  - `test_insufficient_support_fits_nothing`;
+  - `test_candidates_never_see_validation_rows` (a label in a validation week changes nothing in the saved candidate artifacts);
+  - `test_scores_on_identical_cases` (candidate and active records have the same keys);
+  - `test_below_floor_class_reported`;
+  - `test_never_promotes` (no `ml.model` row becomes active);
+  - `test_failure_leaves_no_rows_or_files`.
+- [ ] Commit `task 50: weekly holdout fit and evaluation`.
 
 ---
 
