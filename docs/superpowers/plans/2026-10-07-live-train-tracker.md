@@ -1111,13 +1111,13 @@ User-approved (spec §18 "Training data"). It proves the real-data path on runs 
 - For each role in run/dwell/origin, it calls `fit_empirical` with `cold_start = True`, saves to `DIR/live-<role>-<uuid>.json`, and inserts an `ml.model` row (kind `empirical`, train_window = min/max start_date). The metrics hold support counts: rows, distinct runs, distinct trains and service dates, per class.
 - **Never `registry.promote`.** A role with zero labels is skipped and reported. As in `rstgcn.fit`, saved files are deleted if the transaction fails.
 
-- [ ] Tests:
+- [x] Tests:
   - the labels of a synthetic completed run give three unpromoted models with the correct support counts;
   - the active models are unchanged;
   - a role with no labels is skipped;
   - a failure removes the written files.
-- [ ] Commit `task 38a: live empirical fit`.
-- [ ] Monitor: run it against `msynd_view` (never `msynd`) and report the support counts.
+- [x] Commit `task 38a: live empirical fit`.
+- [x] Monitor: run it against `msynd_view` (never `msynd`) and report the support counts. 2026-10-09, rolled back: 309 R / 298 W / 17 O rows; 17 runs, 17 trains, 3 service dates; classes EXP 10 runs, DRNT 3, SF 2, MEX 1, RAJ 1. Far below the support floors.
 
 ### Task 38: Nightly leg bias, weekly VM retrain and promotion (spec §12, §8.4–8.6)
 
