@@ -1044,9 +1044,26 @@ def test_late_event_frame_equals_fresh_replay(db_url): ...    # RF4
   - `frames.test.ts` covers gap detection, tombstones, and a full frame replacing everything.
 - [x] Verify `npm --prefix web test`; commit `task 35: web scaffold and frame client`.
 
+### Task F1 (amendment 2026-10-09): pilot bridge to a view DB
+
+User-approved (decisions A–D in `reports/frontend-live-plan.md`): a dashboard preview on the G2 pilot cohort, with no new MMT traffic and no writes to the pilot DB.
+
+**Files:** create `msynd/ops/pilot_bridge.py`, `tests/ops/test_pilot_bridge.py`; modify `msynd/engine/__main__.py` (`main()` only).
+
+**Interfaces:** `python -m msynd.ops.pilot_bridge --source DSN --target DSN [--follow]`; `bridge_once(source, target) -> int` (rows applied).
+- The source connection is read-only (`conn.read_only = True`). It reads `obs.fetch` rows with `purpose='status'`, `outcome='ok'` and `id >` the cursor, in `id` order.
+- Per row, in one target transaction: copy the fetch row (without the body), find or create the target `obs.run` for the key's train and start date (reusing lifecycle's version selection; rows without a valid schedule version are skipped and counted), `parse_mmt.parse_status` → `store.store_status`, then advance the cursor (kept in the target DB).
+- `--follow` repeats every 60 s. There is no HTTP path.
+- Engine `main()`: the pool size comes from `ENGINE_WORKERS` (default 4), and `Params` uses `settings.n_particles` / `settings.k_paths`.
+
+- [ ] Tests: synthetic MMT bodies are stored as evidence; a rerun is idempotent; the source is opened read-only; an unknown train is skipped; the engine's `main()` honours `ENGINE_WORKERS` and `N_PARTICLES`.
+- [ ] Commit `task F1: pilot bridge`.
+
 ### Task 36: Map, layers, timeline, panels → 🛑 A7 and Phase 5 exit (spec §11)
 
 **Files:** create `web/src/main.ts`, `web/src/layers.ts`, `web/src/timeline.ts`, `web/src/panel.ts`, `web/src/status.ts`, `web/src/timeline.test.ts`; modify the Caddyfile (tiles).
+
+**Part 1 (amendment 2026-10-09, task F2):** a minimal map ships first, with no basemap: a dark background, the network `PathLayer`, P50 heads as a `ScatterplotLayer`, K streaks as a `TripsLayer`, a click → `/api/run/{id}` panel, a vite proxy to 127.0.0.1:8000, and the `timeline.test.ts` LIVE offset and zone tests. Commit `task 36 part 1: minimal map`. The boxes below stay open until the full task.
 
 Contents (spec §11):
 - MapLibre with the Protomaps dark PMTiles (`/tiles/india.pmtiles`).
