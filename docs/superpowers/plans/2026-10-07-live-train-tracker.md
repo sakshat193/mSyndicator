@@ -1235,13 +1235,88 @@ User-approved (spec §18 "Training data"). Harvested finished runs can be days o
 - The bridge calls `ensure_run` (delete `_run`) and keeps its `no_version` count. It also prints the skipped `train/start` keys, deduplicated and capped at 20 (`skipped=...`).
 - Exceptions are not applied here (`resched_min` stays 0; `# ponytail:` upgrade: apply the latest exception revision when the harvester stores exceptions).
 
-- [ ] Tests:
+- [x] Tests:
   - `test_ensure_run_creates_old_run` (start 30 days before now → created; `create_runs` at now does not create it);
   - `test_ensure_run_keeps_existing_binding` (existing run with an older route version → same id, binding unchanged after a newer route version exists);
   - `test_ensure_run_selects_date_valid_version` (two versions with disjoint validity → the one valid on `start`);
   - `test_ensure_run_no_version_returns_none` (wrong weekday → `None`, no row);
   - the bridge tests still pass, and one asserts the skipped key appears in the summary.
-- [ ] Commit `task 44: ensure_run for historical runs`.
+- [x] Commit `task 44: ensure_run for historical runs`.
+
+### Task 45 (amendment 2026-10-09): durable fetch provenance and label eligibility (Task 20 follow-up)
+
+User-approved (spec §18 "Training data"). Harvested and polled fetches stay source `mmt_status`; the collection mode and the parser flags are kept on the fetch row (180-day retention), because bodies are pruned after 24 h.
+
+**Files:** create `msynd/db/migrations/0006_fetch_provenance.sql`; modify `msynd/collect/store.py`, `msynd/labels.py`; tests in `tests/db/test_schema.py`, `tests/collect/test_store.py`, `tests/ops/test_pilot_bridge.py`, `tests/test_labels.py`.
+
+**Interfaces:**
+- Migration 0006: `obs.fetch.mode text NOT NULL DEFAULT 'poll' CHECK (mode IN ('poll','harvest','probe','backfill'))` and `obs.fetch.flags text[] NOT NULL DEFAULT '{}'`. Nothing else. (The dispatcher and admission set `mode` in a later task; until then every row is `poll`.) Never apply it to `msynd` while the pilot runs.
+- `store_status`: inside its transaction, `UPDATE obs.fetch SET flags = <sorted page.flags>, run_id = COALESCE(run_id, <run_id>)` when `page.flags` is non-empty. Completion stays "bound destination arrival actual present" (already so).
+- Bridge: no code change; the pilot only polls, so copied rows take the default `'poll'`, and flags come from `store_status`.
+- `build_live_labels`: a run is ineligible (no labels at all) when any of its fetches has flag `exception_unparsed`. `delay_gt_24h` stays eligible (spec: kept, flagged). Maturity unchanged (actual time ≤ cutoff); receipts are never invented.
+
+- [ ] Tests:
+  - `test_fetch_mode_check` (mode 'weird' → CheckViolation; default 'poll'; flags default empty);
+  - `test_store_records_parser_flags` (page with `delay_gt_24h` → fetch row flags `{delay_gt_24h}`, run_id set);
+  - `test_unparsed_exception_run_has_no_labels` (completed matured run with a flagged fetch → no labels; same run without the flag → labels);
+  - `test_delay_gt_24h_run_keeps_labels`;
+  - the bridge tests still pass, and a copied row has `mode='poll'`.
+- [ ] Commit `task 45: fetch provenance and label eligibility`.
+
+### Task 46 (amendment 2026-10-09): per-attempt daily budgets by collection mode (Task 3/22 follow-up)
+
+User-approved (spec §18 "Training data": ≤ 13,200 attempts/day at 0.2 req/s, one owner, ramp ceilings). Every HTTP attempt, including retries and failures, counts against its mode's IST-day budget. Counting reads `obs.fetch`, so a restart cannot reset it.
+
+**Files:** modify `msynd/collect/dispatcher.py`, `msynd/collect/mmt.py`, `msynd/collect/__main__.py`; tests in `tests/collect/test_dispatcher.py`, `tests/collect/test_collector.py` (or the existing collector test file).
+
+**Interfaces:**
+- `class BudgetExhausted(Exception)` in `dispatcher.py`, carrying the mode.
+- `Dispatcher(..., budgets: dict[str, int] | None = None)`. `None` keeps today's behaviour (no limit; tests and capture). Otherwise a mode missing from the dict has budget 0.
+- `Dispatcher.request(..., mode='poll', max_attempts=5)`. `mode` is written on the `obs.fetch` insert (column from Task 45). Inside the host lock, **after** the spacing wait and **before** inserting the row, count `obs.fetch` rows for this host and mode with `started_at` on the current IST date (`clock.now()`); if the count ≥ the budget, raise `BudgetExhausted(mode)` with no row inserted. `max_attempts` (1…5) caps the existing retry loop.
+- `MmtClient.train_running(..., mode='poll', max_attempts=5)` passes both through.
+- Collector CLI: repeatable `--budget MODE=N` (modes `poll|harvest|probe|backfill`, N ≥ 0); default `poll=5000` only (the approved 16 Oct polling ceiling). The sum of budgets must be ≤ 13,200, else exit with an error. `run_loop` catches `BudgetExhausted` for a poll job, logs it once per IST day, and sleeps 60 s before the next admission.
+
+- [ ] Tests:
+  - `test_budget_counts_every_attempt_including_retries` (budget 3, transport errors → exactly 3 rows, then `BudgetExhausted`);
+  - `test_budget_survives_restart` (rows from an earlier dispatcher on the same IST day count);
+  - `test_budget_resets_at_ist_midnight` (rows at 23:59 IST do not count at 00:01 IST next day; use a UTC instant in 18:30–24:00 UTC);
+  - `test_budget_per_mode` (harvest exhausted, poll still admitted);
+  - `test_missing_mode_budget_is_zero` and `test_no_budgets_unlimited`;
+  - `test_max_attempts_caps_retries`;
+  - `test_cli_rejects_budget_sum_over_13200`;
+  - existing dispatcher and collector tests still pass.
+- [ ] Commit `task 46: per-attempt daily budgets`.
+
+### Task 47 (amendment 2026-10-09): scoped polling slots and finished-run harvest admission (Task 22 follow-up)
+
+User-approved (spec §18 "Training data"). Scope: route ≥ 150 timetable km, any class. Polling keeps a small cohort with full receipt histories; harvest fetches each finished run once in the remaining capacity. Probe and backfill are not part of this task.
+
+**Files:** modify `msynd/collect/admission.py`, `msynd/collect/__main__.py`; tests in `tests/collect/test_admission.py` and the collector test file.
+
+**Interfaces:**
+- `SCOPE_MIN_KM = 150.0` in `admission.py`. A run is in scope when the largest `ref.route_stop.dist_km` of its bound route version is ≥ 150. Both the polling and harvest queries apply it.
+- **Polling slots** (`--poll-slots`, default 6; `--poll-interval` seconds, default 120). Reuse the pilot's cohort rule (`msynd/collect/pilot.py` `run_pilot`): a run in the cohort stays until it is no longer running/departed-scheduled; vacancies are filled from eligible in-scope runs preferring trains with no status fetch in the last 7 days, then fewest status fetches, then lowest id. A cohort run is due when its last status attempt is ≥ `poll_interval` old. The cohort is derived from `obs.fetch` (runs with a `mode='poll'` attempt in the last 30 min that are still eligible), so a restart keeps it. Due poll jobs use `mode='poll'`, `max_attempts=5`.
+- **Harvest candidates:** in-scope runs with lifecycle in (`scheduled`, `running`, `expired_unknown`) whose scheduled destination arrival (IST start date + last `arr_off` + `resched_min`) + 12 h ≤ now < + 48 h, and:
+  - no `mode='harvest'` `ok` fetch yet; or
+  - exactly one `ok` harvest fetch, no destination actual, and destination + 24 h ≤ now (the one completion deferral);
+  - and fewer than 4 harvest attempts for the run in total (all outcomes).
+  Oldest destination time first, then id. Harvest jobs use `mode='harvest'`, `max_attempts=1`; a failed attempt is retried by admission no sooner than 10 min after it.
+- **Order:** recovery/breaker handling as today → due poll job → harvest job, only when no cohort run becomes due within the next `1/rate` seconds → otherwise sleep 1 s. `BudgetExhausted` for harvest skips harvest until the next IST day; for poll, as Task 46.
+- `run_loop` stores harvest results with `store_status` exactly like polls.
+- Older runs (destination + 48 h passed) are backfill, which needs its own user-approved task; never admitted here.
+
+- [ ] Tests:
+  - `test_scope_excludes_short_routes` (149 km route → never polled or harvested; 150 km → eligible);
+  - `test_cohort_bounded_and_kept_across_restart`;
+  - `test_vacancy_prefers_unseen_train`;
+  - `test_poll_due_after_interval_only`;
+  - `test_harvest_window_12h_to_48h` and `test_harvest_one_deferral_to_24h`;
+  - `test_harvest_attempt_cap_and_retry_delay`;
+  - `test_harvest_never_delays_due_poll` (a cohort run due within 1/rate → poll job, not harvest);
+  - `test_harvest_budget_exhausted_skips_until_next_ist_day`;
+  - `test_harvest_completes_run` (MockTransport page with the destination actual → run `completed`, fetch `mode='harvest'`);
+  - existing admission and collector tests still pass (update them only where polling now uses slots).
+- [ ] Commit `task 47: scoped polling slots and harvest admission`.
 
 ---
 
