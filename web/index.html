@@ -4,9 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Train tracker</title>
+    <style>
+      html, body, #app, #map { height: 100%; margin: 0; }
+      body { background: #0c121a; color: #e3e9ef; font: 14px system-ui, sans-serif; }
+      #live { position: absolute; top: 16px; left: 16px; padding: 12px; background: #18222eee; border-radius: 4px; }
+      #live strong { color: #50ebd6; } #connection { margin-top: 4px; }
+      #panel { position: absolute; bottom: 16px; right: 16px; max-height: 65%; overflow: auto;
+        width: min(540px, calc(100% - 64px)); background: #18222ef5; padding: 16px; border-radius: 4px; }
+      button { float: right; padding: 6px 12px; cursor: pointer; }
+      table { width: 100%; border-collapse: collapse; } th, td { text-align: left; padding: 8px 4px; border-bottom: 1px solid #344252; }
+      h2 { font-size: 18px; margin-right: 70px; }
+    </style>
   </head>
   <body>
-    <main id="app"><h1>Train tracker</h1></main>
-    <script type="module" src="/src/frames.ts"></script>
+    <main id="app">
+      <div id="map" aria-label="India train map"></div>
+      <div id="live"><strong>LIVE</strong> · now − 15 s<div id="connection" role="status">Loading network…</div></div>
+      <aside id="panel" aria-label="Train predictions" hidden><button type="button">Close</button><div data-content aria-live="polite"></div></aside>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
