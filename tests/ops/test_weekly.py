@@ -1,5 +1,7 @@
 from datetime import date, datetime, time, timedelta, timezone
+from contextlib import nullcontext
 from pathlib import Path
+import json
 
 import psycopg
 import pytest
@@ -172,3 +174,210 @@ def test_cli_fits_and_reports_support(db_url, tmp_path, monkeypatch, capsys):
     finally:
         with connect(db_url) as conn:
             conn.execute('TRUNCATE ml.model,obs.run,ref.train,ref.station CASCADE')
+
+
+def small_weekly(monkeypatch):
+    from msynd.engine.replay import Params, load_s_tables
+    from msynd.eval.baselines import b3_active
+    from msynd.ops import weekly
+
+    monkeypatch.setattr(weekly, 'MIN_RUNS', 1)
+    monkeypatch.setattr(weekly, 'MIN_SERVICE_DATES', 1)
+    monkeypatch.setattr(weekly, 'FLOORS', {'run': 1, 'dwell': 1, 'dwell_bucket': 1, 'origin': 1})
+    monkeypatch.setattr(weekly, 'b3_active', lambda conn, **kw: b3_active(
+        conn, params=Params(n=32, k=32, s_tables=load_s_tables()), **kw), raising=False)
+    return weekly
+
+
+@pytest.mark.db
+@pytest.mark.parametrize('minimum_runs,minimum_dates', [(1000, 1), (1, 7), (1, 1)])
+def test_insufficient_support_fits_nothing(db, tmp_path, monkeypatch, minimum_runs, minimum_dates):
+    from msynd.ops import weekly
+
+    completed_run(db, start='2026-09-22' if minimum_runs == minimum_dates == 1 else '2026-09-20')
+    monkeypatch.setattr(weekly, 'MIN_RUNS', minimum_runs)
+    monkeypatch.setattr(weekly, 'MIN_SERVICE_DATES', minimum_dates)
+    monkeypatch.setattr(weekly, 'train_lgbm', lambda *a: pytest.fail('must not fit'))
+    monkeypatch.setattr(weekly, 'fit_empirical', lambda *a: pytest.fail('must not fit'))
+    report = weekly.evaluate_week(db, tmp_path, NOW)
+    assert report['status'] == 'insufficient'
+    assert report['runs'] == (0 if minimum_runs == minimum_dates == 1 else 1)
+    assert db.execute('SELECT count(*) FROM ml.model').fetchone()[0] == 0
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.db
+def test_candidates_never_see_validation_rows(db, tmp_path, monkeypatch, capsys):
+    import numpy as np
+    from msynd.features.build import MODEL_FEATURES
+    from msynd.models.lgbm import ModelArtifact as LgbmArtifact
+
+    weekly = small_weekly(monkeypatch)
+    training = completed_run(db, start='2026-09-20')
+    validation = completed_run(db, train='12952', start='2026-09-21')
+    completed_run(db, train='12953', start='2026-10-04')
+    completed_run(db, train='12954', start='2026-10-05')
+    db.execute("UPDATE ref.train SET class='SF'")
+    original = weekly.train_lgbm
+
+    def checked_fit(X, y, role, encoders):
+        assert tuple(X.column_names) == MODEL_FEATURES
+        np.testing.assert_array_equal(y, [5., 3.])
+        assert set(encoders.train_means) == {'12951'}
+        return original(X, y, role, encoders)
+
+    monkeypatch.setattr(weekly, 'train_lgbm', checked_fit)
+    first = weekly.evaluate_week(db, tmp_path / 'first', NOW)
+    # A later revision of training truth and a changed validation label must not leak.
+    insert_event(db, training, 'BRC', 1, 'arr', NOW - timedelta(days=20), NOW + timedelta(seconds=1))
+    db.execute("UPDATE obs.event_rev SET actual_ts=actual_ts+interval '30 minutes' WHERE run_id=%s", (validation,))
+    # Compare independent evaluations at the same frozen boundary.
+    db.execute('DELETE FROM sim.metric')
+    monkeypatch.setattr(weekly, 'connect', lambda: nullcontext(db))
+    weekly.main(['evaluate', '--models-dir', str(tmp_path / 'second'), '--now', NOW.isoformat()])
+    second = json.loads(capsys.readouterr().out)
+    assert first['validation_window'] == ['2026-09-21', '2026-10-05']
+    assert first['runs'] == second['runs'] == 1
+    rows = db.execute('SELECT role,kind,path,metrics,active,lower(train_window),upper(train_window) FROM ml.model ORDER BY id').fetchall()
+    assert len(rows) == 6
+    for a, b in zip(rows[:3], rows[3:]):
+        role, kind, path, metrics, promoted, lo, hi = a
+        assert not promoted and not b[4]
+        assert (lo, hi) == (date(2026, 9, 14), date(2026, 9, 21))
+        assert set(metrics['scores']) == {'candidate', 'active'}
+        assert set(metrics['decision']) == {'accepted', 'reasons'}
+        assert json.loads(Path(path).read_text()) == json.loads(Path(b[2]).read_text())
+        if role == 'run':
+            assert kind == 'lgbm_quantile'
+            assert LgbmArtifact.load(path).encoders.train_means.keys() == {'12951'}
+        else:
+            assert kind == 'empirical'
+
+
+@pytest.mark.db
+def test_below_floor_class_reported(db, tmp_path, monkeypatch):
+    weekly = small_weekly(monkeypatch)
+    completed_run(db, start='2026-09-20')
+    completed_run(db, train='12952', start='2026-09-19')
+    db.execute("UPDATE ref.train SET class=CASE number WHEN '12951' THEN 'SF' ELSE 'EXP' END")
+    monkeypatch.setattr(weekly, 'FLOORS', {'run': 2, 'dwell': 1, 'dwell_bucket': 2, 'origin': 1})
+    monkeypatch.setattr(weekly, 'train_lgbm', lambda *a: pytest.fail('all run classes below floor'))
+    baseline = weekly.b3_active
+    model_sets = []
+
+    def capture_models(conn, *, models):
+        model_sets.append(models)
+        return baseline(conn, models=models)
+
+    monkeypatch.setattr(weekly, 'b3_active', capture_models)
+    report = weekly.evaluate_week(db, tmp_path, NOW)
+    assert set(report['model_ids']) == {'origin'}
+    candidate, incumbent = model_sets
+    assert candidate['run'] == incumbent['run']
+    assert candidate['dwell'] == incumbent['dwell']
+    assert candidate['origin'][0] is None and candidate['origin'][1] != incumbent['origin'][1]
+    for role in ('run', 'dwell', 'origin'):
+        for name in ('SF', 'EXP'):
+            support = report['roles'][role]['per_class'][name]
+            assert support['runs'] == 1
+            assert support['below_floor'] == (role != 'origin')
+            if role == 'dwell':
+                assert support['buckets']['0']['below_floor']
+    assert report['floors'] == weekly.FLOORS
+
+
+@pytest.mark.db
+@pytest.mark.parametrize('failure', ['insert', 'save', 'score', 'metric'])
+def test_failure_leaves_no_rows_or_files(db, tmp_path, monkeypatch, failure):
+    weekly = small_weekly(monkeypatch)
+    completed_run(db, start='2026-09-20')
+    db.execute("UPDATE ref.train SET class='SF'")
+    keep = tmp_path / 'existing.json'
+    keep.write_text('keep', encoding='utf-8')
+    if failure in ('insert', 'metric'):
+        db.execute("""CREATE FUNCTION pg_temp.reject_weekly() RETURNS trigger LANGUAGE plpgsql AS
+            $$ BEGIN RAISE EXCEPTION 'injected failure'; END $$""")
+        target = 'ml.model' if failure == 'insert' else 'sim.metric'
+        condition = "WHEN (NEW.role='dwell')" if failure == 'insert' else ''
+        db.execute(f"""CREATE TRIGGER reject_weekly BEFORE INSERT ON {target}
+            FOR EACH ROW {condition} EXECUTE FUNCTION pg_temp.reject_weekly()""")
+        error = psycopg.errors.RaiseException
+    elif failure == 'score':
+        def failed_score(*args, **kwargs):
+            assert db.execute('SELECT count(*) FROM ml.model').fetchone()[0] == 0
+            assert list(tmp_path.iterdir()) == [keep]
+            raise RuntimeError('injected failure')
+        monkeypatch.setattr(weekly, 'score', failed_score, raising=False)
+        error = RuntimeError
+    else:
+        def failed_save(self, path):
+            Path(path).write_text('partial', encoding='utf-8')
+            raise RuntimeError('injected failure')
+        monkeypatch.setattr(ModelArtifact, 'save', failed_save)
+        error = RuntimeError
+    with pytest.raises(error, match='injected failure'):
+        weekly.evaluate_week(db, tmp_path, NOW)
+    assert db.execute('SELECT count(*) FROM ml.model').fetchone()[0] == 0
+    assert db.execute('SELECT count(*) FROM sim.metric').fetchone()[0] == 0
+    assert list(tmp_path.iterdir()) == [keep]
+
+
+@pytest.mark.db
+def test_scores_on_identical_cases(db, tmp_path, monkeypatch):
+    from msynd.eval.harness import promotion_ok, score
+
+    weekly = small_weekly(monkeypatch)
+    completed_run(db, start='2026-09-20')
+    validation = completed_run(db, train='12952', start='2026-09-21')
+    db.execute("UPDATE ref.train SET class='SF'")
+    results = []
+    baseline = weekly.b3_active
+    model_sets = []
+
+    def capture_models(conn, *, models):
+        model_sets.append(models)
+        return baseline(conn, models=models)
+
+    def paired_score(cases, forecasters):
+        assert db.execute('SELECT count(*) FROM ml.model').fetchone()[0] == 0
+        result = score(cases, forecasters)
+        results.append(result)
+        return result
+
+    monkeypatch.setattr(weekly, 'score', paired_score, raising=False)
+    monkeypatch.setattr(weekly, 'b3_active', capture_models)
+    report = weekly.evaluate_week(db, tmp_path, NOW)
+    assert report['scores']
+    proposed, current = model_sets
+    assert all(proposed[role][0] is None and proposed[role][1] != current[role][1]
+               for role in ('run', 'dwell', 'origin'))
+    assert set(proposed['run'][1].encoders.train_means) == {'12951'}
+    candidate, incumbent = results[0]['candidate'], results[0]['active']
+    assert candidate.case_ids == incumbent.case_ids and candidate.case_ids
+    assert {row['key'][0] for row in candidate.records} == {validation}
+    assert report['scores'] == json.loads(json.dumps(
+        {'candidate': candidate.overall, 'active': incumbent.overall}, default=lambda value: value.item()))
+    decision = promotion_ok(candidate, incumbent, now=NOW)
+    assert report['decision'] == {'accepted': decision.accepted, 'reasons': list(decision.reasons)}
+    for role, metrics in db.execute('SELECT role,metrics FROM ml.model'):
+        assert metrics == json.loads(json.dumps(report['roles'][role] | {
+            'floors': report['floors'], 'scores': report['scores'], 'decision': report['decision']}))
+
+
+@pytest.mark.db
+@pytest.mark.parametrize('accepted', [False, True])
+def test_never_promotes(db, tmp_path, monkeypatch, accepted):
+    from msynd.eval.harness import Decision
+    from msynd.models import registry
+
+    weekly = small_weekly(monkeypatch)
+    completed_run(db, start='2026-09-20')
+    monkeypatch.setattr(registry, 'promote', lambda *a: pytest.fail('promotion forbidden'))
+    if accepted:
+        monkeypatch.setattr(weekly, 'promotion_ok', lambda *a, **kw: Decision(True, ()))
+    report = weekly.evaluate_week(db, tmp_path, NOW)
+    assert report['model_ids']
+    assert db.execute('SELECT count(*) FROM ml.model WHERE active').fetchone()[0] == 0
+    rows = db.execute('SELECT * FROM sim.metric').fetchall()
+    assert rows == [(NOW, 'weekly_candidate_accepted', int(accepted))]
+    assert report['decision']['accepted'] is accepted
