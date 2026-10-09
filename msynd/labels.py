@@ -21,9 +21,21 @@ def composite(dwell_delta, run_delta):
     return dwell_delta + run_delta
 
 
-def build_live_labels(conn, matured_before):
-    """Current labels for finished runs; caller supplies the six-hour maturity cutoff."""
-    rows = conn.execute("""
+def build_live_labels(conn, matured_before, asof=None):
+    """Mature labels for finished runs, optionally frozen at a receipt boundary."""
+    events = "obs.event" if asof is None else "obs.event_asof(%(asof)s)"
+    finished = "r.lifecycle IN ('completed','expired_unknown')" if asof is None else """
+        (EXISTS (SELECT 1 FROM ref.schedule_stop destination
+          JOIN e ON e.run_id=r.id AND e.station=destination.station
+            AND e.occ=destination.occ AND e.kind='arr'
+          WHERE destination.version_id=r.schedule_version_id
+            AND destination.idx=(SELECT max(idx) FROM ref.schedule_stop
+              WHERE version_id=r.schedule_version_id))
+         OR (r.lifecycle='expired_unknown' AND r.updated_at <= %(asof)s))
+    """
+    fetch_cutoff = "" if asof is None else "AND f.received_at <= %(asof)s"
+    rows = conn.execute(f"""
+        WITH e AS (SELECT * FROM {events})
         SELECT r.id,r.start_date,s.idx,s.arr_off,s.dep_off,
           a.actual_ts,d.actual_ts,d.received_at,
           COALESCE((SELECT (detail->>'resched_min')::integer
@@ -31,15 +43,15 @@ def build_live_labels(conn, matured_before):
               AND x.received_at < d.received_at
             ORDER BY x.received_at DESC LIMIT 1),0)
         FROM obs.run r JOIN ref.schedule_stop s ON s.version_id=r.schedule_version_id
-        LEFT JOIN obs.event a ON a.run_id=r.id AND a.station=s.station AND a.occ=s.occ AND a.kind='arr'
-          AND a.actual_ts <= %s
-        LEFT JOIN obs.event d ON d.run_id=r.id AND d.station=s.station AND d.occ=s.occ AND d.kind='dep'
-          AND d.actual_ts <= %s
-        WHERE r.lifecycle IN ('completed','expired_unknown')
+        LEFT JOIN e a ON a.run_id=r.id AND a.station=s.station AND a.occ=s.occ AND a.kind='arr'
+          AND a.actual_ts <= %(matured_before)s
+        LEFT JOIN e d ON d.run_id=r.id AND d.station=s.station AND d.occ=s.occ AND d.kind='dep'
+          AND d.actual_ts <= %(matured_before)s
+        WHERE {finished}
           AND NOT EXISTS (SELECT 1 FROM obs.fetch f
-            WHERE f.run_id=r.id AND 'exception_unparsed'=ANY(f.flags))
+            WHERE f.run_id=r.id AND 'exception_unparsed'=ANY(f.flags) {fetch_cutoff})
         ORDER BY r.id,s.idx
-    """, (matured_before, matured_before)).fetchall()
+    """, {"matured_before": matured_before, "asof": asof}).fetchall()
     labels, previous = [], None
     for run, start, idx, sched_arr, sched_dep, actual_arr, actual_dep, received, resched in rows:
         base = datetime.combine(start, time(), IST)
