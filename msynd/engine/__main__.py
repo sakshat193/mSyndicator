@@ -67,7 +67,7 @@ def _prepare(conn, run_ids, model_source, params, replay_fn):
         except (psycopg.Error, OSError, MemoryError):
             raise
         except Exception as exc:
-            runs[run_id] = {'state': 'error', 'error': str(exc)}
+            runs[run_id] = {'run_id': run_id, 'state': 'error', 'error': str(exc)}
     return jobs, runs, tombstones
 
 

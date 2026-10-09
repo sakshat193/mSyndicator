@@ -21,4 +21,4 @@ def _job(args):
     except (psycopg.Error, OSError, MemoryError):
         raise
     except Exception as exc:
-        return ev.run_id, {'state': 'error', 'error': str(exc), 'versions': ev.versions}, None
+        return ev.run_id, {'run_id': ev.run_id, 'state': 'error', 'error': str(exc), 'versions': ev.versions}, None
