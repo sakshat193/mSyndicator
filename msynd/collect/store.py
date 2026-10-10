@@ -25,13 +25,29 @@ def _enrich(conn, schedule, route, passing):
     halts = [row for row in routes[route] if row[2]]
     compatible = [version for version, rows in routes.items()
                   if [row for row in rows if row[2]] == halts]
-    stops = {(row[0], row[1]): row for version in compatible for row in routes[version]}
-    for station in passing:
+    halt_indices = {(row[0], row[1]): idx for idx, row in enumerate(halts)}
+    stops, order = {}, {}
+    for version in compatible:
+        gap = -1
+        for idx, row in enumerate(routes[version]):
+            key = row[:2]
+            if row[2]:
+                gap += 1
+            stops[key] = row
+            order[key] = (gap, not row[2], row[3], 0, idx, key)
+    for idx, station in enumerate(passing):
+        gap = halt_indices.get(station.after)
+        if gap is None or halt_indices.get(station.before) != gap + 1:
+            continue
         key = (station.station, station.occ)
-        if key not in stops:
-            stops[key] = (station.station, station.occ, False, float(station.dist_km),
-                          None if station.sched_off is None else float(station.sched_off))
-    rows = sorted(stops.values(), key=lambda row: row[3])
+        if key in halt_indices:
+            continue
+        # Clamp keeps route km nondecreasing when a source km lies outside its halts.
+        km = halts[gap][3] + min(max(station.fraction, 0), 1) * (halts[gap + 1][3] - halts[gap][3])
+        stops[key] = (*key, False, km, None if station.sched_off is None else float(station.sched_off))
+        # Gap, km, then page index: replay needs nondecreasing km; ties keep page order.
+        order[key] = (gap, True, km, 1, idx, key)
+    rows = [stops[key] for key in sorted(stops, key=order.__getitem__)]
     if rows == routes[route]:
         return []
     dist_src = conn.execute('SELECT dist_src FROM ref.route_version WHERE id=%s', (route,)).fetchone()[0]

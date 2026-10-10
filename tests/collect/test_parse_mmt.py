@@ -52,6 +52,30 @@ def test_repeated_station_occ():
     assert sorted(e.occ for e in arrivals) == [1, 2]
 
 
+def test_passing_station_source_halt_anchors():
+    result = parse_copy(loaded("not_started_12426"), "12426")
+    passes = result.passing_stations
+    assert [p.station for p in passes] == ["BBMN", "VJPJ", "BHBT", "SMBX", "GHGL", "HRNR", "CKDL", "CHNR", "BDHY"]
+    assert all(p.after == ("JAT", 1) and p.before == ("MSKT", 1) for p in passes)
+    assert passes[0].fraction == pytest.approx(9 / 77)
+    assert passes[-1].fraction == pytest.approx(64 / 77)
+
+
+def test_passing_station_equal_km_and_unbounded_rows():
+    body = loaded("not_started_12426")
+    halts = body["response"]["stations"]
+    children = halts[0]["intermediateStations"]
+    halts[0]["distance"] = halts[1]["distance"] = "10"
+    for child in children:
+        child["distance"] = "10"
+    children[-1]["distance"] = "9999"
+    children[0]["distance"] = "0"
+    result = parse_copy(body, "12426")
+    assert [p.station for p in result.passing_stations] == ["VJPJ", "BHBT", "SMBX", "GHGL", "HRNR", "CKDL", "CHNR"]
+    assert all(p.after == ("JAT", 1) and p.before == ("MSKT", 1) and p.fraction == 0
+               for p in result.passing_stations)
+
+
 def test_delay_over_24h_kept_flagged():
     body = loaded()
     for row in body["response"]["stations"]:

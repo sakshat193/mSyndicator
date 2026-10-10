@@ -6,7 +6,7 @@ import math
 import re
 
 from msynd.collect.railradar import IST, validate_request
-from msynd.collect.status import Eta, Event, InvalidResponse, ParsedStatus, PassingStation, Pending
+from msynd.collect.status import Eta, Event, InvalidResponse, ParsedStatus, PassingStation, Pending, position_passing
 
 
 def _date(value):
@@ -60,7 +60,15 @@ def parse_status(body: bytes, train, start) -> ParsedStatus:
                 if not math.isfinite(distance) or distance < 0:
                     raise InvalidResponse("invalid passing distance")
                 intermediates.append((distance, False, row))
-        rows.extend(sorted(intermediates, key=lambda r: r[0]))
+        source_halts, rows = rows, []
+        for idx, halt in enumerate(source_halts):
+            rows.append(halt)
+            if idx + 1 < len(source_halts):
+                lo, hi = halt[0], source_halts[idx + 1][0]
+                rows.extend(row for row in intermediates if lo <= row[0] <= hi)
+                intermediates = [row for row in intermediates if not lo <= row[0] <= hi]
+        # Validate unbounded source rows too; position_passing drops this trailing tail.
+        rows.extend(intermediates)
         base = datetime.combine(start, time(), IST)
         for distance, halt, row in rows:
             station = row["station"]["code"]
@@ -107,14 +115,14 @@ def parse_status(body: bytes, train, start) -> ParsedStatus:
                             etas.append(Eta(station, occ, kind, observed))
                     elif observed is not None or sched is not None:
                         raise InvalidResponse("halt time without explicit marker")
-            if not halt and any(t is not None for t in scheduled):
+            if halt or any(t is not None for t in scheduled):
                 sched = scheduled[1] or scheduled[0]
-                passing.append(PassingStation(station, occ, distance, (sched-base).total_seconds()/60))
+                passing.append((station, occ, halt, distance, (sched-base).total_seconds()/60 if sched else None))
         # ponytail: unmapped; upgrade: map to the Task 21 detail form once a real cancelled body is captured.
         if details.get("cancelledFromStation") is not None or details.get("cancelledToStation") is not None:
             flags.add("exception_unparsed")
         parsed = ParsedStatus(train, start, "completed" if terminated else "running" if departed else "not_started",
-                              updated, tuple(events), tuple(pending), tuple(passing), (), tuple(sorted(flags)), tuple(etas))
+                              updated, tuple(events), tuple(pending), position_passing(passing), (), tuple(sorted(flags)), tuple(etas))
         validate([event.actual_ts for event in events])
         return parsed
     except (KeyError, TypeError, ValueError, OverflowError) as error:
