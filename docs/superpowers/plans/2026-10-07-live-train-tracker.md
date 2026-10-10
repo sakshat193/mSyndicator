@@ -1535,6 +1535,27 @@ Through Task 52's tunnel, Akamai accepts TLS from the VM image's client (OpenSSL
 
 ---
 
+### Task 54 (amendment 2026-10-11): a "not running on given date" answer cancels the run
+
+Live on the VM, MMT answers HTTP 400 `{"success":false,"error":{"errorCode":1001|1002,"errorDescription":"Train is not running on given date"}}` for inventory runs that do not operate (mostly `00xxx` specials). The outcome stays `invalid`, but nothing records the answer, so poll and harvest admission keep choosing the same runs and the invalid share trips the dispatcher breaker every few minutes. The answer is the source's word on that run, so the run becomes `cancelled`, which both admissions already skip and `create_runs` never recreates.
+
+**Files:** modify `msynd/collect/mmt.py`, `msynd/collect/lifecycle.py`, `msynd/collect/__main__.py`, `tests/collect/test_admission.py` (or the existing collector-loop test module), `tests/collect/test_lifecycle.py`.
+
+**Interfaces:**
+- `mmt.not_running(body: bytes) -> bool`: true only for a JSON object with `success` false and `error.errorCode` in {1001, 1002}; anything else (bad JSON, other codes) is false.
+- `lifecycle.cancel_not_running(conn, run_id, now) -> bool`: inside the caller's evidence transaction, sets `lifecycle='cancelled'`, `updated_at=now` only when the run is still `scheduled` or `expired_unknown`, calls `mark_dirty` when a row changed, and returns whether it did. A `running` or `completed` run is never changed. `# ponytail:` one answer is final; add a confirmation fetch if MMT shows false negatives.
+- `run_loop`: on an `invalid` status result whose HTTP status is 400 and whose body is `not_running`, call `cancel_not_running` in one transaction.
+- The breaker still counts the answer as non-`ok`; each such run costs at most one fetch per admission path.
+
+- [ ] Tests:
+  - `not_running` accepts both codes and rejects other codes, `success` true, non-JSON and non-object bodies;
+  - `cancel_not_running` cancels a `scheduled` run and marks it dirty; leaves `running` unchanged;
+  - collector loop: with a MockTransport answering the 1001 body, the run becomes `cancelled` and `load_state` no longer admits it for poll or harvest; a 400 with errorCode 9999 leaves it `scheduled`.
+- [ ] Commit `task 54: cancel runs mmt says are not running`.
+- [ ] Monitor: deploy to the VM, restart the collector, and confirm the breaker stops tripping.
+
+---
+
 ## Spec coverage check
 
 | Spec section | Task(s) |
