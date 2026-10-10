@@ -1482,6 +1482,31 @@ From the G2 decision (spec §18). `data/params.json` now holds the measured `S.m
 - [x] Commit `task 51: g7(d) at measured publication lag`.
 - [x] Monitor: append the two cases' numbers to `docs/gates/G7.md`.
 
+
+### Task 52 (amendment 2026-10-11): residential relay egress for the VM collector (CP-3 follow-up)
+
+Akamai rejects MMT requests from the VM's IP, while the user's home connection worked through the pilot at the same rate. The collector therefore runs on the VM, and its only source connection goes through the user's PC: a reverse SSH tunnel to an allowlisted CONNECT relay. The dispatcher on the VM still owns spacing, budgets and logging. The relay never forwards to any host except MMT. There is no fingerprint spoofing, no challenge solving and no third-party proxy.
+
+**Files:** modify `msynd/collect/dispatcher.py`, `compose.yaml`, `docs/deploy.md`, `tests/collect/test_dispatcher.py`, `tests/test_deploy.py`; create `msynd/collect/relay.py`, `compose.relay.yaml`, `tests/collect/test_relay.py`.
+
+**Interfaces:**
+- `real_transport()` keeps the `MSYND_LIVE` guard and passes `proxy=MSYND_PROXY` to `httpx.AsyncHTTPTransport` when that env var is non-empty (an `http://` URL), and no proxy otherwise.
+- `python -m msynd.collect.relay [--port 18080] [--ssh USER@HOST] [--identity PATH]` runs on the PC:
+  - an asyncio CONNECT proxy bound to 127.0.0.1 only;
+  - only `CONNECT rails-ris.makemytrip.com:443` is tunnelled; any other target or method gets 403 and is closed; the request head is capped at 8 KiB; the upstream connect times out after 30 s (502);
+  - with `--ssh`, it supervises `ssh -N -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -R 127.0.0.1:PORT:127.0.0.1:PORT [-i PATH] USER@HOST`, restarting it 10 s after any exit;
+  - on Windows, it asks the OS to stay awake while it runs (`SetThreadExecutionState`), which is released on exit.
+- `compose.yaml` collector command adds `--budget poll=${MMT_POLL_BUDGET:-5000} --budget harvest=${MMT_HARVEST_BUDGET:-0}`, so a ramp step edits only `.env`.
+- `compose.relay.yaml` is opt-in via `COMPOSE_FILE=compose.yaml:compose.relay.yaml`: the collector uses `network_mode: host`, `DATABASE_URL` points at `127.0.0.1:55432` (same `POSTGRES_PASSWORD` default), and `MSYND_PROXY=http://127.0.0.1:18080`.
+- `docs/deploy.md` gains a short "Residential relay" section: the PC command, the VM sshd keep-alive drop-in (`ClientAliveInterval 30`, `ClientAliveCountMax 3`, so a dead session frees the forwarded port), the `.env` lines, and that the PC must stay powered with the lid open.
+
+- [ ] Tests:
+  - `test_real_transport_uses_proxy_from_env` (with and without `MSYND_PROXY`; still raises without `MSYND_LIVE`);
+  - relay: an allowlisted CONNECT tunnels bytes both ways to a local echo server (allowlist patched); other host, other port and non-CONNECT get 403; an oversized head is rejected; the supervisor restarts a fake ssh command;
+  - deploy: the budget interpolation, and the relay override's network mode, DSN and proxy.
+- [ ] Commit `task 52: residential relay egress`.
+- [ ] Monitor: VM sshd drop-in, relay on the PC, MMT reachable through the tunnel, then the collector with `MSYND_LIVE=1`.
+
 ---
 
 ## Spec coverage check
