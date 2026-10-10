@@ -7,21 +7,29 @@ import subprocess
 import pytest
 
 
-@pytest.fixture(scope='module')
-def compose():
+def render_compose(*files, **overrides):
     docker = shutil.which('docker')
     if docker is None:
         pytest.skip('Docker CLI required to render Compose configuration')
     root = Path(__file__).resolve().parents[1]
     result = subprocess.run(
         [docker, 'compose', '--project-directory', str(root), '--env-file',
-         str(root / '.env.example'), '--profile', 'app', '--profile', 'ops',
+         str(root / '.env.example'),
+         *[arg for file in files or ('compose.yaml',) for arg in ('-f', str(root / file))],
+         '--profile', 'app', '--profile', 'ops',
          'config', '--format', 'json'],
-        env=os.environ | {'POSTGRES_PASSWORD': 'testpw', 'DUCKDNS_HOST': 'test.invalid', 'BASIC_AUTH_USER': 'test',
-                         'BASIC_AUTH_HASH': '$2a$14$example'},
+        env={key: value for key, value in os.environ.items()
+             if key not in ('COMPOSE_FILE', 'MMT_POLL_BUDGET', 'MMT_HARVEST_BUDGET')}
+        | {'POSTGRES_PASSWORD': 'testpw', 'DUCKDNS_HOST': 'test.invalid', 'BASIC_AUTH_USER': 'test',
+           'BASIC_AUTH_HASH': '$2a$14$example'} | overrides,
         check=True, capture_output=True, text=True,
     )
     return json.loads(result.stdout)
+
+
+@pytest.fixture(scope='module')
+def compose():
+    return render_compose()
 
 
 def test_db_only_start_preserves_pilot_storage_and_port(compose):
@@ -56,7 +64,8 @@ def test_app_services_have_private_ports_and_bounded_logs(compose):
 
 def test_commands_and_ops_do_not_start_the_pilot_database(compose):
     services = compose['services']
-    assert services['collector']['command'] == ['python', '-m', 'msynd.collect']
+    assert services['collector']['command'] == [
+        'python', '-m', 'msynd.collect', '--budget', 'poll=5000', '--budget', 'harvest=0']
     assert services['collector']['environment']['MMT_RATE'] == '0.2'
     assert services['collector']['environment']['MSYND_LIVE'] == '0'
     assert services['engine']['command'] == ['python', '-m', 'msynd.engine']
@@ -68,3 +77,23 @@ def test_commands_and_ops_do_not_start_the_pilot_database(compose):
     assert ops['restart'] == 'no'
     assert ops['environment']['MSYND_LIVE'] == '0'
     assert {'/data', '/root/.oci'} <= {v['target'] for v in ops['volumes']}
+
+
+@pytest.mark.parametrize('budgets, expected', [
+    ({}, ['poll=5000', 'harvest=0']),
+    ({'MMT_POLL_BUDGET': '1200', 'MMT_HARVEST_BUDGET': '500'}, ['poll=1200', 'harvest=500']),
+])
+def test_collector_budget_interpolation(budgets, expected):
+    collector = render_compose(**budgets)['services']['collector']
+    assert collector['command'] == [
+        'python', '-m', 'msynd.collect', '--budget', expected[0], '--budget', expected[1]]
+
+
+def test_relay_override_uses_host_network_and_loopback_database():
+    config = render_compose('compose.yaml', 'compose.relay.yaml', POSTGRES_PASSWORD='relaypw')
+    collector = config['services']['collector']
+    assert collector['network_mode'] == 'host'
+    assert not collector.get('networks')
+    assert collector['environment']['DATABASE_URL'] == 'postgresql://msynd:relaypw@127.0.0.1:55432/msynd'
+    assert collector['environment']['MSYND_PROXY'] == 'http://127.0.0.1:18080'
+    assert config['services']['engine']['environment']['DATABASE_URL'] == 'postgresql://msynd:relaypw@db:5432/msynd'

@@ -211,6 +211,28 @@ def test_real_transport_requires_live_flag(monkeypatch):
         real_transport()
 
 
+@pytest.mark.parametrize('proxy', ['http://127.0.0.1:18080', None, ''])
+def test_real_transport_uses_proxy_from_env(monkeypatch, proxy):
+    import httpcore
+
+    if proxy is None:
+        monkeypatch.delenv('MSYND_PROXY', raising=False)
+    else:
+        monkeypatch.setenv('MSYND_PROXY', proxy)
+    monkeypatch.delenv('MSYND_LIVE', raising=False)
+    with pytest.raises(RuntimeError, match='MSYND_LIVE'):
+        real_transport()
+    monkeypatch.setenv('MSYND_LIVE', '1')
+
+    async def run():
+        transport = real_transport()
+        try:
+            assert isinstance(transport._pool, httpcore.AsyncHTTPProxy) == bool(proxy)
+        finally:
+            await transport.aclose()
+    asyncio.run(run())
+
+
 def test_restart_respects_last_start(db_url):
     async def run():
         clock = FakeClock()

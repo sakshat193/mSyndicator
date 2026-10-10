@@ -39,7 +39,7 @@ services:
   collector:
     <<: *python
     profiles: [app]
-    command: ["python", "-m", "msynd.collect"]
+    command: ["python", "-m", "msynd.collect", "--budget", "poll=${MMT_POLL_BUDGET:-5000}", "--budget", "harvest=${MMT_HARVEST_BUDGET:-0}"]
     environment:
       <<: *environment
       MSYND_LIVE: ${MSYND_LIVE:-0}

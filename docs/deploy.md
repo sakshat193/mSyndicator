@@ -11,7 +11,7 @@ Generate the password hash with `docker run --rm -it caddy:2 caddy hash-password
 Use `BASIC_AUTH_HASH='<hash>'` with single quotes in `.env` to preserve bcrypt dollar signs.
 Set the OCI bucket and place its config/key under `OCI_CONFIG_DIR` (default `/data/oci`).
 The OCI config's `key_file` must use the container path `/root/.oci/<key-file>`.
-These are user secrets; never commit them. Compose overrides DATABASE_URL with the private db hostname.
+These are user secrets; never commit them. Compose supplies DATABASE_URL for each service's network.
 
 The existing db binding `127.0.0.1:55432:5432` and named `pgdata` volume are unchanged.
 Do not move the pilot's database to `/data/pg`; any VM storage migration belongs to the monitor.
@@ -32,13 +32,27 @@ The image uses frozen uv dependencies, ops extras, OpenMP libraries and a Postgr
 Its build context excludes local evidence, backups, secrets and Git metadata.
 The monitor must run the pinned-image smoke test on A1 and the measured G5 restore drill.
 
+## Residential relay
+
+On the PC, from Git Bash in the repo: `PATH="/c/Program Files/Git/usr/bin:$PATH" uv run python -m msynd.collect.relay --ssh USER@HOST --identity ~/.ssh/msynd_oci`.
+Keep the PC powered with the lid open; Windows sleep is inhibited while the relay runs.
+On the VM, write `/etc/ssh/sshd_config.d/70-msynd-keepalive.conf` with `ClientAliveInterval 30` and `ClientAliveCountMax 3` on separate lines.
+Validate and reload: `sudo sshd -t && sudo systemctl reload ssh`.
+After the gate and pilot handover, set these VM `.env` lines (harvest stays 0 until an approved ramp):
+```dotenv
+COMPOSE_FILE=compose.yaml:compose.relay.yaml
+MSYND_LIVE=1
+MMT_HARVEST_BUDGET=0
+```
+Then use the Startup commands below. When the tunnel is down, requests fail locally as `transport_error`; the dispatcher breaker paces them.
+
 ## Startup
 
 Collector, engine, API and Caddy require the `app` profile; ops uses the separate `ops` profile.
 `docker compose up -d db` starts only db, preserving the current pilot setup.
 Do not start collector while the pilot owns the MMT host lock.
-Leave MSYND_LIVE at 0; only the monitor enables collection after the relevant gate.
-The collector command is supplied by Task 22; its absence here does not block building the image.
+Leave MSYND_LIVE at 0 until the relevant gate; the monitor then uses the relay settings above.
+The collector command reads its poll and harvest budgets from `.env` (defaults: 5000 and 0).
 The engine main uses run_loop defaults, including its default particle counts and empty S tables.
 After the gate and pilot handover, the monitor starts daemons with `docker compose --profile app up -d`.
 Review `docker compose --profile app ps` and `docker compose --profile app logs --tail=100`.

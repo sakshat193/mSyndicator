@@ -50,7 +50,7 @@ class FetchResult:
 def real_transport():
     if os.environ.get("MSYND_LIVE") != "1":
         raise RuntimeError("real source traffic requires MSYND_LIVE=1 and checkpoint approval")
-    return httpx.AsyncHTTPTransport(retries=0)
+    return httpx.AsyncHTTPTransport(retries=0, proxy=os.environ.get("MSYND_PROXY") or None)
 
 
 class Dispatcher:
