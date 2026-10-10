@@ -114,6 +114,7 @@ def replay(directory, dsn, *, speed=60, params=None, workers=4) -> dict:
         params = replace(params, s_tables=load_s_tables())
     counts = dict(applied=0, invalid=0, no_version=0)
     cache, pending, framed, latencies = {}, {}, set(), []
+    wall, achieved = dict(apply=0.0, periodic=0.0, engine=0.0), None
 
     def model_source(conn, ev):
         return tables_for(conn, ev, active(conn), ev.versions['bias_gen'])
@@ -126,8 +127,10 @@ def replay(directory, dsn, *, speed=60, params=None, workers=4) -> dict:
             row = next(rows, None)
 
             def step():
+                began = monotonic()
                 gen = consume(conn, replay_run, model_source, params, pool=pool, cache=cache)
                 committed = monotonic()
+                wall['engine'] += committed - began
                 if gen is not None:
                     delta = _read_frame(conn, gen)
                     ids = set(delta['runs']) | set(delta['tombstones'])
@@ -144,27 +147,34 @@ def replay(directory, dsn, *, speed=60, params=None, workers=4) -> dict:
                 while row is not None:
                     sim = first + timedelta(seconds=speed * (monotonic() - wall_start))
                     if row[4] <= sim and row[4] <= minute:
+                        began = monotonic()
                         with conn.transaction():
                             before = dict(conn.execute('SELECT run_id,ver FROM obs.dirty_run'))
                             outcome = apply_status(conn, row)
                             changed = [run_id for run_id, ver in conn.execute('SELECT run_id,ver FROM obs.dirty_run')
                                        if before.get(run_id) != ver]
                         committed = monotonic()
+                        wall['apply'] += committed - began
                         for run_id in changed:
                             pending.setdefault(run_id, []).append(committed)
                         counts[outcome] += 1
                         last = row[4]
                         row = next(rows, None)
                     elif minute <= sim and minute < row[4]:
+                        began = monotonic()
                         with conn.transaction():
                             write_periodic(conn, cache, minute, polls=True, metrics=True, issue=minute >= hour,
                                            S=params.s_tables.get(settings.live_source))
+                        wall['periodic'] += monotonic() - began
                         if minute >= hour:
                             hour += timedelta(hours=1)
                         minute += timedelta(minutes=1)
+                        step()  # one engine pass per simulated minute, so a lagging replay never starves the engine
                     elif step() is None:
                         wait = (min(row[4], minute) - sim).total_seconds() / speed
                         sleep(min(1, max(0, wait)))
+                elapsed = monotonic() - wall_start
+                achieved = (last - first).total_seconds() / elapsed if elapsed > 0 else None
                 while step() is not None:
                     pass
                 with conn.transaction():
@@ -186,6 +196,8 @@ def replay(directory, dsn, *, speed=60, params=None, workers=4) -> dict:
                 'runs_framed': len(framed),
                 'runs_unframed': len(discovered - framed),
                 'forecast_issues': conn.execute('SELECT count(*) FROM sim.forecast_issue').fetchone()[0],
+                'speed_achieved': achieved,  # simulated seconds per wall second up to the last fetch
+                'wall_s': wall,
             }
     (directory / 'report.json').write_text(json.dumps(result, indent=2, allow_nan=False), encoding='utf-8')
     return result

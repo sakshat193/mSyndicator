@@ -181,6 +181,23 @@ def test_replay_drains_completed_run_and_times_only_changed_stores(bridge_dbs, t
         assert conn.execute('SELECT count(*) FROM obs.dirty_run').fetchone()[0] == 0
 
 
+def test_replay_steps_engine_while_fetches_backlogged(bridge_dbs, tmp_path):
+    from msynd.ops.replay_day import export, replay
+    from msynd.engine.replay import Params
+
+    seed(bridge_dbs[0])
+    with psycopg.connect(bridge_dbs[0]) as conn:
+        fetch(conn, FIRST, payload=running_body())
+        fetch(conn, FIRST + timedelta(minutes=5), train='12952', payload=running_body('12952'))
+    export(bridge_dbs[0], date(2026, 10, 7), tmp_path)
+    # At 1e6x every fetch is overdue from the start; the engine must still run each simulated minute.
+    result = replay(tmp_path, bridge_dbs[1], speed=1e6, params=Params(n=200, k=4), workers=0)
+    assert result['runs_unframed'] == 0
+    assert result['speed_achieved'] > 0
+    assert set(result['wall_s']) == {'apply', 'periodic', 'engine'}
+    with psycopg.connect(bridge_dbs[1]) as conn:
+        assert conn.execute('SELECT count(*) FROM sim.frame WHERE NOT is_full').fetchone()[0] >= 2
+
 def test_apply_status_is_shared_and_caller_owns_transaction(bridge_dbs):
     from msynd.ops.pilot_bridge import apply_status
 
