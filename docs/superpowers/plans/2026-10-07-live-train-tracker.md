@@ -1507,6 +1507,8 @@ Akamai rejects MMT requests from the VM's IP, while the user's home connection w
 - [x] Commit `task 52: residential relay egress`.
 - [x] Monitor: VM sshd drop-in and the tunnel work, and the relay reaches MMT from the PC (200, 0.5 s). From the VM, the image's client (Debian 13, OpenSSL 3.5) completes TLS through the tunnel, but MMT never answers (30 s read timeout, 2 KB up against the PC's 1 KB). Superseded by Task 53.
 
+---
+
 ### Task 53 (amendment 2026-10-11): the PC's client makes the MMT request (supersedes Task 52's CONNECT path)
 
 Through Task 52's tunnel, Akamai accepts TLS from the VM image's client (OpenSSL 3.5) but never answers the request, while the PC's client (the one the pilot used, OpenSSL 3.0) gets 200 at once. The VM's TLS is not tuned to imitate anything. Instead, the PC's own httpx client makes each HTTPS request, so source traffic is exactly what the approved PC pilot sent. The VM dispatcher still owns spacing, budgets, retries and logging, and the relay forwards one request per incoming request, never retrying.
