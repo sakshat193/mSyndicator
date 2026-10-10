@@ -20,8 +20,8 @@ def event_eff(e, route, tables, v_max, resched):
         return ((w[h], wb[h], wa[h], False, 1.0, wtau[h], 0, 0.0,
                  0.0, 1.0, 0.0, 0.0, 1.0), p, sched[p])
     end, segment = dest[e], seg[e]
-    sched_run = sched[end]-sched[departure[e]]
-    # ponytail: floor avoids s=0 when a pass shares B's minute; upgrade: finer published pass times.
+    # ponytail: floors avoid zero division/s=0 for shared halt/pass minutes; upgrade: finer published times.
+    sched_run = max(0.1, sched[end]-sched[departure[e]])
     sched_rem = max(0.1, sched[end]-sched[p])
     scale = sched_rem/sched_run
     a = min(1.0, max(0.0, (sched[e]-sched[p])/sched_rem)) if kind[e] == 1 else 1.0

@@ -158,6 +158,66 @@ def test_passes_sharing_minutes_and_destination_floor():
     assert np.isfinite(out.paths).all() and np.all(np.diff(out.paths, axis=1) >= 0)
 
 
+def zero_minute_fixture(passing=False):
+    ev, models, params = fixture()
+    events = list(ev.events[:3])
+    if passing:
+        events.append(RouteEvent(3, "P", 1, "pass", 3, None, 210, 102, 1))
+    idx = len(events)
+    events.extend([
+        RouteEvent(idx, "C", 1, "arr", idx, 2, 210, 104, 1),
+        RouteEvent(idx+1, "C", 1, "dep", idx, 2, 220, 104, 2),
+        RouteEvent(idx+2, "D", 1, "arr", idx+1, 3, 320, 204, 2),
+    ])
+    models = replace(models,
+        r=np.concatenate((models.r, models.r[:1])),
+        r_tau=np.concatenate((models.r_tau, models.r_tau[:1])),
+        bias=np.concatenate((models.bias, models.bias[:1])),
+        w=np.concatenate((models.w, models.w[:1])),
+        w_tau=np.concatenate((models.w_tau, models.w_tau[:1])))
+    return replace(ev, events=tuple(events)), models, params
+
+
+@pytest.mark.parametrize("arrival, departure, infeasible", [(212, 222, False), (210, 220, True)])
+def test_zero_minute_segment_with_actuals(arrival, departure, infeasible):
+    ev, models, params = zero_minute_fixture()
+    ev = replace(ev, evidence=(Evidence(3, True, arrival, "ntes_status"),
+                               Evidence(4, True, departure, "ntes_status")))
+    out = replay(ev, models, params, 7)
+    assert np.isfinite(out.paths).all() and np.isfinite(out.next_q).all()
+    assert np.isfinite(out.halt_q[3, 0]).all()
+    assert np.isfinite(out.pits).all() and np.isfinite(out.endpoint_p50).all()
+    assert ("data_invariant" in out.flags) == infeasible
+    for observed in ev.evidence:
+        assert np.all((observed.minute <= out.paths[:, observed.event]) &
+                      (out.paths[:, observed.event] < observed.minute+1))
+    steps = np.diff(out.paths, axis=1)
+    if infeasible:
+        steps = steps[:, [0, 1, 3, 4]]
+    assert np.all(steps >= 0)
+    for a, b, km in ((0, 1, 100), (2, 3, 4), (4, 5, 100)):
+        if infeasible and b == 3:
+            continue  # Infeasible actuals use the existing observed override.
+        assert np.all(out.paths[:, b]-out.paths[:, a] >= 60*km/params.v_max - 2e-5)
+
+
+def test_zero_minute_segment_with_pass_at_same_minute():
+    ev, models, params = zero_minute_fixture(passing=True)
+    out = replay(ev, models, params, 7)
+    assert np.isfinite(out.paths).all() and np.isfinite(out.next_q).all()
+    assert np.isfinite(out.halt_q[1:, 0]).all()
+    assert np.all(np.diff(out.paths, axis=1) >= 0)
+    assert "data_invariant" not in out.flags
+
+
+def test_negative_scheduled_running_time_rejected():
+    ev, models, params = zero_minute_fixture()
+    events = list(ev.events)
+    events[3] = replace(events[3], sched_off=209)
+    with pytest.raises(ValueError, match="nondecreasing"):
+        replay(replace(ev, events=tuple(events)), models, params, 7)
+
+
 def test_cancelled_tail_stops_forward_draws():
     ev, models, params = fixture()
     out = replay(replace(ev, stop_event=1), models, params, 7)

@@ -98,8 +98,6 @@ def _route(ev, models):
         if e.seg not in arrivals or e.seg not in departures or not 0 <= e.seg < len(models.r):
             raise ValueError("running event without segment model/endpoints")
         dest[e.idx], departure[e.idx] = arrivals[e.seg], departures[e.seg]
-        if sched[dest[e.idx]] <= sched[departure[e.idx]]:
-            raise ValueError("scheduled running time must be positive")
     return kind, sched, km, seg, halt, anchor, dest, departure
 
 
