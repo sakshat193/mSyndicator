@@ -1042,8 +1042,8 @@ def test_late_event_frame_equals_fresh_replay(db_url): ...    # RF4
 >   - `a1.minutes > 0`;
 >   - a finite `a6.p95`.
 
-- [ ] The test feeds the bodies in `received_at` order at 60× through parsers → store → engine on a test database. It asserts: A1 reported, A6 p95 measured, `invalid` < 1 %, no unhandled exceptions, and frames are produced for every discovered run.
-- [ ] Commit `task 33: replay-day e2e`.
+- [x] The test feeds the bodies in `received_at` order at 60× through parsers → store → engine on a test database. It asserts: A1 reported, A6 p95 measured, `invalid` < 1 %, no unhandled exceptions, and frames are produced for every discovered run.
+- [x] Commit `task 33: replay-day e2e`.
 - [ ] **🛑 Monitor:** run it on a recorded day; run G8 on the VM with all services up (apply §9.7 only to a measured bottleneck); run 7 days live and record A1, A2 and A6, and that `sim.forecast_issue` is populating, in `docs/gates/phase4.md`.
 
 ---
