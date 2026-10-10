@@ -1005,6 +1005,43 @@ def test_late_event_frame_equals_fresh_replay(db_url): ...    # RF4
 
 **Files:** create `tests/e2e/test_replay_day.py` (marked `slow`; skipped unless `MSYND_REPLAY_DAY=<dir>`), and `msynd/ops/replay_day.py`, which exports one pilot or live day of `ok` bodies with their receipt times into that directory.
 
+> **Amendment 2026-10-10 (MMT source, F1 bridge, G8-local throughput).** This amendment overrides the box below wherever they differ.
+>
+> **Files:**
+> - create `msynd/ops/replay_day.py`, `tests/ops/test_replay_day.py` (`db`) and `tests/e2e/test_replay_day.py` (`slow`);
+> - modify `msynd/ops/pilot_bridge.py`: move the per-row apply out of `bridge_once` into `apply_status(dst, row) -> 'applied' | 'invalid' | 'no_version'`, with no behaviour change. Its row is `(host, purpose, key, started, received, outcome, status, compressed)`. Both callers use it.
+>
+> **Export:** `python -m msynd.ops.replay_day export --source DSN --day YYYY-MM-DD --out DIR`. It opens the source with `pilot_bridge.open_source` (read-only) and writes:
+> - `fetches.jsonl`: the source's `purpose='status'`, `outcome='ok'` rows whose `received_at` falls on that IST date, ordered by `(received_at, id)`. Each line holds the bridge row fields, with `body_zstd` as base64 of the stored bytes.
+> - `ref/<table>.csv`: one file per `ref` table, in FK order (station, train, schedule_version, schedule_stop, route_version, route_stop, segment, route_segment, calendar), via `COPY … TO STDOUT (FORMAT csv, HEADER)`.
+> - `manifest.json`: day, fetch count and fetch id range, rows per ref table.
+>
+> **Replay:** `replay(dir, dsn, *, speed=60, params=None, workers=4) -> dict`. The target is an empty migrated database.
+> - Load the ref CSVs with `COPY … FROM STDIN`, using the header's column list. Then `setval` every owned sequence to its column's max.
+> - Simulated clock: `sim = first received_at + speed × wall elapsed`.
+> - Each fetch is applied with `apply_status` once `sim ≥ received_at`. It is ok for evidence revisions to carry their historical `received_at`.
+> - Between fetches, step the engine with the existing functions, not `run_loop`: `consume` until nothing is dirty or a fetch is due, and `write_periodic(now=sim)` with metrics and polls at each simulated minute and issue at each simulated hour. Models and params are as in `engine.main` (registry/provisional, `settings` N and K, `load_s_tables`); there is a spawn pool of `workers`, or serial when `workers=0`.
+> - After the last fetch, drain until nothing is dirty.
+> - Runs come only from fetch keys (`ensure_run`), never from `create_runs`. `# ponytail:` replay covers only the polled cohort; at 1.8 s per run (G8-local), a whole-network replay at 60× cannot keep up on the PC; add hourly `create_runs` for a network-wide day on the VM.
+>
+> **Result:**
+> - `{applied, invalid, no_version, invalid_share, a1: report.a1(conn, day start, day end), a6: {count, p50, p95, max}, replay_errors, runs_discovered, runs_framed, forecast_issues}`, written to `DIR/report.json`.
+> - A6 is wall seconds from the commit of a changed `store_status` to the commit of the first later frame containing that run. It covers the engine part of A10 only; API delivery is pinned by Task 34.
+> - `invalid_share = invalid / fetches`.
+>
+> **Tests:**
+> - `tests/ops/test_replay_day.py`, on synthetic sources built like `tests/ops/test_pilot_bridge.py`:
+>   - export order and IST-day filtering, with the source read-only;
+>   - the ref round trip, including a later insert after load that does not collide with a sequence;
+>   - replay produces evidence and a frame for every discovered run, counts an invalid body and a no-version key, writes A1 metrics at simulated timestamps, records A6 samples, and writes `report.json`;
+>   - the existing `test_pilot_bridge.py` still passes.
+> - `tests/e2e/test_replay_day.py` is skipped unless `MSYND_REPLAY_DAY=<dir>`. It creates and drops its own database, replays at 60× and asserts:
+>   - `invalid_share < 0.01`;
+>   - `replay_errors == 0`;
+>   - every discovered run framed;
+>   - `a1.minutes > 0`;
+>   - a finite `a6.p95`.
+
 - [ ] The test feeds the bodies in `received_at` order at 60× through parsers → store → engine on a test database. It asserts: A1 reported, A6 p95 measured, `invalid` < 1 %, no unhandled exceptions, and frames are produced for every discovered run.
 - [ ] Commit `task 33: replay-day e2e`.
 - [ ] **🛑 Monitor:** run it on a recorded day; run G8 on the VM with all services up (apply §9.7 only to a measured bottleneck); run 7 days live and record A1, A2 and A6, and that `sim.forecast_issue` is populating, in `docs/gates/phase4.md`.
