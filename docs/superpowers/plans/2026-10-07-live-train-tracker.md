@@ -1151,7 +1151,7 @@ Spec §4.3 and §12.1. It reads only the evidence DB and sends no HTTP.
   - With no residuals, write nothing and return `None`.
 - `main()` runs `leg_bias` first, in its own transaction. An exception there is logged with `log.exception`, and retention and backup still run.
 
-- [ ] Tests:
+- [x] Tests:
   - `test_bias_shrinkage`: a stub run model whose P50 differs by delay level; three segments of one pair and bucket, with known labels and departure delays between two levels. Expect `bias_min == median(label - interpolated P50) * 3/23` and `n == 3`.
   - `test_bucket_matches_engine`: a segment with `sched_dep >= 1440` (multi-day) is written under `int(sched_dep % 1440 // 180)`, and `cache.tables_for` at the new gen returns that bias for the segment.
   - `test_window_and_maturity`: a departure older than 7 days, an arrival newer than 6 h, and an unfinished run are all excluded.
@@ -1159,7 +1159,7 @@ Spec §4.3 and §12.1. It reads only the evidence DB and sends no HTTP.
   - `test_keeps_previous_generation`: after three calls, only gens 2 and 3 remain.
   - `test_provisional_run_model_writes_nothing`.
   - `test_bias_failure_still_runs_retention_and_backup` (`main`'s collaborators monkeypatched).
-- [ ] Commit `task 38b: nightly leg bias`.
+- [x] Commit `task 38b: nightly leg bias`.
 
 ### Task 39: Kaggle pipeline (gated: G1 allows export **and** 🛑 G6 passes)
 
