@@ -57,12 +57,15 @@ def canonical_events(route_stops) -> tuple[RouteEvent, ...]:
                     stop["halt_idx"] - (kind == "arr")))
             previous = stop
         else:
-            scheduled = stop["sched_off"]
-            if scheduled is None:
-                following = next(s for s in halts if s["idx"] > stop["idx"])
+            # A source pass time can come from another timetable; keep it only between its neighbours.
+            following = next((s for s in halts if s["idx"] > stop["idx"]), None)
+            if following is None:
+                raise ValueError(f"passing station {stop['station']} after destination")
+            earliest, scheduled = events[-1].sched_off, stop["sched_off"]
+            if scheduled is None or not earliest <= scheduled <= following["arr_off"]:
                 distance = following["dist_km"] - previous["dist_km"]
                 fraction = (stop["dist_km"] - previous["dist_km"])/distance if distance else 0
-                scheduled = previous["dep_off"] + fraction*(following["arr_off"] - previous["dep_off"])
+                scheduled = max(earliest, previous["dep_off"] + fraction*(following["arr_off"] - previous["dep_off"]))
             events.append(RouteEvent(len(events), stop["station"], stop["occ"], "pass",
                 stop["idx"], None, scheduled, stop["dist_km"], previous["halt_idx"]))
     return tuple(events)
