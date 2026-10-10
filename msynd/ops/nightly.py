@@ -1,18 +1,74 @@
-"""Retention and backup jobs; callers own retention transactions."""
-from datetime import datetime, timedelta, timezone
+"""Nightly leg bias, retention and backup jobs."""
+from collections import defaultdict
+from datetime import datetime, time, timedelta, timezone
 import json
 import logging
 import os
 from pathlib import Path
 import re
 import shutil
+from statistics import median
 import subprocess
 
 from msynd.db import connect
 from msynd.config import settings
-from msynd.labels import IST
+from msynd.dist import Eff, eff_quantile, level_weight
+from msynd.engine import cache
+from msynd.features.build import segment_queries
+from msynd.labels import IST, build_live_labels
+from msynd.models import registry
 
 log = logging.getLogger(__name__)
+
+
+def leg_bias(conn, now, models=None) -> int | None:
+    with conn.transaction():
+        models = registry.active(conn) if models is None else models
+        model_id, artifact = models['run']
+        if model_id is None:
+            return None
+        labels = {(row['run_id'], row['idx']): row['value'] for row in
+                  build_live_labels(conn, now - timedelta(hours=6)).to_pylist()
+                  if row['role'] == 'run'}
+        if not labels:
+            return None
+        departures = conn.execute('''
+            SELECT r.id,r.start_date,s.idx,s.dep_off,d.actual_ts
+            FROM obs.run r JOIN ref.schedule_stop s ON s.version_id=r.schedule_version_id
+            JOIN obs.event d ON d.run_id=r.id AND d.station=s.station
+              AND d.occ=s.occ AND d.kind='dep'
+            WHERE r.id=ANY(%s) AND d.actual_ts >= %s
+        ''', (list({run for run, _ in labels}), now - timedelta(days=7)))
+        runs = defaultdict(dict)
+        for run, start, idx, scheduled, actual in departures:
+            if (run, idx) in labels:
+                base = datetime.combine(start, time(), IST)
+                runs[run][idx] = (actual - base).total_seconds() / 60 - scheduled
+        residuals = defaultdict(list)
+        for run, delays in runs.items():
+            queries = segment_queries(conn, run, now)
+            masses, lo, hi = cache._predict(conn, artifact, queries)
+            for i, row in enumerate(queries.to_pylist()):
+                idx = row['idx']
+                if idx not in delays:
+                    continue
+                j, w = level_weight(delays[idx])
+                p50 = eff_quantile(Eff(masses[i], True, lo[i].max(), hi[i].max(),
+                                      j, w, 0, 1, -float('inf'), 0, 1), 0.5)
+                key = (row['from_stn'], row['to_stn'], int(row['sched_dep'] % 1440 // 180))
+                residuals[key].append(labels[(run, idx)] - p50)
+        if not residuals:
+            return None
+        # Serialize generation allocation for this model, including concurrent nightly jobs.
+        conn.execute('SELECT id FROM ml.model WHERE id=%s FOR UPDATE', (model_id,))
+        gen = conn.execute('SELECT coalesce(max(gen),0)+1 FROM ml.leg_bias WHERE model_id=%s',
+                           (model_id,)).fetchone()[0]
+        for (a, b, bucket), values in residuals.items():
+            n = len(values)
+            conn.execute('INSERT INTO ml.leg_bias VALUES (%s,%s,%s,%s,%s,%s,%s)',
+                         (model_id, gen, a, b, bucket, median(values) * n / (n + 20), n))
+        conn.execute('DELETE FROM ml.leg_bias WHERE model_id=%s AND gen < %s', (model_id, gen - 1))
+        return gen
 
 
 def prune_bodies(conn, now, ok_hours):
@@ -99,6 +155,11 @@ def backup(*, database_url=None, bucket=None, directory='/data/backups', now=Non
 def main():
     now = datetime.now(timezone.utc)
     with connect() as conn:
+        try:
+            with conn.transaction():
+                leg_bias(conn, now)
+        except Exception:
+            log.exception('leg bias failed')
         _, hours = disk_check('/data', conn=conn)
         prune_bodies(conn, now, hours)
         prune_rows(conn, now)
