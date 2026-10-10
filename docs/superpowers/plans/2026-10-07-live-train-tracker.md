@@ -1500,12 +1500,36 @@ Akamai rejects MMT requests from the VM's IP, while the user's home connection w
 - `compose.relay.yaml` is opt-in via `COMPOSE_FILE=compose.yaml:compose.relay.yaml`: the collector uses `network_mode: host`, `DATABASE_URL` points at `127.0.0.1:55432` (same `POSTGRES_PASSWORD` default), and `MSYND_PROXY=http://127.0.0.1:18080`.
 - `docs/deploy.md` gains a short "Residential relay" section: the PC command, the VM sshd keep-alive drop-in (`ClientAliveInterval 30`, `ClientAliveCountMax 3`, so a dead session frees the forwarded port), the `.env` lines, and that the PC must stay powered with the lid open.
 
-- [ ] Tests:
+- [x] Tests:
   - `test_real_transport_uses_proxy_from_env` (with and without `MSYND_PROXY`; still raises without `MSYND_LIVE`);
   - relay: an allowlisted CONNECT tunnels bytes both ways to a local echo server (allowlist patched); other host, other port and non-CONNECT get 403; an oversized head is rejected; the supervisor restarts a fake ssh command;
   - deploy: the budget interpolation, and the relay override's network mode, DSN and proxy.
-- [ ] Commit `task 52: residential relay egress`.
-- [ ] Monitor: VM sshd drop-in, relay on the PC, MMT reachable through the tunnel, then the collector with `MSYND_LIVE=1`.
+- [x] Commit `task 52: residential relay egress`.
+- [x] Monitor: VM sshd drop-in and the tunnel work, and the relay reaches MMT from the PC (200, 0.5 s). From the VM, the image's client (Debian 13, OpenSSL 3.5) completes TLS through the tunnel, but MMT never answers (30 s read timeout, 2 KB up against the PC's 1 KB). Superseded by Task 53.
+
+### Task 53 (amendment 2026-10-11): the PC's client makes the MMT request (supersedes Task 52's CONNECT path)
+
+Through Task 52's tunnel, Akamai accepts TLS from the VM image's client (OpenSSL 3.5) but never answers the request, while the PC's client (the one the pilot used, OpenSSL 3.0) gets 200 at once. The VM's TLS is not tuned to imitate anything. Instead, the PC's own httpx client makes each HTTPS request, so source traffic is exactly what the approved PC pilot sent. The VM dispatcher still owns spacing, budgets, retries and logging, and the relay forwards one request per incoming request, never retrying.
+
+**Files:** modify `msynd/collect/relay.py`, `msynd/collect/dispatcher.py`, `compose.relay.yaml`, `docs/deploy.md`, `tests/collect/test_relay.py`, `tests/collect/test_dispatcher.py`, `tests/test_deploy.py`.
+
+**Interfaces:**
+- `relay.handle` replaces CONNECT tunnelling with plain HTTP/1.1 forwarding:
+  - it reads one request (head ≤ 8 KiB, `Content-Length` body ≤ 64 KiB, no chunked);
+  - the `Host` header must equal the allowlisted host and the target must be origin-form (`/path?query`), else 403;
+  - it sends the request to `https://HOST/path` through a shared `httpx.AsyncClient` (no redirects, 25 s timeout, no retries), forwarding the method, body and the end-to-end request headers (hop-by-hop headers, `Host`, `Content-Length` and `Accept-Encoding` are dropped);
+  - it returns the upstream status with `Content-Type` and `Retry-After` when present, the decoded body, `Content-Length` and `Connection: close`;
+  - an upstream httpx error gives 502 and a log line without payloads.
+- `real_transport()` keeps the `MSYND_LIVE` guard. When `MSYND_RELAY` (an `http://host:port` URL) is set, it returns a transport that rewrites each request's scheme, host and port to the relay while keeping the original `Host` header. `MSYND_PROXY` is removed.
+- `compose.relay.yaml` sets `MSYND_RELAY=http://127.0.0.1:18080` in place of `MSYND_PROXY`.
+- `docs/deploy.md`: the relay section says the PC makes the HTTPS request.
+
+- [ ] Tests:
+  - relay: a forwarded POST reaches a local stub server (allowlist and upstream base patched to loopback http) with method, path, query, body and headers intact, and the status, content type, Retry-After and body come back; a wrong Host, an absolute-form target, CONNECT, an oversized head and an oversized body get 403 with no upstream call; an upstream failure gives 502;
+  - dispatcher: with `MSYND_RELAY`, a request to `https://rails-ris.makemytrip.com/x?y=1` reaches the relay URL with `Host: rails-ris.makemytrip.com`;
+  - deploy: the override sets `MSYND_RELAY`.
+- [ ] Commit `task 53: pc client relay`.
+- [ ] Monitor: relay restarted on the PC, one MMT request from the VM through it, then the collector with `MSYND_LIVE=1`.
 
 ---
 
