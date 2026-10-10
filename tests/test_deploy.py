@@ -17,7 +17,7 @@ def compose():
         [docker, 'compose', '--project-directory', str(root), '--env-file',
          str(root / '.env.example'), '--profile', 'app', '--profile', 'ops',
          'config', '--format', 'json'],
-        env=os.environ | {'DUCKDNS_HOST': 'test.invalid', 'BASIC_AUTH_USER': 'test',
+        env=os.environ | {'POSTGRES_PASSWORD': 'testpw', 'DUCKDNS_HOST': 'test.invalid', 'BASIC_AUTH_USER': 'test',
                          'BASIC_AUTH_HASH': '$2a$14$example'},
         check=True, capture_output=True, text=True,
     )
@@ -28,6 +28,7 @@ def test_db_only_start_preserves_pilot_storage_and_port(compose):
     services = compose['services']
     assert {name for name, service in services.items() if not service.get('profiles')} == {'db'}
     assert services['db']['image'] == 'postgres:16'
+    assert services['db']['environment']['POSTGRES_PASSWORD'] == 'testpw'
     port, = services['db']['ports']
     assert (port['host_ip'], port['published'], port['target']) == ('127.0.0.1', '55432', 5432)
     volume, = services['db']['volumes']
@@ -45,7 +46,7 @@ def test_app_services_have_private_ports_and_bounded_logs(compose):
             'driver': 'json-file', 'options': {'max-size': '10m', 'max-file': '5'}}
         if name != 'caddy':
             assert not service.get('ports')
-            assert service['environment']['DATABASE_URL'] == 'postgresql://msynd:msynd@db:5432/msynd'
+            assert service['environment']['DATABASE_URL'] == 'postgresql://msynd:testpw@db:5432/msynd'
     caddy = compose['services']['caddy']
     assert {p['target'] for p in caddy['ports']} == {80, 443}
     # Compose re-escapes dollars when rendering reusable configuration.

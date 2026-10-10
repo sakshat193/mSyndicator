@@ -3,7 +3,7 @@ x-python: &python
   build: .
   restart: unless-stopped
   environment: &environment
-    DATABASE_URL: postgresql://msynd:msynd@db:5432/msynd
+    DATABASE_URL: postgresql://msynd:${POSTGRES_PASSWORD:-msynd}@db:5432/msynd
     MSYND_LIVE: "0"
     N_PARTICLES: ${N_PARTICLES:-10000}
     K_PATHS: ${K_PATHS:-32}
@@ -25,7 +25,7 @@ services:
     image: postgres:16
     environment:
       POSTGRES_USER: msynd
-      POSTGRES_PASSWORD: msynd
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-msynd}
       POSTGRES_DB: msynd
     ports:
       - "127.0.0.1:55432:5432"
