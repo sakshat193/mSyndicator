@@ -351,43 +351,106 @@
       "station": "RWF",
       "occ": 1,
       "dist_km": 406.0,
-      "sched_off": 1004.0
+      "sched_off": 1004.0,
+      "after": [
+        "SBC",
+        1
+      ],
+      "before": [
+        "BNC",
+        2
+      ],
+      "fraction": 0.9259259259259259
     },
     {
       "station": "RNN",
       "occ": 1,
       "dist_km": 414.0,
-      "sched_off": 1010.0
+      "sched_off": 1010.0,
+      "after": [
+        "BNC",
+        2
+      ],
+      "before": [
+        "YNK",
+        1
+      ],
+      "fraction": 0.1
     },
     {
       "station": "DBU",
       "occ": 1,
       "dist_km": 426.0,
-      "sched_off": 1019.0
+      "sched_off": 1019.0,
+      "after": [
+        "BNC",
+        2
+      ],
+      "before": [
+        "YNK",
+        1
+      ],
+      "fraction": 0.3
     },
     {
       "station": "ORH",
       "occ": 1,
       "dist_km": 434.0,
-      "sched_off": 1024.0
+      "sched_off": 1024.0,
+      "after": [
+        "BNC",
+        2
+      ],
+      "before": [
+        "YNK",
+        1
+      ],
+      "fraction": 0.43333333333333335
     },
     {
       "station": "MKL",
       "occ": 1,
       "dist_km": 444.0,
-      "sched_off": 1032.0
+      "sched_off": 1032.0,
+      "after": [
+        "BNC",
+        2
+      ],
+      "before": [
+        "YNK",
+        1
+      ],
+      "fraction": 0.6
     },
     {
       "station": "TDV",
       "occ": 1,
       "dist_km": 453.0,
-      "sched_off": 1039.0
+      "sched_off": 1039.0,
+      "after": [
+        "BNC",
+        2
+      ],
+      "before": [
+        "YNK",
+        1
+      ],
+      "fraction": 0.75
     },
     {
       "station": "SMWA",
       "occ": 1,
       "dist_km": 460.0,
-      "sched_off": 1044.0
+      "sched_off": 1044.0,
+      "after": [
+        "BNC",
+        2
+      ],
+      "before": [
+        "YNK",
+        1
+      ],
+      "fraction": 0.8666666666666667
     }
   ],
   "exceptions": [],

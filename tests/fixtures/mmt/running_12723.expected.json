@@ -201,295 +201,736 @@
       "station": "GNQ",
       "occ": 1,
       "dist_km": 592.0,
-      "sched_off": 932.0
+      "sched_off": 932.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.012626262626262626
     },
     {
       "station": "BWRA",
       "occ": 1,
       "dist_km": 598.0,
-      "sched_off": 938.0
+      "sched_off": 938.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.027777777777777776
     },
     {
       "station": "KSWR",
       "occ": 1,
       "dist_km": 609.0,
-      "sched_off": 949.0
+      "sched_off": 949.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.05555555555555555
     },
     {
       "station": "KOHL",
       "occ": 1,
       "dist_km": 621.0,
-      "sched_off": 961.0
+      "sched_off": 961.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.08585858585858586
     },
     {
       "station": "SNKB",
       "occ": 1,
       "dist_km": 629.0,
-      "sched_off": 969.0
+      "sched_off": 969.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.10606060606060606
     },
     {
       "station": "MER",
       "occ": 1,
       "dist_km": 636.0,
-      "sched_off": 975.0
+      "sched_off": 975.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.12373737373737374
     },
     {
       "station": "KATL",
       "occ": 1,
       "dist_km": 645.0,
-      "sched_off": 984.0
+      "sched_off": 984.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.14646464646464646
     },
     {
       "station": "KLBA",
       "occ": 1,
       "dist_km": 656.0,
-      "sched_off": 994.0
+      "sched_off": 994.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.17424242424242425
     },
     {
       "station": "TNH",
       "occ": 1,
       "dist_km": 664.0,
-      "sched_off": 1002.0
+      "sched_off": 1002.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.19444444444444445
     },
     {
       "station": "XX-NRKC",
       "occ": 1,
       "dist_km": 669.0,
-      "sched_off": 1008.0
+      "sched_off": 1008.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.20707070707070707
     },
     {
       "station": "NRKR",
       "occ": 1,
       "dist_km": 671.0,
-      "sched_off": 1009.0
+      "sched_off": 1009.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.21212121212121213
     },
     {
       "station": "DDMT",
       "occ": 1,
       "dist_km": 680.0,
-      "sched_off": 1018.0
+      "sched_off": 1018.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.23484848484848486
     },
     {
       "station": "PAR",
       "occ": 1,
       "dist_km": 689.0,
-      "sched_off": 1027.0
+      "sched_off": 1027.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.25757575757575757
     },
     {
       "station": "TEO",
       "occ": 1,
       "dist_km": 698.0,
-      "sched_off": 1035.0
+      "sched_off": 1035.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.2803030303030303
     },
     {
       "station": "GDKP",
       "occ": 1,
       "dist_km": 705.0,
-      "sched_off": 1043.0
+      "sched_off": 1043.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.29797979797979796
     },
     {
       "station": "CCD",
       "occ": 1,
       "dist_km": 714.0,
-      "sched_off": 1052.0
+      "sched_off": 1052.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.3207070707070707
     },
     {
       "station": "HTN",
       "occ": 1,
       "dist_km": 720.0,
-      "sched_off": 1057.0
+      "sched_off": 1057.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.33585858585858586
     },
     {
       "station": "MTY",
       "occ": 1,
       "dist_km": 729.0,
-      "sched_off": 1066.0
+      "sched_off": 1066.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.35858585858585856
     },
     {
       "station": "JKR",
       "occ": 1,
       "dist_km": 741.0,
-      "sched_off": 1077.0
+      "sched_off": 1077.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.3888888888888889
     },
     {
       "station": "AMLA",
       "occ": 1,
       "dist_km": 753.0,
-      "sched_off": 1089.0
+      "sched_off": 1089.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.41919191919191917
     },
     {
       "station": "AMLX",
       "occ": 1,
       "dist_km": 754.0,
-      "sched_off": 1090.0
+      "sched_off": 1090.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.4217171717171717
     },
     {
       "station": "BYS",
       "occ": 1,
       "dist_km": 763.0,
-      "sched_off": 1099.0
+      "sched_off": 1099.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.4444444444444444
     },
     {
       "station": "MALK",
       "occ": 1,
       "dist_km": 769.0,
-      "sched_off": 1105.0
+      "sched_off": 1105.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.4595959595959596
     },
     {
       "station": "BZU",
       "occ": 1,
       "dist_km": 776.0,
-      "sched_off": 1112.0
+      "sched_off": 1112.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.4772727272727273
     },
     {
       "station": "MJY",
       "occ": 1,
       "dist_km": 784.0,
-      "sched_off": 1120.0
+      "sched_off": 1120.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.49747474747474746
     },
     {
       "station": "DHQ",
       "occ": 1,
       "dist_km": 797.0,
-      "sched_off": 1133.0
+      "sched_off": 1133.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.5303030303030303
     },
     {
       "station": "GDYA",
       "occ": 1,
       "dist_km": 812.0,
-      "sched_off": 1147.0
+      "sched_off": 1147.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.5681818181818182
     },
     {
       "station": "BBTR",
       "occ": 1,
       "dist_km": 824.0,
-      "sched_off": 1159.0
+      "sched_off": 1159.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.5984848484848485
     },
     {
       "station": "MGRD",
       "occ": 1,
       "dist_km": 830.0,
-      "sched_off": 1165.0
+      "sched_off": 1165.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.6136363636363636
     },
     {
       "station": "DOH",
       "occ": 1,
       "dist_km": 835.0,
-      "sched_off": 1169.0
+      "sched_off": 1169.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.6262626262626263
     },
     {
       "station": "POX",
       "occ": 1,
       "dist_km": 843.0,
-      "sched_off": 1177.0
+      "sched_off": 1177.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.6464646464646465
     },
     {
       "station": "KQE",
       "occ": 1,
       "dist_km": 850.0,
-      "sched_off": 1184.0
+      "sched_off": 1184.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.6641414141414141
     },
     {
       "station": "SAHL",
       "occ": 1,
       "dist_km": 856.0,
-      "sched_off": 1190.0
+      "sched_off": 1190.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.6792929292929293
     },
     {
       "station": "TAKU",
       "occ": 1,
       "dist_km": 860.0,
-      "sched_off": 1194.0
+      "sched_off": 1194.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.6893939393939394
     },
     {
       "station": "KSLA",
       "occ": 1,
       "dist_km": 866.0,
-      "sched_off": 1200.0
+      "sched_off": 1200.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.7045454545454546
     },
     {
       "station": "KRTH",
       "occ": 1,
       "dist_km": 872.0,
-      "sched_off": 1205.0
+      "sched_off": 1205.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.7196969696969697
     },
     {
       "station": "XX-ETCC",
       "occ": 1,
       "dist_km": 878.0,
-      "sched_off": 1211.0
+      "sched_off": 1211.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.7348484848484849
     },
     {
       "station": "JHP",
       "occ": 1,
       "dist_km": 880.0,
-      "sched_off": 1213.0
+      "sched_off": 1213.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.73989898989899
     },
     {
       "station": "PRKD",
       "occ": 1,
       "dist_km": 891.0,
-      "sched_off": 1224.0
+      "sched_off": 1224.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.7676767676767676
     },
     {
       "station": "NDPM",
       "occ": 1,
       "dist_km": 900.0,
-      "sched_off": 1233.0
+      "sched_off": 1233.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.7904040404040404
     },
     {
       "station": "BNI",
       "occ": 1,
       "dist_km": 908.0,
-      "sched_off": 1240.0
+      "sched_off": 1240.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.8106060606060606
     },
     {
       "station": "MIG",
       "occ": 1,
       "dist_km": 914.0,
-      "sched_off": 1247.0
+      "sched_off": 1247.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.8257575757575758
     },
     {
       "station": "CHQ",
       "occ": 1,
       "dist_km": 920.0,
-      "sched_off": 1252.0
+      "sched_off": 1252.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.8409090909090909
     },
     {
       "station": "BKA",
       "occ": 1,
       "dist_km": 927.0,
-      "sched_off": 1259.0
+      "sched_off": 1259.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.8585858585858586
     },
     {
       "station": "ODG",
       "occ": 1,
       "dist_km": 938.0,
-      "sched_off": 1270.0
+      "sched_off": 1270.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.8863636363636364
     },
     {
       "station": "ITKL",
       "occ": 1,
       "dist_km": 947.0,
-      "sched_off": 1278.0
+      "sched_off": 1278.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.9090909090909091
     },
     {
       "station": "MDDP",
       "occ": 1,
       "dist_km": 952.0,
-      "sched_off": 1283.0
+      "sched_off": 1283.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.9217171717171717
     },
     {
       "station": "MSO",
       "occ": 1,
       "dist_km": 962.0,
-      "sched_off": 1293.0
+      "sched_off": 1293.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.946969696969697
     },
     {
       "station": "RKMP",
       "occ": 1,
       "dist_km": 968.0,
-      "sched_off": 1299.0
+      "sched_off": 1299.0,
+      "after": [
+        "NGP",
+        1
+      ],
+      "before": [
+        "BPL",
+        1
+      ],
+      "fraction": 0.9621212121212122
     }
   ],
   "exceptions": [],

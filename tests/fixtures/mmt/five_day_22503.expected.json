@@ -701,55 +701,136 @@
       "station": "AJRE",
       "occ": 1,
       "dist_km": 3662.0,
-      "sched_off": 4944.0
+      "sched_off": 4944.0,
+      "after": [
+        "GHY",
+        1
+      ],
+      "before": [
+        "JID",
+        1
+      ],
+      "fraction": 0.5263157894736842
     },
     {
       "station": "SNBR",
       "occ": 1,
       "dist_km": 3667.0,
-      "sched_off": 4948.0
+      "sched_off": 4948.0,
+      "after": [
+        "GHY",
+        1
+      ],
+      "before": [
+        "JID",
+        1
+      ],
+      "fraction": 0.6140350877192983
     },
     {
       "station": "DML",
       "occ": 1,
       "dist_km": 3673.0,
-      "sched_off": 4952.0
+      "sched_off": 4952.0,
+      "after": [
+        "GHY",
+        1
+      ],
+      "before": [
+        "JID",
+        1
+      ],
+      "fraction": 0.7192982456140351
     },
     {
       "station": "TGE",
       "occ": 1,
       "dist_km": 3680.0,
-      "sched_off": 4957.0
+      "sched_off": 4957.0,
+      "after": [
+        "GHY",
+        1
+      ],
+      "before": [
+        "JID",
+        1
+      ],
+      "fraction": 0.8421052631578947
     },
     {
       "station": "CPK",
       "occ": 1,
       "dist_km": 3688.0,
-      "sched_off": 4962.0
+      "sched_off": 4962.0,
+      "after": [
+        "GHY",
+        1
+      ],
+      "before": [
+        "JID",
+        1
+      ],
+      "fraction": 0.9824561403508771
     },
     {
       "station": "LPN",
       "occ": 1,
       "dist_km": 3697.0,
-      "sched_off": 4968.0
+      "sched_off": 4968.0,
+      "after": [
+        "JID",
+        1
+      ],
+      "before": [
+        "HJI",
+        1
+      ],
+      "fraction": 0.10126582278481013
     },
     {
       "station": "KWM",
       "occ": 1,
       "dist_km": 3706.0,
-      "sched_off": 4974.0
+      "sched_off": 4974.0,
+      "after": [
+        "JID",
+        1
+      ],
+      "before": [
+        "HJI",
+        1
+      ],
+      "fraction": 0.21518987341772153
     },
     {
       "station": "JMK",
       "occ": 1,
       "dist_km": 3716.0,
-      "sched_off": 4982.0
+      "sched_off": 4982.0,
+      "after": [
+        "JID",
+        1
+      ],
+      "before": [
+        "HJI",
+        1
+      ],
+      "fraction": 0.34177215189873417
     },
     {
       "station": "JGJN",
       "occ": 1,
       "dist_km": 3726.0,
-      "sched_off": 4988.0
+      "sched_off": 4988.0,
+      "after": [
+        "JID",
+        1
+      ],
+      "before": [
+        "HJI",
+        1
+      ],
+      "fraction": 0.46835443037974683
     }
   ],
   "exceptions": [],

@@ -7,7 +7,7 @@ import re
 import httpx
 
 from msynd.collect.dispatcher import Dispatcher, real_transport
-from msynd.collect.status import Event, InvalidResponse, ParsedStatus, PassingStation, Pending
+from msynd.collect.status import Event, InvalidResponse, ParsedStatus, PassingStation, Pending, position_passing
 from msynd.db import connect
 
 HOST = "api.railradar.in"
@@ -82,6 +82,8 @@ def parse_status(body, train, start):
             for observed, sched in zip(actual, scheduled):
                 if observed is not None and sched is not None and (observed-sched).total_seconds() > 86400:
                     flags.add("delay_over_24h")
+            sched = scheduled[1] or scheduled[0]
+            passing.append((station, occ, halt, float(distance), (sched-base).total_seconds()/60 if sched else None))
             if halt:
                 for kind, observed, sched in zip(("arr", "dep"), actual, scheduled):
                     if observed is not None:
@@ -91,14 +93,12 @@ def parse_status(body, train, start):
             else:
                 if all(actual) and actual[0] != actual[1]:
                     raise InvalidResponse("passing station has conflicting actual times")
-                sched = scheduled[1] or scheduled[0]
-                passing.append(PassingStation(station, occ, float(distance), (sched-base).total_seconds()/60 if sched else None))
                 observed = actual[1] or actual[0]
                 if observed is not None:
                     events.append(Event(station, occ, "pass", observed))
                 elif sched is not None and row.get("status") == "upcoming":
                     pending.append(Pending(station, occ, "pass"))
-        return ParsedStatus(train, start, data["status"], updated, tuple(events), tuple(pending), tuple(passing), tuple(exceptions), tuple(sorted(flags)))
+        return ParsedStatus(train, start, data["status"], updated, tuple(events), tuple(pending), position_passing(passing), tuple(exceptions), tuple(sorted(flags)))
     except (KeyError, TypeError, ValueError, OverflowError) as error:
         if isinstance(error, InvalidResponse):
             raise

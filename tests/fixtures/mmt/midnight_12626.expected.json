@@ -459,103 +459,256 @@
       "station": "XX-RDMC",
       "occ": 1,
       "dist_km": 1444.0,
-      "sched_off": 2461.0
+      "sched_off": 2461.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.009900990099009901
     },
     {
       "station": "XX-RDMB",
       "occ": 1,
       "dist_km": 1445.0,
-      "sched_off": 2461.0
+      "sched_off": 2461.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.019801980198019802
     },
     {
       "station": "RGPM",
       "occ": 1,
       "dist_km": 1453.0,
-      "sched_off": 2468.0
+      "sched_off": 2468.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.09900990099009901
     },
     {
       "station": "PDPL",
       "occ": 1,
       "dist_km": 1461.0,
-      "sched_off": 2475.0
+      "sched_off": 2475.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.1782178217821782
     },
     {
       "station": "XX-PDPB",
       "occ": 1,
       "dist_km": 1466.0,
-      "sched_off": 2479.0
+      "sched_off": 2479.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.22772277227722773
     },
     {
       "station": "KYOP",
       "occ": 1,
       "dist_km": 1469.0,
-      "sched_off": 2483.0
+      "sched_off": 2483.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.25742574257425743
     },
     {
       "station": "KOLR",
       "occ": 1,
       "dist_km": 1475.0,
-      "sched_off": 2487.0
+      "sched_off": 2487.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.31683168316831684
     },
     {
       "station": "OEA",
       "occ": 1,
       "dist_km": 1480.0,
-      "sched_off": 2492.0
+      "sched_off": 2492.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.36633663366336633
     },
     {
       "station": "PTKP",
       "occ": 1,
       "dist_km": 1483.0,
-      "sched_off": 2495.0
+      "sched_off": 2495.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.39603960396039606
     },
     {
       "station": "BGSF",
       "occ": 1,
       "dist_km": 1494.0,
-      "sched_off": 2504.0
+      "sched_off": 2504.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.504950495049505
     },
     {
       "station": "JMKT",
       "occ": 1,
       "dist_km": 1500.0,
-      "sched_off": 2510.0
+      "sched_off": 2510.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.5643564356435643
     },
     {
       "station": "OPL",
       "occ": 1,
       "dist_km": 1512.0,
-      "sched_off": 2520.0
+      "sched_off": 2520.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.6831683168316832
     },
     {
       "station": "HSP",
       "occ": 1,
       "dist_km": 1524.0,
-      "sched_off": 2530.0
+      "sched_off": 2530.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.801980198019802
     },
     {
       "station": "KMPT",
       "occ": 1,
       "dist_km": 1531.0,
-      "sched_off": 2536.0
+      "sched_off": 2536.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.8712871287128713
     },
     {
       "station": "KZJE",
       "occ": 1,
       "dist_km": 1535.0,
-      "sched_off": 2539.0
+      "sched_off": 2539.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.9108910891089109
     },
     {
       "station": "KZJT",
       "occ": 1,
       "dist_km": 1535.0,
-      "sched_off": 2540.0
+      "sched_off": 2540.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.9108910891089109
     },
     {
       "station": "KZJF",
       "occ": 1,
       "dist_km": 1536.0,
-      "sched_off": 2541.0
+      "sched_off": 2541.0,
+      "after": [
+        "RDM",
+        1
+      ],
+      "before": [
+        "WL",
+        1
+      ],
+      "fraction": 0.9207920792079208
     }
   ],
   "exceptions": [],

@@ -157,7 +157,7 @@ def test_dirty_in_same_txn(db):
         store(db, run, page(events=(Event('BRC', 1, 'arr', ist('08:30')),),
                             pending=(Pending('NDLS', 1, 'arr'),),
                             etas=(Eta('NDLS', 1, 'arr', ist('11:00')),),
-                            passing_stations=(PassingStation('PASS', 1, 196, None),)))
+                            passing_stations=(PassingStation('PASS', 1, 196, None, ('MMCT', 1), ('BRC', 1), .5),)))
         assert db.execute('SELECT run_id FROM obs.dirty_run').fetchall() == [(run,)]
         raise RuntimeError('abort evidence transaction')
     for table in ('event_rev', 'pending_rev', 'ntes_eta_rev', 'dirty_run'):
@@ -185,7 +185,7 @@ def test_enrichment_never_rekeys(db):
     unrelated = make_run(db, train='99999')
     store(db, run, page(events=(Event('BRC', 1, 'arr', ist('08:30')),)))
     before = db.execute('SELECT id,station,occ,kind FROM obs.event_rev WHERE run_id=%s', (run,)).fetchall()
-    parsed = page(passing_stations=(PassingStation('PASS', 1, 196, None),))
+    parsed = page(passing_stations=(PassingStation('PASS', 1, 196, None, ('MMCT', 1), ('BRC', 1), .5),))
     assert store(db, run, parsed, '09:10').changed
     new_route = db.execute('SELECT route_version_id FROM obs.run WHERE id=%s', (run,)).fetchone()[0]
     assert new_route != old_route
@@ -206,9 +206,71 @@ def test_enrichment_never_rekeys(db):
     assert db.execute('SELECT count(*) FROM ref.route_version').fetchone() == (3,)
     # New knowledge is a union, never a deletion of an earlier passing station.
     store(db, other, replace(parsed, start_date=date(2026, 10, 8),
-                            passing_stations=(PassingStation('PASS2', 1, 250, 200),)), '09:30')
+                            passing_stations=(PassingStation('PASS2', 1, 250, 200, ('MMCT', 1), ('BRC', 1), 250 / 392),)), '09:30')
     route = db.execute('SELECT route_version_id FROM obs.run WHERE id=%s', (run,)).fetchone()[0]
     assert db.execute('SELECT station FROM ref.route_stop WHERE route_version_id=%s AND NOT halt ORDER BY idx', (route,)).fetchall() == [('PASS',), ('PASS2',)]
+
+
+def test_page_passes_use_gtfs_gap_and_heal_stored_placement(db):
+    run = make_run(db, train='12028', halts=[('A', None, 300, 300), ('MAS', 360, None, 354)])
+    route = db.execute('SELECT route_version_id FROM obs.run WHERE id=%s', (run,)).fetchone()[0]
+    db.execute("INSERT INTO ref.station(code,name) VALUES ('PER','PER'),('PCW','PCW')")
+    db.execute("UPDATE ref.route_stop SET idx=3 WHERE route_version_id=%s AND station='MAS'", (route,))
+    db.execute("INSERT INTO ref.route_stop VALUES (%s,1,'PCW',1,false,353,NULL),(%s,4,'PER',1,false,354,355)", (route, route))
+    parsed = page(train='12028', passing_stations=(
+        PassingStation('PER', 1, 354, 355, ('A', 1), ('MAS', 1), .9),
+        PassingStation('VJM', 1, 355, 356, ('A', 1), ('MAS', 1), 11 / 12)))
+    assert store(db, run, parsed).changed
+    rows = db.execute('''SELECT station,dist_km,sched_off FROM ref.route_stop
+        WHERE route_version_id=(SELECT route_version_id FROM obs.run WHERE id=%s) ORDER BY idx''', (run,)).fetchall()
+    assert [r[0] for r in rows] == ['A', 'PER', 'VJM', 'PCW', 'MAS']
+    assert rows[1][1] == pytest.approx(348.6)
+    assert rows[2][1] == pytest.approx(349.5)
+    assert rows[1][2] == 355 and rows[2][2] == 356
+    events = load_run_evidence(db, run).events
+    assert [e.km for e in events] == sorted(e.km for e in events)
+    assert all(300 <= e.km <= 354 for e in events)
+    assert not store(db, run, parsed).changed
+
+
+@pytest.mark.parametrize('after,before', [(('MMCT', 1), ('NDLS', 1)), (('MISSING', 1), ('BRC', 1)),
+                                         (('MMCT', 2), ('BRC', 1)), (('BRC', 1), ('MMCT', 1))])
+def test_pass_with_incompatible_source_halts_skipped(db, after, before):
+    run = make_run(db)
+    assert not store(db, run, page(passing_stations=(PassingStation('PASS', 1, 196, None, after, before, .5),))).changed
+    assert db.execute('SELECT count(*) FROM ref.route_stop WHERE NOT halt').fetchone() == (0,)
+
+
+@pytest.mark.parametrize('halt_km', [392, 0])
+def test_pass_endpoint_ties_keep_page_order_between_halts(db, halt_km):
+    run = make_run(db, halts=[('MMCT', None, 0, 0), ('BRC', 300, None, halt_km)])
+    route = db.execute('SELECT route_version_id FROM obs.run WHERE id=%s', (run,)).fetchone()[0]
+    db.execute('UPDATE ref.route_stop SET idx=5 WHERE route_version_id=%s AND halt AND idx=1', (route,))
+    for idx, station in enumerate(('A1', 'A0', 'Z1', 'Z0'), 1):
+        db.execute('INSERT INTO ref.station(code,name) VALUES (%s,%s)', (station, station))
+        db.execute('INSERT INTO ref.route_stop VALUES (%s,%s,%s,1,false,0,NULL)', (route, idx, station))
+    parsed = page(passing_stations=tuple(
+        PassingStation(station, 1, km, None, ('MMCT', 1), ('BRC', 1), fraction)
+        for station, km, fraction in [('Z0', 0, 0), ('A0', 0, 0), ('Z1', 392, 1), ('A1', 392, 1)]))
+    assert store(db, run, parsed).changed
+    rows = db.execute('''SELECT station FROM ref.route_stop
+        WHERE route_version_id=(SELECT route_version_id FROM obs.run WHERE id=%s) ORDER BY idx''', (run,)).fetchall()
+    assert rows == [('MMCT',), ('Z0',), ('A0',), ('Z1',), ('A1',), ('BRC',)]
+    events = load_run_evidence(db, run).events
+    assert [e.km for e in events] == sorted(e.km for e in events)
+    assert not store(db, run, parsed).changed
+
+
+def test_enrichment_orders_gap_by_km_and_clamps_to_halts(db):
+    run = make_run(db)
+    parsed = page(passing_stations=(
+        PassingStation('FIRST', 1, 300, None, ('MMCT', 1), ('BRC', 1), 300 / 392),
+        PassingStation('SECOND', 1, 196, None, ('MMCT', 1), ('BRC', 1), .5),
+        PassingStation('BEYOND', 1, 500, None, ('MMCT', 1), ('BRC', 1), 1.5)))
+    assert store(db, run, parsed).changed
+    assert db.execute('''SELECT station,dist_km FROM ref.route_stop
+        WHERE route_version_id=(SELECT route_version_id FROM obs.run WHERE id=%s) ORDER BY idx''', (run,)).fetchall() == [
+            ('MMCT', 0), ('SECOND', 196), ('FIRST', 300), ('BEYOND', 392), ('BRC', 392), ('NDLS', 1384)]
 
 
 def test_store_failure_rolls_back_partial_writes(db):
@@ -216,7 +278,7 @@ def test_store_failure_rolls_back_partial_writes(db):
     with pytest.raises(psycopg.errors.InvalidTextRepresentation):
         store(db, run, page(events=(Event('BRC', 1, 'arr', ist('08:30')),),
                             etas=(Eta('NDLS', 1, 'invalid_kind', ist('11:00')),),
-                            passing_stations=(PassingStation('PASS', 1, 196, None),)))
+                            passing_stations=(PassingStation('PASS', 1, 196, None, ('MMCT', 1), ('BRC', 1), .5),)))
     assert db.execute('SELECT count(*) FROM obs.event_rev').fetchone() == (0,)
     assert db.execute('SELECT count(*) FROM ref.route_version').fetchone() == (1,)
     assert db.execute('SELECT count(*) FROM obs.dirty_run').fetchone() == (0,)
@@ -225,7 +287,7 @@ def test_store_failure_rolls_back_partial_writes(db):
 def test_enrichment_rebinds_runs_on_different_compatible_versions(db):
     run_a = make_run(db)
     schedule, v1 = db.execute('SELECT schedule_version_id,route_version_id FROM obs.run WHERE id=%s', (run_a,)).fetchone()
-    store(db, run_a, page(passing_stations=(PassingStation('PASS', 1, 196, None),)))
+    store(db, run_a, page(passing_stations=(PassingStation('PASS', 1, 196, None, ('MMCT', 1), ('BRC', 1), .5),)))
     v2 = db.execute('SELECT route_version_id FROM obs.run WHERE id=%s', (run_a,)).fetchone()[0]
     assert v2 != v1
     run_b = db.execute('''INSERT INTO obs.run(train,start_date,schedule_version_id,route_version_id)
@@ -234,7 +296,7 @@ def test_enrichment_rebinds_runs_on_different_compatible_versions(db):
     before = db.execute('SELECT * FROM obs.run WHERE id=%s', (unrelated,)).fetchone()
     db.execute('DELETE FROM obs.dirty_run WHERE run_id=%s', (run_a,))
 
-    assert store(db, run_a, page(passing_stations=(PassingStation('PASS2', 1, 250, 200),)), '09:10').changed
+    assert store(db, run_a, page(passing_stations=(PassingStation('PASS2', 1, 250, 200, ('MMCT', 1), ('BRC', 1), 250 / 392),)), '09:10').changed
     v3 = db.execute('SELECT route_version_id FROM obs.run WHERE id=%s', (run_a,)).fetchone()[0]
     assert v3 not in (v1, v2)
     assert db.execute('SELECT route_version_id FROM obs.run WHERE id=%s', (run_b,)).fetchone() == (v3,)

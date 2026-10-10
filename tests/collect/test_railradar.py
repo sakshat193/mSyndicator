@@ -51,6 +51,29 @@ def test_repeated_station_and_passing_keys():
     parsed = parse_status(json.dumps(p).encode(), "12919", date(2026, 10, 7))
     assert [(e.station, e.occ, e.kind) for e in parsed.events] == [("INDB", 1, "dep"), ("INDB", 2, "pass")]
     assert parsed.passing_stations[0].occ == 2
+    passing = parsed.passing_stations[0]
+    assert passing.after == ("INDB", 1) and passing.before == ("MKSM", 1)
+    assert passing.fraction == pytest.approx(55 / 96)
+
+
+def test_unbounded_passing_stations_dropped():
+    p = payload()
+    for row in p["data"]["route"][::2]:
+        row["isHalt"] = False
+    parsed = parse_status(json.dumps(p).encode(), "12919", date(2026, 10, 7))
+    assert parsed.passing_stations == ()
+
+
+def test_passing_station_equal_source_halt_km():
+    p = payload()
+    route = p["data"]["route"]
+    route[1]["isHalt"] = False
+    route[1]["actualArrival"] = route[1]["actualDeparture"]
+    for row in route:
+        row["distance"] = 0
+    passing = parse_status(json.dumps(p).encode(), "12919", date(2026, 10, 7)).passing_stations[0]
+    assert passing.after == ("INDB", 1) and passing.before == ("MKSM", 1)
+    assert passing.fraction == 0
 
 
 def test_delay_fields_and_position_never_become_actual():

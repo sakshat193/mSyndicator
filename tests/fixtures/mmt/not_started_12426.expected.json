@@ -51,55 +51,136 @@
       "station": "BBMN",
       "occ": 1,
       "dist_km": 9.0,
-      "sched_off": 1292.0
+      "sched_off": 1292.0,
+      "after": [
+        "JAT",
+        1
+      ],
+      "before": [
+        "MSKT",
+        1
+      ],
+      "fraction": 0.11688311688311688
     },
     {
       "station": "VJPJ",
       "occ": 1,
       "dist_km": 21.0,
-      "sched_off": 1303.0
+      "sched_off": 1303.0,
+      "after": [
+        "JAT",
+        1
+      ],
+      "before": [
+        "MSKT",
+        1
+      ],
+      "fraction": 0.2727272727272727
     },
     {
       "station": "BHBT",
       "occ": 1,
       "dist_km": 26.0,
-      "sched_off": 1307.0
+      "sched_off": 1307.0,
+      "after": [
+        "JAT",
+        1
+      ],
+      "before": [
+        "MSKT",
+        1
+      ],
+      "fraction": 0.33766233766233766
     },
     {
       "station": "SMBX",
       "occ": 1,
       "dist_km": 32.0,
-      "sched_off": 1313.0
+      "sched_off": 1313.0,
+      "after": [
+        "JAT",
+        1
+      ],
+      "before": [
+        "MSKT",
+        1
+      ],
+      "fraction": 0.4155844155844156
     },
     {
       "station": "GHGL",
       "occ": 1,
       "dist_km": 42.0,
-      "sched_off": 1321.0
+      "sched_off": 1321.0,
+      "after": [
+        "JAT",
+        1
+      ],
+      "before": [
+        "MSKT",
+        1
+      ],
+      "fraction": 0.5454545454545454
     },
     {
       "station": "HRNR",
       "occ": 1,
       "dist_km": 47.0,
-      "sched_off": 1326.0
+      "sched_off": 1326.0,
+      "after": [
+        "JAT",
+        1
+      ],
+      "before": [
+        "MSKT",
+        1
+      ],
+      "fraction": 0.6103896103896104
     },
     {
       "station": "CKDL",
       "occ": 1,
       "dist_km": 51.0,
-      "sched_off": 1329.0
+      "sched_off": 1329.0,
+      "after": [
+        "JAT",
+        1
+      ],
+      "before": [
+        "MSKT",
+        1
+      ],
+      "fraction": 0.6623376623376623
     },
     {
       "station": "CHNR",
       "occ": 1,
       "dist_km": 56.0,
-      "sched_off": 1334.0
+      "sched_off": 1334.0,
+      "after": [
+        "JAT",
+        1
+      ],
+      "before": [
+        "MSKT",
+        1
+      ],
+      "fraction": 0.7272727272727273
     },
     {
       "station": "BDHY",
       "occ": 1,
       "dist_km": 64.0,
-      "sched_off": 1340.0
+      "sched_off": 1340.0,
+      "after": [
+        "JAT",
+        1
+      ],
+      "before": [
+        "MSKT",
+        1
+      ],
+      "fraction": 0.8311688311688312
     }
   ],
   "exceptions": [],

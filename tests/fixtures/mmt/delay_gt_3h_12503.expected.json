@@ -373,73 +373,181 @@
       "station": "PJP",
       "occ": 1,
       "dist_km": 2482.0,
-      "sched_off": 3051.0
+      "sched_off": 3051.0,
+      "after": [
+        "KNE",
+        1
+      ],
+      "before": [
+        "NJP",
+        1
+      ],
+      "fraction": 0.10344827586206896
     },
     {
       "station": "IKC",
       "occ": 1,
       "dist_km": 2486.0,
-      "sched_off": 3056.0
+      "sched_off": 3056.0,
+      "after": [
+        "KNE",
+        1
+      ],
+      "before": [
+        "NJP",
+        1
+      ],
+      "fraction": 0.14942528735632185
     },
     {
       "station": "GIL",
       "occ": 1,
       "dist_km": 2491.0,
-      "sched_off": 3060.0
+      "sched_off": 3060.0,
+      "after": [
+        "KNE",
+        1
+      ],
+      "before": [
+        "NJP",
+        1
+      ],
+      "fraction": 0.20689655172413793
     },
     {
       "station": "GEOR",
       "occ": 1,
       "dist_km": 2496.0,
-      "sched_off": 3066.0
+      "sched_off": 3066.0,
+      "after": [
+        "KNE",
+        1
+      ],
+      "before": [
+        "NJP",
+        1
+      ],
+      "fraction": 0.26436781609195403
     },
     {
       "station": "AUB",
       "occ": 1,
       "dist_km": 2504.0,
-      "sched_off": 3074.0
+      "sched_off": 3074.0,
+      "after": [
+        "KNE",
+        1
+      ],
+      "before": [
+        "NJP",
+        1
+      ],
+      "fraction": 0.3563218390804598
     },
     {
       "station": "DBQ",
       "occ": 1,
       "dist_km": 2509.0,
-      "sched_off": 3080.0
+      "sched_off": 3080.0,
+      "after": [
+        "KNE",
+        1
+      ],
+      "before": [
+        "NJP",
+        1
+      ],
+      "fraction": 0.41379310344827586
     },
     {
       "station": "MXJ",
       "occ": 1,
       "dist_km": 2516.0,
-      "sched_off": 3087.0
+      "sched_off": 3087.0,
+      "after": [
+        "KNE",
+        1
+      ],
+      "before": [
+        "NJP",
+        1
+      ],
+      "fraction": 0.4942528735632184
     },
     {
       "station": "TMH",
       "occ": 1,
       "dist_km": 2522.0,
-      "sched_off": 3093.0
+      "sched_off": 3093.0,
+      "after": [
+        "KNE",
+        1
+      ],
+      "before": [
+        "NJP",
+        1
+      ],
+      "fraction": 0.5632183908045977
     },
     {
       "station": "DMZ",
       "occ": 1,
       "dist_km": 2530.0,
-      "sched_off": 3102.0
+      "sched_off": 3102.0,
+      "after": [
+        "KNE",
+        1
+      ],
+      "before": [
+        "NJP",
+        1
+      ],
+      "fraction": 0.6551724137931034
     },
     {
       "station": "CAT",
       "occ": 1,
       "dist_km": 2540.0,
-      "sched_off": 3112.0
+      "sched_off": 3112.0,
+      "after": [
+        "KNE",
+        1
+      ],
+      "before": [
+        "NJP",
+        1
+      ],
+      "fraction": 0.7701149425287356
     },
     {
       "station": "NJB",
       "occ": 1,
       "dist_km": 2546.0,
-      "sched_off": 3119.0
+      "sched_off": 3119.0,
+      "after": [
+        "KNE",
+        1
+      ],
+      "before": [
+        "NJP",
+        1
+      ],
+      "fraction": 0.8390804597701149
     },
     {
       "station": "RNI",
       "occ": 1,
       "dist_km": 2554.0,
-      "sched_off": 3127.0
+      "sched_off": 3127.0,
+      "after": [
+        "KNE",
+        1
+      ],
+      "before": [
+        "NJP",
+        1
+      ],
+      "fraction": 0.9310344827586207
     }
   ],
   "exceptions": [],

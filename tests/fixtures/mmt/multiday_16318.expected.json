@@ -817,31 +817,76 @@
       "station": "OCR",
       "occ": 1,
       "dist_km": 3603.0,
-      "sched_off": 5359.0
+      "sched_off": 5359.0,
+      "after": [
+        "KYJ",
+        1
+      ],
+      "before": [
+        "QLN",
+        1
+      ],
+      "fraction": 0.12195121951219512
     },
     {
       "station": "KPY",
       "occ": 1,
       "dist_km": 3610.0,
-      "sched_off": 5371.0
+      "sched_off": 5371.0,
+      "after": [
+        "KYJ",
+        1
+      ],
+      "before": [
+        "QLN",
+        1
+      ],
+      "fraction": 0.2926829268292683
     },
     {
       "station": "STKT",
       "occ": 1,
       "dist_km": 3618.0,
-      "sched_off": 5383.0
+      "sched_off": 5383.0,
+      "after": [
+        "KYJ",
+        1
+      ],
+      "before": [
+        "QLN",
+        1
+      ],
+      "fraction": 0.4878048780487805
     },
     {
       "station": "MQO",
       "occ": 1,
       "dist_km": 3623.0,
-      "sched_off": 5389.0
+      "sched_off": 5389.0,
+      "after": [
+        "KYJ",
+        1
+      ],
+      "before": [
+        "QLN",
+        1
+      ],
+      "fraction": 0.6097560975609756
     },
     {
       "station": "PRND",
       "occ": 1,
       "dist_km": 3628.0,
-      "sched_off": 5398.0
+      "sched_off": 5398.0,
+      "after": [
+        "KYJ",
+        1
+      ],
+      "before": [
+        "QLN",
+        1
+      ],
+      "fraction": 0.7317073170731707
     }
   ],
   "exceptions": [],
