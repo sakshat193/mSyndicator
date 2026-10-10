@@ -95,5 +95,6 @@ def test_relay_override_uses_host_network_and_loopback_database():
     assert collector['network_mode'] == 'host'
     assert not collector.get('networks')
     assert collector['environment']['DATABASE_URL'] == 'postgresql://msynd:relaypw@127.0.0.1:55432/msynd'
-    assert collector['environment']['MSYND_PROXY'] == 'http://127.0.0.1:18080'
+    assert collector['environment']['MSYND_RELAY'] == 'http://127.0.0.1:18080'
+    assert 'MSYND_PROXY' not in collector['environment']
     assert config['services']['engine']['environment']['DATABASE_URL'] == 'postgresql://msynd:relaypw@db:5432/msynd'

@@ -47,10 +47,24 @@ class FetchResult:
     received_at: datetime
 
 
+# ponytail: single relay; upgrade: none needed while one source.
+class _RelayTransport(httpx.AsyncHTTPTransport):
+    def __init__(self, relay):
+        super().__init__(retries=0)
+        self.relay = relay
+
+    async def handle_async_request(self, request):
+        request.url = request.url.copy_with(scheme=self.relay.scheme, host=self.relay.host, port=self.relay.port)
+        return await super().handle_async_request(request)
+
+
 def real_transport():
     if os.environ.get("MSYND_LIVE") != "1":
         raise RuntimeError("real source traffic requires MSYND_LIVE=1 and checkpoint approval")
-    return httpx.AsyncHTTPTransport(retries=0, proxy=os.environ.get("MSYND_PROXY") or None)
+    relay = os.environ.get("MSYND_RELAY", "")
+    if relay.startswith("http://"):
+        return _RelayTransport(httpx.URL(relay))
+    return httpx.AsyncHTTPTransport(retries=0)
 
 
 class Dispatcher:

@@ -34,6 +34,7 @@ The monitor must run the pinned-image smoke test on A1 and the measured G5 resto
 
 ## Residential relay
 
+The PC's plain httpx client makes each HTTPS request to MMT; the VM dispatcher owns pacing, budgets and retries.
 On the PC, from Git Bash in the repo: `PATH="/c/Program Files/Git/usr/bin:$PATH" uv run python -m msynd.collect.relay --ssh USER@HOST --identity ~/.ssh/msynd_oci`.
 Keep the PC powered with the lid open; Windows sleep is inhibited while the relay runs.
 On the VM, write `/etc/ssh/sshd_config.d/70-msynd-keepalive.conf` with `ClientAliveInterval 30` and `ClientAliveCountMax 3` on separate lines.

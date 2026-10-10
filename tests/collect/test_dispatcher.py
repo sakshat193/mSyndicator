@@ -211,23 +211,60 @@ def test_real_transport_requires_live_flag(monkeypatch):
         real_transport()
 
 
-@pytest.mark.parametrize('proxy', ['http://127.0.0.1:18080', None, ''])
-def test_real_transport_uses_proxy_from_env(monkeypatch, proxy):
-    import httpcore
-
-    if proxy is None:
-        monkeypatch.delenv('MSYND_PROXY', raising=False)
-    else:
-        monkeypatch.setenv('MSYND_PROXY', proxy)
-    monkeypatch.delenv('MSYND_LIVE', raising=False)
-    with pytest.raises(RuntimeError, match='MSYND_LIVE'):
-        real_transport()
+def test_real_transport_rewrites_to_relay_and_preserves_host(monkeypatch):
     monkeypatch.setenv('MSYND_LIVE', '1')
+
+    async def run():
+        received = []
+
+        async def stub(reader, writer):
+            try:
+                head = await reader.readuntil(b'\r\n\r\n')
+                lines = head.decode('latin-1').split('\r\n')
+                headers = dict((name.lower(), value.strip()) for name, value in
+                               (line.split(':', 1) for line in lines[1:-2]))
+                body = await reader.readexactly(int(headers['content-length']))
+                received.append((lines[0], headers, body))
+                writer.write(b'HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok')
+                await writer.drain()
+            finally:
+                writer.close()
+                await writer.wait_closed()
+
+        handle_request = httpx.AsyncHTTPTransport.handle_async_request
+
+        async def loopback_only(transport, request):
+            assert request.url.host == '127.0.0.1', 'test attempted a non-loopback request'
+            return await handle_request(transport, request)
+
+        monkeypatch.setattr(httpx.AsyncHTTPTransport, 'handle_async_request', loopback_only)
+        async with await asyncio.start_server(stub, '127.0.0.1', 0) as server:
+            port = server.sockets[0].getsockname()[1]
+            monkeypatch.setenv('MSYND_RELAY', f'http://127.0.0.1:{port}')
+            async with httpx.AsyncClient(transport=real_transport()) as client:
+                response = await client.post('https://rails-ris.makemytrip.com/x?y=1',
+                                             content=b'payload', headers={'User-Agent': 'test-agent'})
+            assert response.status_code == 200 and response.content == b'ok'
+            assert len(received) == 1
+            line, headers, body = received[0]
+            assert line == 'POST /x?y=1 HTTP/1.1'
+            assert headers['host'] == 'rails-ris.makemytrip.com'
+            assert headers['user-agent'] == 'test-agent' and body == b'payload'
+    asyncio.run(asyncio.wait_for(run(), 5))
+
+
+@pytest.mark.parametrize('relay_url', [None, '', 'https://127.0.0.1:18080'])
+def test_real_transport_without_http_relay_is_plain(monkeypatch, relay_url):
+    monkeypatch.setenv('MSYND_LIVE', '1')
+    if relay_url is None:
+        monkeypatch.delenv('MSYND_RELAY', raising=False)
+    else:
+        monkeypatch.setenv('MSYND_RELAY', relay_url)
 
     async def run():
         transport = real_transport()
         try:
-            assert isinstance(transport._pool, httpcore.AsyncHTTPProxy) == bool(proxy)
+            assert type(transport) is httpx.AsyncHTTPTransport
         finally:
             await transport.aclose()
     asyncio.run(run())

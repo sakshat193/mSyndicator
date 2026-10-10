@@ -1,4 +1,4 @@
-"""Loopback CONNECT relay with optional supervised reverse SSH forwarding."""
+"""Loopback HTTP relay with optional supervised reverse SSH forwarding."""
 
 import argparse
 import asyncio
@@ -8,69 +8,85 @@ import re
 import subprocess
 import sys
 
+import httpx
+
 from msynd.collect.mmt import HOST
 
 
 # ponytail: single-host allowlist; add a host only with a new approved source.
 ALLOW = {(HOST, 443)}
+UPSTREAM = "https://" + HOST
 HEAD_LIMIT = 8192
 ES_CONTINUOUS = 0x80000000
 ES_SYSTEM_REQUIRED = 0x00000001
 log = logging.getLogger(__name__)
 
 
-async def handle(reader, writer):
-    upstream_writer, pipes = None, []
-    counts = [0, 0]
+async def handle(reader, writer, client):
+    method, path = "-", "-"
+    status, reason, body = 403, "Forbidden", b""
+    response_headers = []
+    bytes_in = 0
     started = asyncio.get_running_loop().time()
-
-    async def pipe(source, destination, direction):
-        while data := await source.read(65536):
-            destination.write(data)
-            counts[direction] += len(data)
-            await destination.drain()
-
     try:
         try:
             head = await reader.readuntil(b"\r\n\r\n")
             if len(head) > HEAD_LIMIT:
                 raise ValueError("oversized head")
-            match = re.fullmatch(br"CONNECT ([^:\s]+):([0-9]+) HTTP/1\.[0-9]", head.split(b"\r\n", 1)[0])
-            if match is None:
+            lines = head[:-4].split(b"\r\n")
+            match = re.fullmatch(br"([A-Z]+) (/[^\x00-\x20\x7f-\xff#]*) HTTP/1\.1", lines[0])
+            if match is None or match[1] == b"CONNECT":
                 raise ValueError("invalid request line")
-            host, port = match[1].decode("ascii").lower(), int(match[2])
-            if (host, port) not in ALLOW:
-                raise ValueError("target is not allowlisted")
-        except (ValueError, asyncio.LimitOverrunError, asyncio.IncompleteReadError):
-            log.warning("refused invalid or non-allowlisted CONNECT request")
-            writer.write(b"HTTP/1.1 403 Forbidden\r\n\r\n")
-            await writer.drain()
-            return
-        try:
-            upstream_reader, upstream_writer = await asyncio.wait_for(asyncio.open_connection(host, port), 30)
-        except (OSError, TimeoutError):
-            log.warning("upstream connection failed for %s:%s", host, port)
-            writer.write(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
-            await writer.drain()
-            return
-        writer.write(b"HTTP/1.1 200 Connection established\r\n\r\n")
+            method, target = match[1].decode("ascii"), match[2].decode("ascii")
+            path = target.partition("?")[0]
+            fields = []
+            for line in lines[1:]:
+                field = re.fullmatch(br"([!#$%&'*+.^_`|~0-9A-Za-z-]+):[ \t]*([\t\x20-\x7e\x80-\xff]*)", line)
+                if field is None:
+                    raise ValueError("invalid header")
+                fields.append((field[1], field[2].strip(b" \t")))
+            headers = httpx.Headers(fields)
+            if (len(headers.get_list("host")) != 1
+                    or (headers["host"].lower().removesuffix(":443"), 443) not in ALLOW):
+                raise ValueError("host is not allowlisted")
+            length = headers.get("content-length", "0")
+            if ("transfer-encoding" in headers or len(headers.get_list("content-length")) > 1
+                    or re.fullmatch(r"[0-9]+", length) is None or int(length) > 65536):
+                raise ValueError("invalid body length")
+            body = await reader.readexactly(int(length))
+            bytes_in = len(body)
+        except (ValueError, asyncio.LimitOverrunError, asyncio.IncompleteReadError) as exc:
+            log.warning("%s", type(exc).__name__)
+            body = b""
+        else:
+            dropped = {"connection", "keep-alive", "te", "trailer", "transfer-encoding", "upgrade",
+                       "host", "content-length", "accept-encoding"}
+            dropped.update(name.strip().lower() for name in headers.get("connection", "").split(","))
+            forwarded = [(name, value) for name, value in headers.raw
+                         if name.decode("ascii").lower() not in dropped and not name.lower().startswith(b"proxy-")]
+            url = httpx.URL(UPSTREAM + target)
+            try:
+                response = await client.request(method, url, headers=forwarded, content=body)
+                status, reason, body = response.status_code, response.reason_phrase, response.content
+                response_headers = [(b"Content-Type" if name.lower() == b"content-type" else b"Retry-After", value)
+                                    for name, value in response.headers.raw
+                                    if name.lower() in (b"content-type", b"retry-after")]
+            except httpx.HTTPError as exc:
+                log.warning("%s", type(exc).__name__)
+                status, reason, body = 502, "Bad Gateway", b""
+        writer.write(f"HTTP/1.1 {status} {reason}\r\n".encode("ascii"))
+        for name, value in response_headers:
+            writer.write(name + b": " + value + b"\r\n")
+        writer.write(f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode("ascii") + body)
         await writer.drain()
-        pipes = [asyncio.create_task(pipe(reader, upstream_writer, 0)),
-                 asyncio.create_task(pipe(upstream_reader, writer, 1))]
-        await asyncio.wait(pipes, return_when=asyncio.FIRST_COMPLETED)
     except OSError:
         pass
     finally:
-        for task in pipes:
-            task.cancel()
-        await asyncio.gather(*pipes, return_exceptions=True)
-        writers = [writer] if upstream_writer is None else [writer, upstream_writer]
-        for stream in writers:
-            stream.close()
-        await asyncio.gather(*(stream.wait_closed() for stream in writers), return_exceptions=True)
-        if upstream_writer is not None:
-            log.info("tunnel %s:%s bytes_up=%s bytes_down=%s duration=%.3fs",
-                     host, port, *counts, asyncio.get_running_loop().time() - started)
+        writer.close()
+        with suppress(OSError):
+            await writer.wait_closed()
+        log.info("%s %s status=%s bytes_in=%s bytes_out=%s duration=%.3fs",
+                 method, path, status, bytes_in, len(body), asyncio.get_running_loop().time() - started)
 
 
 def ssh_argv(user_host, port, identity=None):
@@ -101,11 +117,16 @@ async def supervise(argv, delay=10):
 
 
 async def serve(port, ssh=None, identity=None):
-    async with await asyncio.start_server(handle, "127.0.0.1", port, limit=HEAD_LIMIT) as server:
-        if ssh:
-            await asyncio.gather(server.serve_forever(), supervise(ssh_argv(ssh, port, identity)))
-        else:
-            await server.serve_forever()
+    # Library request/debug logs include URLs or headers; the relay logs only safe fields.
+    for name in ("httpx", "httpcore"):
+        logging.getLogger(name).setLevel(logging.WARNING)
+    async with httpx.AsyncClient(follow_redirects=False, timeout=25) as client:
+        async with await asyncio.start_server(lambda r, w: handle(r, w, client), "127.0.0.1", port,
+                                             limit=HEAD_LIMIT) as server:
+            if ssh:
+                await asyncio.gather(server.serve_forever(), supervise(ssh_argv(ssh, port, identity)))
+            else:
+                await server.serve_forever()
 
 
 def main(argv=None):

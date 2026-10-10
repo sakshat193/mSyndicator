@@ -4,4 +4,4 @@ services:
     network_mode: host
     environment:
       DATABASE_URL: postgresql://msynd:${POSTGRES_PASSWORD:-msynd}@127.0.0.1:55432/msynd
-      MSYND_PROXY: http://127.0.0.1:18080
+      MSYND_RELAY: http://127.0.0.1:18080
