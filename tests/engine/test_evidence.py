@@ -195,3 +195,13 @@ def test_canonical_events_sorts_route_rows(db):
     assert [(e.station, e.kind, e.sched_off, e.seg) for e in events] == [
         ("A", "dep", 0, 0), ("P", "pass", 40, 0), ("B", "arr", 100, 0)
     ]
+
+
+def test_pass_time_outside_its_halts_falls_back_to_distance():
+    # Pilot 11014: source pass YY-WADB at 1592 after GTFS WADI dep 1600 broke route monotonicity.
+    def stop(idx, station, km, sched, halt_idx=None, arr=None, dep=None):
+        return {"idx": idx, "station": station, "occ": 1, "halt": halt_idx is not None, "halt_idx": halt_idx,
+                "arr_off": arr, "dep_off": dep, "dist_km": km, "sched_off": sched}
+    stops = [stop(0, "A", 0, 0, 0, dep=100), stop(1, "P", 10, 90), stop(2, "Q", 15, 140),
+             stop(3, "R", 20, 130), stop(4, "S", 30, 250), stop(5, "B", 40, 200, 1, arr=200)]
+    assert [e.sched_off for e in canonical_events(stops)] == [100, 125, 140, 150, 175, 200]
