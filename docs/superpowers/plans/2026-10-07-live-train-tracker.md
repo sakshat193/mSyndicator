@@ -1596,11 +1596,11 @@ First VM deploy of engine + API + map (2026-10-11 05:30Z). Two bottlenecks:
 - Trips data keeps its reference between generations. The hourly time base is passed via `updateTriggers`.
 - Rendering output is unchanged.
 
-- [ ] Tests:
+- [x] Tests:
   - engine: a scheduled run 3 h before departure is not replayed by rebuild or consume, and its dirty row is acknowledged; a scheduled run 30 min before departure and a running run are replayed; a run leaving the window gets a tombstone; rebuild with more than 200 active runs produces the same frame as one batch.
   - web: indexed lookups match the old `find` results; `displayRun` decodes the same trips and head as before on the existing fixtures; the network layer is built once per network.
-- [ ] Commit `task 56: bounded engine set and responsive map`.
-- [ ] Monitor: deploy, start the engine, and record cold rebuild time, peak memory and full-frame size. Confirm the map renders trains and stays responsive.
+- [x] Commit `task 56: bounded engine set and responsive map`.
+- [x] Monitor: deploy, start the engine, and record cold rebuild time, peak memory and full-frame size. Confirm the map renders trains and stays responsive.
 
 ### Task 57 (amendment 2026-10-11): per-run frame time base (blast radius of Task 56)
 
@@ -1609,9 +1609,9 @@ After the Task 56 deploy, engine memory peaked at ~1.3 GB, but every rebuild fai
 **Files:** modify `msynd/engine/frames.py`, `msynd/api/app.py`, `tests/engine/test_loop.py`, `tests/api/test_api.py`.
 
 - `write_frame` and `Frames.full` keep each run's `paths` and `base_ts` unchanged and drop the frame-wide re-base and its ValueError. The per-run range check stays in `encode_run`; `_job` already maps it to run state `error`.
-- [ ] Tests: two runs whose bases are 6 days apart give one frame (engine `write_frame`, and an API full resync) with both runs' bytes and `base_ts` unchanged. Existing decode tests still pass.
-- [ ] Commit `task 57: per-run frame time base`.
-- [ ] Monitor: deploy, and confirm a full frame is written, the engine stays up and the map shows trains.
+- [x] Tests: two runs whose bases are 6 days apart give one frame (engine `write_frame`, and an API full resync) with both runs' bytes and `base_ts` unchanged. Existing decode tests still pass.
+- [x] Commit `task 57: per-run frame time base`.
+- [x] Monitor: deploy, and confirm a full frame is written, the engine stays up and the map shows trains.
 
 ### Task 58 (amendment 2026-10-11): runs leave the frame when they leave the engine set (blast radius of Task 56)
 
@@ -1621,9 +1621,16 @@ After Task 57 the engine published frames, but the map stayed on "Waiting for li
 
 - `_prepare`: a run that is missing or not `in_engine_set` (completed, cancelled, expired_unknown, or scheduled outside the window) becomes a tombstone. Every published run entry carries `run_id` equal to its key. `rebuild`, `consume` and `_refresh_window` then agree: the frame holds exactly the engine set.
 - `connectLive`: log the rejection reason with `console.error` before closing. Validation itself is unchanged.
-- [ ] Tests: dirty `cancelled` and `expired_unknown` runs produce tombstones and no run entries, and their dirty rows are acknowledged. Every run entry in frames from `rebuild` and `consume` has `run_id == key`.
-- [ ] Commit `task 58: runs leave the frame with the engine set`.
-- [ ] Monitor: deploy, restart the engine and API, and confirm the map receives frames and draws trains.
+- [x] Tests: dirty `cancelled` and `expired_unknown` runs produce tombstones and no run entries, and their dirty rows are acknowledged. Every run entry in frames from `rebuild` and `consume` has `run_id == key`.
+- [x] Commit `task 58: runs leave the frame with the engine set`.
+- [x] Monitor: deploy, restart the engine and API, and confirm the map receives frames and draws trains.
+
+Monitor note 2026-10-11 (Tasks 56–58, VM at bac9940):
+
+- Engine set ≈ 555–700 runs; cold rebuild ≈ 65 s; engine peak ≈ 1.35 GB (5.7 GB and still rising before Task 56); full frame 4.2–5.2 MB.
+- The 16k dirty backlog drained in ≈ 80 s.
+- After Task 58: full frame gen 1744 had 700 runs, every entry with `run_id == key` and none state-only.
+- The web `connectLive`/`FrameStore`, run under Node over a tunnel to the VM API, accepted gen 1749 (700 runs, all with paths, 0 rejections).
 
 ---
 
