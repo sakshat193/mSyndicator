@@ -1526,12 +1526,12 @@ Through Task 52's tunnel, Akamai accepts TLS from the VM image's client (OpenSSL
 - `compose.relay.yaml` sets `MSYND_RELAY=http://127.0.0.1:18080` in place of `MSYND_PROXY`.
 - `docs/deploy.md`: the relay section says the PC makes the HTTPS request.
 
-- [ ] Tests:
+- [x] Tests:
   - relay: a forwarded POST reaches a local stub server (allowlist and upstream base patched to loopback http) with method, path, query, body and headers intact, and the status, content type, Retry-After and body come back; a wrong Host, an absolute-form target, CONNECT, an oversized head and an oversized body get 403 with no upstream call; an upstream failure gives 502;
   - dispatcher: with `MSYND_RELAY`, a request to `https://rails-ris.makemytrip.com/x?y=1` reaches the relay URL with `Host: rails-ris.makemytrip.com`;
   - deploy: the override sets `MSYND_RELAY`.
-- [ ] Commit `task 53: pc client relay`.
-- [ ] Monitor: relay restarted on the PC, one MMT request from the VM through it, then the collector with `MSYND_LIVE=1`.
+- [x] Commit `task 53: pc client relay`.
+- [x] Monitor: relay restarted on the PC, one MMT request from the VM through it, then the collector with `MSYND_LIVE=1`.
 
 ---
 
@@ -1547,12 +1547,12 @@ Live on the VM, MMT answers HTTP 400 `{"success":false,"error":{"errorCode":1001
 - `run_loop`: on an `invalid` status result whose HTTP status is 400 and whose body is `not_running`, call `cancel_not_running` in one transaction.
 - The breaker still counts the answer as non-`ok`; each such run costs at most one fetch per admission path.
 
-- [ ] Tests:
+- [x] Tests:
   - `not_running` accepts both codes and rejects other codes, `success` true, non-JSON and non-object bodies;
   - `cancel_not_running` cancels a `scheduled` run and marks it dirty; leaves `running` unchanged;
   - collector loop: with a MockTransport answering the 1001 body, the run becomes `cancelled` and `load_state` no longer admits it for poll or harvest; a 400 with errorCode 9999 leaves it `scheduled`.
-- [ ] Commit `task 54: cancel runs mmt says are not running`.
-- [ ] Monitor: deploy to the VM, restart the collector, and confirm the breaker stops tripping.
+- [x] Commit `task 54: cancel runs mmt says are not running`.
+- [x] Monitor: deploy to the VM, restart the collector, and confirm the breaker stops tripping.
 
 ---
 
@@ -1566,11 +1566,11 @@ After Task 54, harvest still reaches many inventory runs that MMT says did not r
 - `Dispatcher(..., breaker_exempt=None)`: an optional `Callable[[httpx.Response], bool]`. When an attempt's outcome is `invalid`, a response exists and `breaker_exempt(response)` is true, that outcome is not added to the breaker window. Every other outcome is counted as before.
 - `MmtClient.__init__` sets `d.breaker_exempt` to a function that is true only for HTTP 400 whose body is `not_running` (Task 54), in the same way it pins `d.classify`.
 
-- [ ] Tests:
+- [x] Tests:
   - dispatcher: 25 exempt `invalid` answers in a row leave `state == 'ok'` and add no pause; 25 non-exempt `invalid` answers still trip the breaker; spacing between starts is unchanged;
   - mmt: an `MmtClient` dispatcher fed 25 HTTP 400 1001 answers stays `ok`; 25 HTTP 400 9999 answers trip the breaker.
-- [ ] Commit `task 55: breaker ignores not-running answers`.
-- [ ] Monitor: deploy and confirm per-minute starts stay near 12 without 10-minute gaps.
+- [x] Commit `task 55: breaker ignores not-running answers`.
+- [x] Monitor: deploy and confirm per-minute starts stay near 12 without 10-minute gaps. Done 2026-10-11 04:05Z: no breaker gaps; poll runs at its 6-per-120 s cohort pace; harvest spent its 512 budget for IST 10-11 (358 of 512 were "not running" answers on stale inventory runs).
 
 ---
 
