@@ -1925,7 +1925,7 @@ No new dependency: `pmtiles` and `maplibre-gl` are already installed. The UI fon
   - `trainAlpha` takes the run's state. A `schedule_only` run draws at 0.45 × its alpha (heads, comets and streaks) unless it is the selected run, which stays at 1. With another run selected it draws at 0.3 × 0.45.
   - The status count reads `"<n> live · <m> by timetable"`, where m counts `schedule_only` displays and n the rest, both formatted with `toLocaleString('en-IN')`. With no timetable runs it reads `"<n> live"`.
   - Search needs no change: `pickLiveRun` finds any run in the frame.
-- [ ] Tests:
+- [x] Tests:
   - engine window boundaries, using the fixture's 880-minute journey: departing in 61 min → out; departing in 60 min → in; departed 61 min ago and arriving later → in; arrived 60 min ago → in; arrived 61 min ago → out (tombstoned);
   - the refresh test still tombstones a `scheduled` run once its arrival + 1 h passes, and replays one that enters;
   - a `running` run that is past its timetable arrival stays in the set;
@@ -1933,12 +1933,13 @@ No new dependency: `pmtiles` and `maplibre-gl` are already installed. The UI fon
   - `trainAlpha`: schedule-only unselected → 0.45, selected → 1, another selected → 0.135; observed → 1, 1 and 0.3;
   - the count text for 5 observed plus 1,826 schedule-only displays is `"5 live · 1,826 by timetable"`;
   - `uv run pytest -q tests/engine` passes, as do `npm --prefix web test` and `npm --prefix web run build`.
-- [ ] Commit `task 64: timetable trains`.
-- [ ] Monitor:
+- [x] Commit `task 64: timetable trains`.
+- [x] Monitor:
   1. Deploy to the VM: rebuild the image, restart the engine, deploy `web/dist`.
   2. Measure the set size, the cold rebuild time, the peak engine memory and the full-frame size. Stop and report if peak memory exceeds 4 GB or a full frame exceeds 16 MB.
   3. Check that searching a Rajdhani that is between departure and arrival selects it.
   4. Take a Playwright screenshot.
+- **Monitor result (2026-10-12 01:25 IST):** b47933e deployed. Mutations caught: dropping the arrival + 1 h bound, the 8-row stride, and the 0.45 factor. The full frame holds 1,684 runs (1,678 `schedule_only`, 6 observed); before this task there were 106. The full frame is 9.9 MB raw and 5.8 MB deflated (it was 0.54 MB). The cold rebuild took about 4.5 min from restart to first full frame, and peak engine memory was 1.77 GB. Searching 12302 HWH Rajdhani selects it as schedule-only, with its next stop at DDU. Open issue: at national zoom the additive trails of about 1,700 trains saturate the corridors to white, and the delay colours on schedule-only trains are model priors.
 
 ---
 
