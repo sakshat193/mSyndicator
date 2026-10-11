@@ -2,7 +2,11 @@ import asyncio
 from contextlib import asynccontextmanager, suppress
 import gzip
 import logging
+from pathlib import Path
+import subprocess
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -211,3 +215,160 @@ def test_supervisor_restarts_after_each_exit(caplog):
             with suppress(asyncio.CancelledError):
                 await task
     asyncio.run(asyncio.wait_for(run(), 10))
+
+
+@pytest.fixture
+def windows_process_api():
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel32.WaitForSingleObject.restype = wintypes.DWORD
+    kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+    kernel32.TerminateProcess.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    return kernel32
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Windows job objects')
+@pytest.mark.parametrize('use_job', [True, False], ids=['job-kills-child', 'control-orphans-child'])
+def test_relay_child_lifetime_after_forced_parent_exit(tmp_path, windows_process_api, use_job):
+    api = windows_process_api
+    pid_file = tmp_path / 'relay-test-pids'
+    child_file = tmp_path / 'relay-test-child'
+    source = r'''
+import asyncio
+import os
+from pathlib import Path
+import sys
+
+pids = Path(sys.argv[2])
+pids.write_text(str(os.getpid()) + '\n')
+from msynd.collect import relay
+spawn = asyncio.create_subprocess_exec
+
+async def tracked_spawn(*args, **kwargs):
+    child = await spawn(*args, **kwargs, stdout=-3, stderr=-3)  # DEVNULL; no inherited readiness pipe.
+    with pids.open('a') as output:
+        output.write(str(child.pid) + '\n')
+    wait = child.wait
+    async def ready_wait():
+        print(os.getpid(), child.pid, flush=True)
+        return await wait()
+    child.wait = ready_wait
+    return child
+
+async def sleeping_relay(*args):
+    # Self-registration covers a parent killed between spawning and recording the child.
+    child_source = ('import os, sys, time; from pathlib import Path; '
+                    'p = Path(sys.argv[1]); t = p.with_suffix(".tmp"); '
+                    't.write_text(str(os.getpid())); t.replace(p); time.sleep(60)')
+    await relay.supervise([sys._base_executable, '-c', child_source, sys.argv[3]])
+
+asyncio.create_subprocess_exec = tracked_spawn
+relay.serve = sleeping_relay
+if sys.argv[1] == 'job':
+    relay.main([])
+else:
+    asyncio.run(sleeping_relay())
+'''
+    parent = subprocess.Popen([sys.executable, '-c', source, 'job' if use_job else 'control',
+                               str(pid_file), str(child_file)],
+                              cwd=Path(__file__).resolve().parents[2], stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True)
+    reader = ThreadPoolExecutor(max_workers=1)
+    handles = []
+    cleanup_errors = []
+
+    def stop(pid):
+        handle = api.OpenProcess(0x00100000 | 0x0001, False, pid)
+        if handle:
+            try:
+                if api.WaitForSingleObject(handle, 0) == 258 and not api.TerminateProcess(handle, 1):
+                    cleanup_errors.append(f'could not terminate test process {pid}')
+                if api.WaitForSingleObject(handle, 5000) != 0:
+                    cleanup_errors.append(f'test process {pid} did not exit')
+            finally:
+                api.CloseHandle(handle)
+    try:
+        line = reader.submit(parent.stdout.readline).result(timeout=15)
+        assert line, 'test parent exited before reporting its child'
+        parent_pid, child_pid = map(int, line.split())
+        parent_handle = api.OpenProcess(0x00100000 | 0x0001, False, parent_pid)  # SYNCHRONIZE | TERMINATE
+        assert parent_handle, 'cannot open the test parent'
+        handles.append(parent_handle)
+        child_handle = api.OpenProcess(0x00100000, False, child_pid)  # SYNCHRONIZE
+        assert child_handle, 'cannot open the test child'
+        handles.append(child_handle)
+        assert api.TerminateProcess(parent_handle, 1)
+        assert api.WaitForSingleObject(parent_handle, 5000) == 0
+        result = api.WaitForSingleObject(child_handle, 5000)
+        expected = 0 if use_job else 258  # WAIT_OBJECT_0 / WAIT_TIMEOUT
+        assert result == expected, f'child wait returned {result}, expected {expected}'
+    finally:
+        try:
+            # Stop the real interpreter before reading its final list of children.
+            if pid_file.exists():
+                stop(int(pid_file.read_text().splitlines()[0]))
+        finally:
+            try:
+                if parent.poll() is None:
+                    parent.kill()
+                parent.wait(timeout=5)
+            finally:
+                try:
+                    pids = pid_file.read_text().splitlines() if pid_file.exists() else []
+                    if len(pids) < 2:
+                        deadline = time.monotonic() + 5
+                        while not child_file.exists() and time.monotonic() < deadline:
+                            time.sleep(.01)
+                    if child_file.exists():
+                        pids.append(child_file.read_text())
+                    for pid in set(map(int, pids)):
+                        stop(pid)
+                finally:
+                    reader.shutdown(wait=True)
+                    for handle in handles:
+                        api.CloseHandle(handle)
+                    parent.stdout.close()
+                    parent.stderr.close()
+                    pid_file.unlink(missing_ok=True)
+                    child_file.unlink(missing_ok=True)
+                    child_file.with_suffix('.tmp').unlink(missing_ok=True)
+        assert not cleanup_errors, cleanup_errors
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Windows job objects')
+def test_job_setup_failure_warns_and_keeps_serving(monkeypatch, caplog):
+    import ctypes
+
+    served = []
+    async def serve(*args):
+        served.append(args)
+
+    def denied(*args, **kwargs):
+        raise OSError('test job setup denied')
+
+    monkeypatch.setattr(ctypes, 'WinDLL', denied)
+    monkeypatch.setattr(relay, 'serve', serve)
+    relay.main([])
+    assert served == [(18080, None, None)]
+    assert any(record.levelno == logging.WARNING and 'job' in record.getMessage().lower()
+               for record in caplog.records)
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Windows PowerShell parser')
+def test_relay_task_parses_with_windows_powershell():
+    script = Path(__file__).resolve().parents[2] / 'relay-task.ps1'
+    assert script.is_file()
+    command = ("$tokens = $null; $errors = $null; "
+               "[System.Management.Automation.Language.Parser]::ParseFile("
+               "'" + str(script).replace("'", "''") + "', [ref]$tokens, [ref]$errors) | Out-Null; "
+               "$errors | ForEach-Object { Write-Output $_ }; if ($errors.Count) { exit 1 }")
+    result = subprocess.run(['powershell.exe', '-NoProfile', '-Command', command],
+                            capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stdout + result.stderr

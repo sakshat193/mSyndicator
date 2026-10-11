@@ -35,7 +35,16 @@ The monitor must run the pinned-image smoke test on A1 and the measured G5 resto
 ## Residential relay
 
 The PC's plain httpx client makes each HTTPS request to MMT; the VM dispatcher owns pacing, budgets and retries.
-On the PC, from Git Bash in the repo: `PATH="/c/Program Files/Git/usr/bin:$PATH" uv run python -m msynd.collect.relay --ssh USER@HOST --identity ~/.ssh/msynd_oci`.
+On the PC, open elevated Windows PowerShell in the repo and set `$SshTarget` to your SSH destination:
+```powershell
+.\relay-task.ps1 -SshTarget $SshTarget
+Get-ScheduledTask -TaskName msynd-relay | Get-ScheduledTaskInfo
+Get-Content "$env:LOCALAPPDATA\msynd\relay.log" -Tail 30
+Stop-ScheduledTask -TaskName msynd-relay
+.\relay-task.ps1 -Unregister
+```
+Registration replaces the task; override `-Identity` or `-Log` if needed. It starts without a login and checks every 5 min.
+Stopping lasts until the next trigger; unregister to keep it stopped. Relay exit also kills its SSH child on Windows.
 Keep the PC powered with the lid open; Windows sleep is inhibited while the relay runs.
 On the VM, write `/etc/ssh/sshd_config.d/70-msynd-keepalive.conf` with `ClientAliveInterval 30` and `ClientAliveCountMax 3` on separate lines.
 Validate and reload: `sudo sshd -t && sudo systemctl reload ssh`.
