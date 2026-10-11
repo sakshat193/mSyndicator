@@ -1750,18 +1750,19 @@ Local trains stop every ~10 km (median segment), so the network already contains
   - **Network layer:** draws stored and straight segments only, and skips `derived` ones because their constituent segments already draw them.
     - It also skips straight segments longer than 150 km. `# ponytail:` hidden long chords remain only as train trails; Task 37 replaces them.
   - **`Network` type:** routes gain `train`, `name` and `class`; segments gain `derived`.
-- [ ] Tests:
+- [x] Tests:
   - On a synthetic DB network where a chord A–D runs alongside a chain A–B–C–D, the chord exports with the chain's polyline and `derived: true`. A chain with a 1.5× detour is rejected, and a segment with a stored polyline is untouched.
   - Routes carry the train number, name and class.
   - A run's path through a chained segment passes through the intermediate station coordinates, with monotone interpolated timestamps.
   - `headAt` at the midpoint time lies on the polyline. A reversed segment runs from its own start.
   - The network layer omits `derived` segments and straight segments over 150 km.
   - `uv run pytest -q`, `npm --prefix web test` and `npm --prefix web run build` all pass.
-- [ ] Commit `task 61: station-chain geometry`.
-- [ ] Monitor:
+- [x] Commit `task 61: station-chain geometry`.
+- [x] Monitor:
   1. Re-run the export on the VM with the new code and reload the API's static file.
   2. Report how many segments got chains, and the export time.
   3. Take a Playwright screenshot to confirm the web is gone.
+  - **Result 2026-10-11:** 4,230 chains derived. Export took 8.9 s on the PC and 8.3 s on the VM, producing `network-87e15c3030de.json.gz` (3.3 MB). Deployed at aa1dad5. The screenshot shows rail corridors with no chord web. Found: MapLibre 6's worker is not emitted by Vite ("Worker failed to load"); fixed in Task 62.
 
 ### Task 62 (amendment 2026-10-11): modern map UI (user request: "critically improve the overall UX and the UI")
 
