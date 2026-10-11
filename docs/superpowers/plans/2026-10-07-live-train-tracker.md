@@ -1870,6 +1870,43 @@ No new dependency: `pmtiles` and `maplibre-gl` are already installed. The UI fon
     - no worker or tile errors in the console;
     - ~83 fps in headless Playwright.
 
+### Task 63 (amendment 2026-10-12): map geometry fixes (user reports: "weird geometric [shapes] consistently over zooming"; "why tf is the thing a straight line and not following the rails")
+
+**Root causes (monitor, 2026-10-12):**
+- **Basemap stripes.** Protomaps' `water` source layer mixes polygons with river and canal `LineString`s. Our `water` fill has no geometry filter, so MapLibre closes each river line with a straight chord and fills it, which draws large straight-edged dark shapes at every zoom. Proof: hiding `water`, or filtering it to polygons, removes them, and the Kangsabati then draws correctly.
+- **Straight trains.** 327 segments over 20 km still draw as chords (76 over 100 km), and 323 trains have a hop over 100 km, including 11 Rajdhanis, 14 Durontos and 15 Vande Bharats. The worst case is `00441` CP→PTNR (1,312 km).
+  - **Missed paths (69 of the 142 over 50 km):** a short-hop path within 1.3× already exists. Task 61's squared-km Dijkstra prefers meandering tiny hops, so the path it finds fails the ratio check.
+  - **Isolated endpoints:** e.g. CP's only segment is CP–PTNR.
+  - **Chord ratio misreads real detours:** the 1.3× chord ratio rejects genuine detours, e.g. JSM–UDZ, whose rail distance is 1.9× its chord.
+  - **Monitor simulation of the rule below:** 0 straight segments over 150 km remain, 2 between 100 and 150 km, and 8 between 50 and 100 km. It runs in under 1 s.
+
+**Files:** `web/src/basemap.ts`, `web/src/basemap.test.ts`, `msynd/static/export.py`, `tests/static/test_export.py`.
+
+- **Basemap:** every `fill` layer (`earth`, `water`) gets `filter: ['==', '$type', 'Polygon']`. The legacy `$type` form matches MultiPolygon too.
+- **Station chains:** this replaces Task 61's search in `segment_geometry`.
+  - **Track km per segment:** the median `|dist_km(i+1) − dist_km(i)|` over every route stop pair that uses the segment.
+  - **Edge weight:** `max(track km, great-circle km)`.
+  - **Search graph:** only segments with a great-circle chord ≤ 80 km.
+  - **Snapping:** a station with no such edge gets snap edges, weighted by great-circle km, to every station within 15 km that has one.
+  - **Search:** a plain-km Dijkstra from `stn_lo` to `stn_hi`.
+    - It never uses the segment itself, and it stops once the distance exceeds 1.2 × the target, where the target is `max(segment track km, chord)`.
+  - **Acceptance:** a path is accepted when it has ≥ 2 edges and its weight is within ±20 % of the target.
+  - **Unchanged from Task 61:** the eligibility rules (no stored polyline, both coordinates, chord > 20 km), the polyline format, `derived`, no DB writes, and the content etag.
+  - `# ponytail:` station chains are straight between stations; Task 37's OSM geometry replaces them with real track curves.
+- [ ] Tests:
+  - every basemap fill layer is polygon-filtered;
+  - a 2-stop route whose origin has no other segment (the CP→PTNR shape) chains through a station within 15 km;
+  - a chain whose track km match but whose great-circle km detours 1.5× is still rejected (keep the existing case);
+  - a real detour whose route track km is 1.9 × the chord, and whose chain matches that, is accepted;
+  - a chain that the old squared-km search missed is now found. The case: a meandering path of tiny hops beside a direct path of medium hops, where only the direct one is within tolerance;
+  - `uv run pytest -q tests/static` passes, as do `npm --prefix web test` and `npm --prefix web run build`.
+- [ ] Commit `task 63: map geometry fixes`.
+- [ ] Monitor:
+  1. Rebuild the VM image and re-export the network.
+  2. Recount straight segments over 20, 50, 100 and 150 km.
+  3. Deploy `web/dist`.
+  4. Take Playwright screenshots of Jhargram at z10.6, and of `00441` selected.
+
 ---
 
 ## Spec coverage check
