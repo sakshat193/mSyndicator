@@ -368,9 +368,9 @@ it('dims other trains to 30 percent and highlights the selected expanded path wi
   const selected = displayRun(runFixture(), chained, 1300)!;
   const other = { ...selected, run: { ...selected.run, run_id: 10 } };
   const trails = trailData([selected, other], 1300);
-  expect(trainAlpha(10, null)).toBe(1);
-  expect(trainAlpha(9, 9)).toBe(1);
-  expect(trainAlpha(10, 9)).toBe(0.3);
+  expect(trainAlpha(10, null, 'observed')).toBe(1);
+  expect(trainAlpha(9, 9, 'observed')).toBe(1);
+  expect(trainAlpha(10, 9, 'observed')).toBe(0.3);
   const highlight = selectionLayer(selected);
   expect(highlight.props.data).toEqual([selected.points]);
   expect((highlight.props.data as any[])[0]).toBe(selected.points);
@@ -386,4 +386,22 @@ it('dims other trains to 30 percent and highlights the selected expanded path wi
   const heads = layers.find(l => l instanceof ScatterplotLayer)!;
   expect((heads.props.getFillColor as Function)(other)[3]).toBeCloseTo(76.5);
   expect((heads.props.getFillColor as Function)(selected)[3]).toBe(255);
+});
+
+it.each([
+  ['schedule_only', null, 0.45], ['schedule_only', 9, 1], ['schedule_only', 10, 0.135],
+  ['observed', null, 1], ['observed', 9, 1], ['observed', 10, 0.3],
+  ['stale', null, 1], ['stale', 10, 0.3],
+])('draws %s heads, comets and streaks with selection %s at alpha %s', (state, selected, alpha) => {
+  expect(trainAlpha(9, selected as number | null, state)).toBeCloseTo(alpha as number);
+  const display = displayRun({ ...runFixture(8), state }, network, 1300)!;
+  const layers = trainLayers([display], trailData([display], 1300), 1300, 4, () => {}, selected as number | null);
+  const trips = layers.filter(l => l instanceof TripsLayer);
+  trips.forEach((layer, i) => {
+    const data = layer.props.data as any[];
+    const color = layer.props.getColor as Function;
+    for (const trip of data) expect(color(trip)[3]).toBeCloseTo([48, 112, 224, 16][i] * (alpha as number));
+  });
+  const heads = layers.find(l => l instanceof ScatterplotLayer)!;
+  expect((heads.props.getFillColor as Function)(display)[3]).toBeCloseTo(255 * (alpha as number));
 });

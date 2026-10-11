@@ -177,7 +177,9 @@ function draw(tick: number) {
     lastStatus = tick;
     const now = Date.now();
     clockElement.textContent = istClock.format(now);
-    count.textContent = `${displays.length} trains`;
+    const timetable = displays.filter(d => d.run.state === 'schedule_only').length;
+    count.textContent = `${(displays.length - timetable).toLocaleString('en-IN')} live`
+      + (timetable ? ` · ${timetable.toLocaleString('en-IN')} by timetable` : '');
     if (network) {
       const age = store.latest ? Math.max(0, Math.floor(now / 1000 - store.latest.ts)) : null;
       status.textContent = age === null ? 'Waiting for live frames' : `updated ${age} s ago`;

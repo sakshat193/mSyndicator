@@ -26,14 +26,17 @@ from msynd.engine.worker import _job
 from msynd.labels import IST
 
 log = logging.getLogger(__name__)
-# ponytail: scheduled window is ±1 hour; widen after G8 and frame-size measurement.
+# ponytail: whole timetable journey ±1 hour; narrow per class if G8 or frame size says so.
 WINDOW = timedelta(hours=1)
 ENGINE_SET = """(r.lifecycle='running' OR (r.lifecycle='scheduled' AND
-    (r.start_date::timestamp AT TIME ZONE 'Asia/Kolkata')
+    %(asof)s BETWEEN (r.start_date::timestamp AT TIME ZONE 'Asia/Kolkata')
     + ((SELECT s.dep_off FROM ref.schedule_stop s
         WHERE s.version_id=r.schedule_version_id ORDER BY s.idx LIMIT 1)
-       + r.resched_min)*interval '1 minute'
-    BETWEEN %(asof)s - %(window)s AND %(asof)s + %(window)s))"""
+       + r.resched_min)*interval '1 minute' - %(window)s
+    AND (r.start_date::timestamp AT TIME ZONE 'Asia/Kolkata')
+    + ((SELECT s.arr_off FROM ref.schedule_stop s
+        WHERE s.version_id=r.schedule_version_id ORDER BY s.idx DESC LIMIT 1)
+       + r.resched_min)*interval '1 minute' + %(window)s))"""
 
 
 def _now(conn):

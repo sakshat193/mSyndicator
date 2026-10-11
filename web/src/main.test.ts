@@ -100,6 +100,7 @@ it('decodes only on generations and reuses network and trips while animating hea
   expect(heads().props.data[0].head).toEqual([71, 21]);
   expect(rendered.options.pickingRadius).toBe(10);
   expect(statusWrites).toBe(1);
+  expect(elements.get('#train-count').textContent).toBe('1 live');
   simTime = 1900;
   draw!(116); // Settled heads redraw at 10 Hz only.
   expect(rendered.draws).toBe(1);
@@ -154,6 +155,7 @@ it('decodes only on generations and reuses network and trips while animating hea
   expect(statusWrites).toBe(1);
   draw!(1150);
   expect(statusWrites).toBe(2);
+  expect(elements.get('#train-count').textContent).toBe('0 live');
   Socket.current.receive({ gen: 5, ts: 3601, is_full: false, versions: {}, base_ts: null,
     runs: { 9: run }, tombstones: [] });
   simTime = 1600;
@@ -211,4 +213,14 @@ it('decodes only on generations and reuses network and trips while animating hea
   rendered.listeners['map:move']();
   draw!(1724);
   expect(labels()).toBe(atSevenHalf); // Panning reuses the layer and its decluttered data.
+  const counted = Array.from({ length: 1831 }, (_, i) => ({ ...run, run_id: i + 100,
+    state: i < 5 ? (i === 4 ? 'stale' : 'observed') : 'schedule_only' }));
+  Socket.current.receive({ gen: 8, ts: 3601, is_full: true, versions: {}, base_ts: 1000,
+    runs: Object.fromEntries(counted.map(r => [r.run_id, r])), tombstones: [] });
+  draw!(2150);
+  expect(elements.get('#train-count').textContent).toBe('5 live · 1,826 by timetable');
+  Socket.current.receive({ gen: 9, ts: 3601, is_full: true, versions: {}, base_ts: 1000,
+    runs: { 9: { ...run, state: 'schedule_only' }, 42: pending }, tombstones: [] });
+  draw!(3150);
+  expect(elements.get('#train-count').textContent).toBe('0 live · 1 by timetable');
 });

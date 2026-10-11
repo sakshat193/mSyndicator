@@ -32,6 +32,9 @@ def encode_run(run_id, out, ev, base_ts):
     if state in ('scheduled', 'running'):
         state = 'schedule_only' if last is None else (
             'observed' if (ev['asof'] - last).total_seconds() <= settings.f_minutes * 60 else 'stale')
+    # ponytail: schedule-only runs ship 8 of K paths to bound frame size; send all K if the panel needs them.
+    if state == 'schedule_only' and len(packed) > 8:
+        packed = packed[np.arange(8) * len(packed) // 8]
     return {'run_id': run_id, 'state': state, 'versions': evidence.versions,
             'origin_ts': ev['origin_ts'], 'base_ts': base,
             # Age is frame.ts - last_received, so restarts don't change evidence payloads.

@@ -405,6 +405,30 @@ def test_encode_run_uint16_and_truncation():
         encode_run(1, out, record, NOW)
 
 
+@pytest.mark.parametrize('state,k,rows', [
+    ('schedule_only', 1, [0]), ('schedule_only', 8, list(range(8))),
+    ('schedule_only', 10, [0, 1, 2, 3, 5, 6, 7, 8]),
+    ('schedule_only', 32, [0, 4, 8, 12, 16, 20, 24, 28]),
+    ('observed', 32, list(range(32))), ('stale', 32, list(range(32))),
+])
+def test_encode_run_strides_only_schedule_paths(state, k, rows):
+    from msynd.engine.frames import encode_run
+    from msynd.engine.evidence import RouteEvent, RunEvidence
+    ev = RunEvidence(1, {}, (RouteEvent(0, 'A', 1, 'dep', 3, 0, 0, 0, 0),
+                            RouteEvent(1, 'B', 1, 'arr', 9, 1, 10, 20, 0)), (), 0, None)
+    last = None if state == 'schedule_only' else NOW - timedelta(minutes=61 if state == 'stale' else 0)
+    record = {'evidence': ev, 'origin_ts': NOW.timestamp(), 'lifecycle': 'scheduled',
+              'last_received': last, 'asof': NOW, 'diverted_from': None, 'part_cancelled': None}
+    out = ReplayOut(np.full((2, 2, 7), np.nan), np.full(7, np.nan),
+                    np.array([[j, j + 1] for j in range(k)]), .5, False, (), ())
+    encoded = encode_run(1, out, record, NOW)
+    assert encoded['state'] == state
+    assert encoded['path_shape'] == (len(rows), 2, 2)
+    packed = np.frombuffer(encoded['paths'], dtype='<u2').reshape(encoded['path_shape'])
+    assert packed[:, :, 0].tolist() == [[3, 9]] * len(rows)
+    assert packed[:, :, 1].tolist() == [[j * 10, (j + 1) * 10] for j in rows]
+
+
 @pytest.mark.db
 def test_write_frame_preserves_per_run_time_bases(db):
     from msynd.engine.frames import encode_run, write_frame
@@ -526,7 +550,7 @@ def test_engine_window_filters_rebuild_and_acknowledges_dirty(db_url, runs, monk
 
     with psycopg.connect(db_url) as conn:
         scheduled(conn, far, 180)
-        scheduled(conn, near, 30)
+        scheduled(conn, near, -61)
         conn.commit()
         cache = {}
         loop.rebuild(conn, replay, tables, PARAMS, cache=cache)
@@ -544,8 +568,8 @@ def test_engine_window_filters_rebuild_and_acknowledges_dirty(db_url, runs, monk
 
 
 @pytest.mark.db
-@pytest.mark.parametrize('departure_minutes, included', [(-61, False), (-60, True),
-                                                      (60, True), (61, False)])
+@pytest.mark.parametrize('departure_minutes, included', [(61, False), (60, True), (-61, True),
+                                                      (-940, True), (-941, False)])
 def test_engine_window_boundaries(db_url, runs, monkeypatch, departure_minutes, included):
     import msynd.engine.__main__ as loop
     monkeypatch.setattr(loop, '_now', lambda conn: NOW, raising=False)
@@ -560,7 +584,7 @@ def test_engine_window_boundaries(db_url, runs, monkeypatch, departure_minutes, 
 
 
 @pytest.mark.db
-def test_window_refresh_tombstones_departed_and_replays_entered(db_url, runs, monkeypatch):
+def test_window_refresh_tombstones_arrived_and_replays_entered(db_url, runs, monkeypatch):
     import msynd.engine.__main__ as loop
     now = NOW
     monkeypatch.setattr(loop, '_now', lambda conn: now, raising=False)
@@ -581,7 +605,7 @@ def test_window_refresh_tombstones_departed_and_replays_entered(db_url, runs, mo
 
     leaving, entering, running = runs
     with psycopg.connect(db_url) as conn, ThreadPoolExecutor(4) as pool:
-        scheduled(conn, leaving, 0)
+        scheduled(conn, leaving, -821)
         scheduled(conn, entering, 180)
         conn.commit()
         loop.run_loop(conn, fake_replay, tables, PARAMS, pool=pool,
@@ -592,6 +616,18 @@ def test_window_refresh_tombstones_departed_and_replays_entered(db_url, runs, mo
         assert frames[-1]['is_full'] and set(frames[-1]['runs']) == {entering, running}
         assert cached == [{entering, running}]
         assert conn.execute('SELECT count(*) FROM obs.dirty_run').fetchone()[0] == 0
+
+
+@pytest.mark.db
+def test_running_past_timetable_arrival_stays_in_engine_set(db_url, runs, monkeypatch):
+    import msynd.engine.__main__ as loop
+    monkeypatch.setattr(loop, '_now', lambda conn: NOW, raising=False)
+    with psycopg.connect(db_url) as conn:
+        scheduled(conn, runs[0], -941)
+        conn.execute("UPDATE obs.run SET lifecycle='running' WHERE id=%s", (runs[0],))
+        conn.commit()
+        loop.rebuild(conn, fake_replay, tables, PARAMS)
+        assert set(payload(conn)['runs']) == set(runs)
 
 
 @pytest.mark.db

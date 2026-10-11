@@ -15,7 +15,7 @@ export interface Network {
 type Trip = { path: Point[]; timestamps: number[] };
 type Gap = { path: Point[]; lengths: number[] };
 type NeonColor = [number, number, number];
-type Trail = Trip & { runId: number; color: NeonColor };
+type Trail = Trip & { runId: number; state: unknown; color: NeonColor };
 type Trails = { base: number; comets: Trail[]; streaks: Trail[] };
 type Display = { run: RunFrame; head: Point; trips: Trip[];
   stops: Stop[]; points: Point[]; times: number[]; eventTimes: number[]; gaps: Gap[];
@@ -185,7 +185,7 @@ export function trailData(displays: Display[], simTime: number): Trails {
   const base = Math.floor(simTime / 3600) * 3600;
   const comets = displays.map(d => {
     let latest = -Infinity;
-    return { path: d.points, runId: d.run.run_id, color: d.color,
+    return { path: d.points, runId: d.run.run_id, state: d.run.state, color: d.color,
       timestamps: d.times.map(ts => { latest = Math.max(latest, ts); return latest - base; }) };
   });
   // ponytail: all K = 32 streaks cost about 4× in attribute rebuilds; raise the subset when rebuilds become incremental.
@@ -193,7 +193,7 @@ export function trailData(displays: Display[], simTime: number): Trails {
     const count = Math.min(8, d.trips.length);
     return Array.from({ length: count }, (_, j) => {
       const trip = d.trips[Math.floor(j * d.trips.length / count)];
-      return { path: trip.path, runId: d.run.run_id, color: d.color, timestamps: trip.timestamps.map(ts => ts - base) };
+      return { path: trip.path, runId: d.run.run_id, state: d.run.state, color: d.color, timestamps: trip.timestamps.map(ts => ts - base) };
     });
   });
   return { base, comets, streaks };
@@ -298,8 +298,8 @@ export function stationLabelLayer(stations: Network['stations'], zoom: number) {
     getTextAnchor: 'middle', getAlignmentBaseline: 'top', pickable: false });
 }
 
-export function trainAlpha(runId: number, selected: number | null): number {
-  return selected === null || selected === runId ? 1 : 0.3;
+export function trainAlpha(runId: number, selected: number | null, state: unknown): number {
+  return selected === runId ? 1 : (selected === null ? 1 : 0.3) * (state === 'schedule_only' ? 0.45 : 1);
 }
 
 export function selectionLayer(display: Display) {
@@ -314,17 +314,17 @@ export function trainLayers(displays: Display[], trails: Trails, simTime: number
   return [...[6, 3, 1.5].map((width, i) => new TripsLayer<Trail>({ id: `comet-${width}`,
     data: trails.comets, getPath: t => t.path, getTimestamps: t => t.timestamps,
     currentTime: simTime - trails.base, trailLength: length / width, fadeTrail: true,
-    getWidth: width, widthUnits: 'pixels', getColor: t => [...t.color, [48, 112, 224][i] * trainAlpha(t.runId, selected)],
+    getWidth: width, widthUnits: 'pixels', getColor: t => [...t.color, [48, 112, 224][i] * trainAlpha(t.runId, selected, t.state)],
     updateTriggers: { getColor: selected },
     parameters: ADDITIVE })),
   new TripsLayer<Trail>({ id: 'streaks', data: trails.streaks,
     getPath: t => t.path, getTimestamps: t => t.timestamps,
     currentTime: simTime - trails.base, trailLength: length, fadeTrail: true,
-    getWidth: 1.5, widthUnits: 'pixels', getColor: t => [...t.color, 16 * trainAlpha(t.runId, selected)],
+    getWidth: 1.5, widthUnits: 'pixels', getColor: t => [...t.color, 16 * trainAlpha(t.runId, selected, t.state)],
     updateTriggers: { getColor: selected }, parameters: ADDITIVE }),
   new ScatterplotLayer<Display>({ id: 'heads', data: displays, getPosition: d => d.head,
     getRadius: 2, radiusUnits: 'pixels',
-    getFillColor: d => [...d.color.map(c => c + (255 - c) * 0.6), 255 * trainAlpha(d.run.run_id, selected)] as [number, number, number, number],
+    getFillColor: d => [...d.color.map(c => c + (255 - c) * 0.6), 255 * trainAlpha(d.run.run_id, selected, d.run.state)] as [number, number, number, number],
     updateTriggers: { getFillColor: selected },
     pickable: true, onClick: info => { if (info.object) select(info.object.run); },
     onHover: info => hover?.(info.object?.run ?? null, info.x, info.y) })];
