@@ -1652,14 +1652,23 @@ The collector got `transport_error`, its breaker paused 10 min, and collection s
   - Parameters: `-SshTarget` (required, never hard-coded), `-Identity`, `-Log`. `-Unregister` removes the task.
   - `# ponytail:` a 5-min poll gives a worst-case gap of 5 min plus the 10-min breaker; use a Windows service if that matters.
 - **`docs/deploy.md`:** the relay section points to the script instead of the manual command; the section stays short.
-- [ ] Tests, Windows-only:
+- [x] Tests, Windows-only:
   - a child started after the job setup dies within 5 s when its parent is terminated (TerminateProcess), and outlives a parent that skipped the setup;
   - `relay-task.ps1` parses without errors.
-- [ ] Commit `task 59: relay watchdog`.
-- [ ] Monitor:
+- [x] Commit `task 59: relay watchdog`.
+- [x] Monitor:
   1. Stop the CIM-launched relay tree.
   2. Register and start the task, then confirm the VM gets `ok` fetches.
   3. Kill the relay's Python process; confirm its ssh exits and the task restarts the relay within 5 min, and that fetches resume after the breaker pause.
+
+**Monitor result (2026-10-11):**
+- **Cutover:** at 15:47Z, with no gap in `ok` fetches.
+- **Kill test:**
+  - killed the relay Python at 15:49:02Z;
+  - its ssh exited within 5 s and VM :18080 was freed;
+  - the task restarted the relay at 15:52:19Z;
+  - after 8 `transport_error`s, `ok` fetches resumed at 16:00Z when the breaker pause ended. The 11-min gap is within the ponytail ceiling.
+- **Elevation:** the S4U tree runs in session 0, so killing it needs elevation.
 
 ### Task 60 (amendment 2026-10-11): neon trails (user request)
 
