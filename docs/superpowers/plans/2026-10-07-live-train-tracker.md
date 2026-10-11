@@ -1724,6 +1724,140 @@ The user asked for a cyberpunk look, with heads that are "practically non-existe
   - Measured afterwards over 150 s on the PC (635 trains): idle 144 fps (p50 6.9 ms, max 69 ms); frame arrivals took 52–70 ms of main-thread time; a pan ran at about 100 fps.
   - Deployed at a43d235.
 
+### Task 61 (amendment 2026-10-11): station-chain geometry (user request: "why are there so many tracks webbed together")
+
+Today every segment is drawn as a straight line between consecutive route stops, and so are the train paths. Express trains make long hops between stops: 1,882 segments are longer than 50 km, 727 are longer than 100 km, and the longest is 1,781 km. Their straight chords cross open country and form a web.
+
+Local trains stop every ~10 km (median segment), so the network already contains the real corridor as a chain of short segments. This task routes each long hop along that chain. It is an interim step; Task 37's OSM geometry later replaces these chains wherever it has a confident match.
+
+**Files:** modify `msynd/static/export.py`, `tests/static/test_segments.py` (or a new `tests/static/test_export.py`), `web/src/layers.ts`, `web/src/layers.test.ts`, `web/src/main.ts`.
+
+- **Polyline contract (it fills the unspecified `ref.segment.polyline` text):** JSON `[[lon, lat], …]` running from `stn_lo` to `stn_hi`; `NULL` means a straight line. Overrides and Task 37 use the same format.
+- **Export:**
+  - **Train identity on routes:** each route gains `train`, `name` and `class` (from `ref.schedule_version` → `ref.train`).
+  - **Which segments get chains:** a segment has no stored polyline, both stations have coordinates, and the great-circle chord is longer than 20 km.
+  - **Finding the chain:** Dijkstra over the undirected station graph of all segments, with the chord edge itself removed.
+    - Edge weight is the squared great-circle km, so many short hops beat one long chord. Stop the search once the distance passes chord².
+  - **Accepting the chain:** only if it has ≥ 2 edges and its summed great-circle km is ≤ 1.3 × the chord. The exported segment then gets `polyline` (station coordinates, `stn_lo` → `stn_hi`) and `derived: true`. Every other segment exports `derived: false`.
+  - **Storage and contract:** the DB is not written, and the etag still comes from the content.
+  - `# ponytail:` a Dijkstra per long segment (~2k, a few minutes at most); precompute in `build_segments` if export time matters.
+- **Web:**
+  - **Paths:** `displayRun` expands each consecutive stop pair `(i, i+1)` through the route segment with `idx == i`.
+    - Use the polyline when present (reversed when `forward` is false). Otherwise use the straight pair.
+    - Vertex timestamps are interpolated linearly by cumulative polyline length between the two event times.
+    - `headAt` walks the same polyline by the `pos()` km fraction.
+    - Both the comets and the streaks use the expanded paths.
+  - **Network layer:** draws stored and straight segments only, and skips `derived` ones because their constituent segments already draw them.
+    - It also skips straight segments longer than 150 km. `# ponytail:` hidden long chords remain only as train trails; Task 37 replaces them.
+  - **`Network` type:** routes gain `train`, `name` and `class`; segments gain `derived`.
+- [ ] Tests:
+  - On a synthetic DB network where a chord A–D runs alongside a chain A–B–C–D, the chord exports with the chain's polyline and `derived: true`. A chain with a 1.5× detour is rejected, and a segment with a stored polyline is untouched.
+  - Routes carry the train number, name and class.
+  - A run's path through a chained segment passes through the intermediate station coordinates, with monotone interpolated timestamps.
+  - `headAt` at the midpoint time lies on the polyline. A reversed segment runs from its own start.
+  - The network layer omits `derived` segments and straight segments over 150 km.
+  - `uv run pytest -q`, `npm --prefix web test` and `npm --prefix web run build` all pass.
+- [ ] Commit `task 61: station-chain geometry`.
+- [ ] Monitor:
+  1. Re-run the export on the VM with the new code and reload the API's static file.
+  2. Report how many segments got chains, and the export time.
+  3. Take a Playwright screenshot to confirm the web is gone.
+
+### Task 62 (amendment 2026-10-11): modern map UI (user request: "critically improve the overall UX and the UI")
+
+The user reported three problems:
+- the map has no basemap: India floats in black;
+- the map zooms out to two world copies;
+- the train panel is a raw P10/P50/P90 table with `(1)` occurrence labels.
+
+Hovering a train shows nothing, and there is no search.
+
+**Files:** modify `web/index.html`, `web/src/main.ts`, `web/src/layers.ts`, `web/src/panel.ts`, `web/src/*.test.ts`; create `web/src/basemap.ts`, `web/src/search.ts`, `web/src/style.css`.
+
+No new dependency: `pmtiles` and `maplibre-gl` are already installed. The UI font is the system stack `Inter, 'Segoe UI Variable', system-ui, sans-serif`, with `font-variant-numeric: tabular-nums` for times.
+
+- **Map limits:**
+  - `renderWorldCopies: false`, `minZoom 3.5`, `maxZoom 13`, `maxBounds [[60, 0], [106, 40]]`.
+  - The first view fits `[[68, 6.5], [97.5, 36]]` with padding, so it fits any screen.
+- **Basemap (`basemap.ts`):**
+  - **Source:** register the `pmtiles` protocol and add vector source `pmtiles:///tiles/india.pmtiles` (Protomaps v4 schema).
+  - **Style (hand-written, no symbol layers, so no glyphs are needed):**
+
+    | Layer | Style |
+    |---|---|
+    | `earth` | fill `#0b1119` |
+    | `water` | fill `#03050a` |
+    | `boundaries` country | `#2b3b4f`, 1 px |
+    | `boundaries` region | `#18222f`, 0.6 px dashed |
+    | `roads` (kind `highway` / `major_road`, from z6) | `#111923` |
+    | `transit` rail (from z8) | `#0e2630` |
+
+    Each layer is drawn below the deck overlay.
+  - **Missing tiles:** a missing or failing tile source is ignored, so the background-only map still works in dev.
+  - **Attribution:** compact, `© OpenStreetMap · Protomaps`.
+- **Station labels:**
+  - A deck `TextLayer` of station names in title case, 11 px, `[140,160,185,200]`.
+  - A station is labelled when its route count (from the network) is at least the threshold for the current zoom: < 5 → 400, < 6 → 150, < 7 → 60, < 9 → 20, else 1. Thresholds are a named constant.
+- **Selection:**
+  - Clicking a head, or picking a search result, selects the run.
+  - Its expanded path draws as a 2 px bright line `[0,240,255,190]`, other trains dim to 30 % alpha, and the map eases to the head (`easeTo`, keeping the zoom if it is ≥ 6, else zoom 6).
+  - Esc or the panel's close button clears the selection.
+- **Hover card:** next to the cursor over a head:
+  - `12951 · Mumbai Rajdhani`;
+  - origin → destination station names;
+  - a delay chip (`On time` within ±2 min, `+12 min`, `−3 min`) coloured by `delayColor`;
+  - the evidence state in words: `observed` → `Live · updated N min ago` (from `headline.last_received`), `stale` → `Stale · N min`, `schedule_only` → `Schedule only`.
+- **HUD (top left, glass card):**
+  - **Card style:** `backdrop-filter: blur(12px)`, background `rgba(10,14,22,.72)`, a 1 px `rgba(120,200,255,.14)` border, radius 14 px.
+  - **Contents:**
+    - a pulsing dot and `LIVE`;
+    - the IST clock `HH:MM:SS`;
+    - `N trains`;
+    - frame freshness `updated N s ago`, green < 60 s, amber < 180 s, red otherwise.
+  - **Search input:** `Train number or name`.
+    - It debounces 250 ms against `/api/search`, shows up to 8 trains (`number · name`), and supports ↑ ↓ Enter Esc.
+    - Choosing a train calls `/api/train/{number}` and selects a returned run that is in the live store, preferring the latest `start_date`. If none is live, the row says `Not running now`.
+- **Legend (bottom left, glass):** a gradient bar cyan → yellow → magenta labelled `On time`, `15 min`, `60+ min late`.
+- **Train panel (`panel.ts`):**
+  - **Placement:** a right-hand drawer, 380 px wide and full height minus 16 px margins, glass styled. Below 640 px wide it becomes a bottom sheet at most 60 vh tall.
+  - **Header:**
+    - train number, name and run date;
+    - origin → destination names;
+    - the delay chip and evidence text;
+    - a close `×` button with an `aria-label`.
+  - **Next stop card:**
+    - station name, predicted P50 time (IST) and the range `P10–P90`;
+    - the scheduled time struck through when it differs by ≥ 2 min.
+  - **Stop timeline:**
+    - one row per halt with arrival and departure merged. Show arrival, but departure at the origin.
+    - A vertical rail links the row dots: past dots are filled and dim, the next one glows, future ones are hollow.
+    - Each row shows the station name with its code muted and the scheduled time.
+      - Past halts also show the actual time when `revisions` has one.
+      - Future halts also show the P50 coloured by delay, with a small range.
+    - `2nd visit` appears only when `occ > 1`.
+  - **Data:** `/api/run/{id}` `schedule`, `halts` and `revisions`, and names from the network. Times use `Intl` in the Asia/Kolkata time zone.
+  - **Errors:** a failed load shows a short inline error with a Retry button.
+- **Motion and accessibility:**
+  - The pulse stops under `prefers-reduced-motion`.
+  - Focus rings are visible.
+  - The panel is an `aside` with an `aria-label`, and the hover card has `role=tooltip`.
+  - No horizontal scroll at 360 px wide.
+- Task 60's redraw gating and Task 61's paths stay as they are.
+- [ ] Tests:
+  - the basemap style has the pmtiles source and no symbol layers;
+  - the map options carry the limits above;
+  - each label threshold returns the right station subset;
+  - a selection dims the other trains and highlights the route;
+  - panel rows merge arrival and departure, show `2nd visit` only for `occ > 1`, and give the delay chip text at −3, 0, 1 and 12 min;
+  - search picks the live run with the latest `start_date`, or reports `Not running now`;
+  - the hover text for each evidence state;
+  - `npm --prefix web test` and `npm --prefix web run build` both pass.
+- [ ] Commit `task 62: modern map ui`.
+- [ ] Monitor:
+  1. Generate `/data/tiles/india.pmtiles` on the VM: `pmtiles extract` of a recent Protomaps daily build, bbox `68,6,98,37`, maxzoom 10, as Task 36 planned.
+  2. Copy `web/dist`.
+  3. Take Playwright screenshots at zoom 4.5 and 8, plus one of the panel. Check that the console has no worker or tile errors and that idle fps is still ≥ 100 on the PC.
+
 ---
 
 ## Spec coverage check
