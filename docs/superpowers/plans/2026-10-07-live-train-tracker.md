@@ -1602,6 +1602,17 @@ First VM deploy of engine + API + map (2026-10-11 05:30Z). Two bottlenecks:
 - [ ] Commit `task 56: bounded engine set and responsive map`.
 - [ ] Monitor: deploy, start the engine, and record cold rebuild time, peak memory and full-frame size. Confirm the map renders trains and stays responsive.
 
+### Task 57 (amendment 2026-10-11): per-run frame time base (blast radius of Task 56)
+
+After the Task 56 deploy, engine memory peaked at ~1.3 GB, but every rebuild failed in `write_frame` with `display paths outside uint16 frame range` and the engine crash-looped. `write_frame` (and the API's `Frames.full`) re-base every run's uint16 ticks (0.1 min) to the earliest `base_ts` in the frame, so one frame can span only ~109 h. Running runs from 10-09 plus scheduled runs ending ~10-14 exceed that. The web already decodes each run from its own `run.base_ts` (`web/src/layers.ts`), so the shared base buys nothing. Contract change: each run's ticks count from that run's `base_ts`. The frame-level `base_ts` stays as the minimum, for information only.
+
+**Files:** modify `msynd/engine/frames.py`, `msynd/api/app.py`, `tests/engine/test_loop.py`, `tests/api/test_api.py`.
+
+- `write_frame` and `Frames.full` keep each run's `paths` and `base_ts` unchanged and drop the frame-wide re-base and its ValueError. The per-run range check stays in `encode_run`; `_job` already maps it to run state `error`.
+- [ ] Tests: two runs whose bases are 6 days apart give one frame (engine `write_frame`, and an API full resync) with both runs' bytes and `base_ts` unchanged. Existing decode tests still pass.
+- [ ] Commit `task 57: per-run frame time base`.
+- [ ] Monitor: deploy, and confirm a full frame is written, the engine stays up and the map shows trains.
+
 ---
 
 ## Spec coverage check
