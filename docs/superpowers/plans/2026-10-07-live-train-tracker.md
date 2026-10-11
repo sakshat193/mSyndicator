@@ -1844,7 +1844,7 @@ No new dependency: `pmtiles` and `maplibre-gl` are already installed. The UI fon
   - The panel is an `aside` with an `aria-label`, and the hover card has `role=tooltip`.
   - No horizontal scroll at 360 px wide.
 - Task 60's redraw gating and Task 61's paths stay as they are.
-- [ ] Tests:
+- [x] Tests:
   - the basemap style has the pmtiles source and no symbol layers;
   - the map options carry the limits above;
   - each label threshold returns the right station subset;
@@ -1853,11 +1853,22 @@ No new dependency: `pmtiles` and `maplibre-gl` are already installed. The UI fon
   - search picks the live run with the latest `start_date`, or reports `Not running now`;
   - the hover text for each evidence state;
   - `npm --prefix web test` and `npm --prefix web run build` both pass.
-- [ ] Commit `task 62: modern map ui`.
-- [ ] Monitor:
+- [x] Commit `task 62: modern map ui`.
+- [x] Monitor:
   1. Generate `/data/tiles/india.pmtiles` on the VM: `pmtiles extract` of a recent Protomaps daily build, bbox `68,6,98,37`, maxzoom 10, as Task 36 planned.
   2. Copy `web/dist`.
   3. Take Playwright screenshots at zoom 4.5 and 8, plus one of the panel. Check that the console has no worker or tile errors and that idle fps is still ≥ 100 on the PC.
+  - **Follow-up (user request 2026-10-11: "look for the more prominent stations first… thicken the tracks and the trains… increase the trails size"):**
+    - Labels rank by prominence = calls by routes ≥ 300 km + 2 × their terminals, replacing route count. Thresholds: < 5 → 400, < 6 → 250, < 7 → 150, < 8 → 80, < 9 → 40, < 10 → 20, else all.
+    - A greedy Mercator declutter runs per half-zoom bucket, and labels rebuild only when the bucket changes.
+    - Labels use the SDF font with a dark halo; the non-SDF atlas clipped "j".
+    - Widths: network 1.5 px, comets [6, 3, 1.5], streaks 1.5 px, heads 2 px, selection 3 px. Trails are 1.5× longer.
+    - The attribution is styled to match the glass HUD, and a data favicon stops the 404.
+  - **Result 2026-10-11:** tiles are a wide extract (bbox `60,0,106,40`, z0–10, ~208 MB, from the 20261011 daily build), so `maxBounds` never shows a void. Deployed at e17b71e (web only, no image rebuild). Playwright checks:
+    - the overview shows only major stations, and zoom 8 is decluttered;
+    - the hover card, the panel with P10–P90 and the stops, and search ("Not running now") all work;
+    - no worker or tile errors in the console;
+    - ~83 fps in headless Playwright.
 
 ---
 
