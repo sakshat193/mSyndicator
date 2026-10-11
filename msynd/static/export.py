@@ -1,10 +1,11 @@
 import argparse
-from collections import Counter
+from collections import defaultdict
 import gzip
 import hashlib
 import heapq
 import json
 from pathlib import Path
+from statistics import median
 
 from msynd.db import connect
 from msynd.static.gtfs import haversine
@@ -20,8 +21,14 @@ def records(conn, query):
 def segment_geometry(network):
     stations = {s["code"]: s for s in network["stations"]
                 if s["lat"] is not None and s["lon"] is not None}
+    track_km = defaultdict(list)
+    for route in network["routes"]:
+        stops = {stop["idx"]: stop["dist_km"] for stop in route["stops"]}
+        for segment in route["segments"]:
+            idx = segment["idx"]
+            track_km[segment["segment_id"]].append(abs(stops[idx + 1] - stops[idx]))
     adjacency = {code: [] for code in stations}
-    lengths = {}
+    lengths, weights = {}, {}
     for segment in network["segments"]:
         lo, hi = segment["stn_lo"], segment["stn_hi"]
         if lo not in stations or hi not in stations:
@@ -29,9 +36,21 @@ def segment_geometry(network):
         a, b = stations[lo], stations[hi]
         km = haversine(a["lat"], a["lon"], b["lat"], b["lon"])
         lengths[segment["id"]] = km
-        adjacency[lo].append((hi, segment["id"], km))
-        adjacency[hi].append((lo, segment["id"], km))
-    # ponytail: one Dijkstra per long segment; precompute in build_segments if export time matters.
+        weight = weights[segment["id"]] = max(median(track_km.get(segment["id"], [0])), km)
+        if km <= 80:
+            adjacency[lo].append((hi, segment["id"], weight))
+            adjacency[hi].append((lo, segment["id"], weight))
+    connected = [code for code, edges in adjacency.items() if edges]
+    for lo, a in stations.items():
+        if adjacency[lo]:
+            continue
+        for hi in connected:
+            b = stations[hi]
+            km = haversine(a["lat"], a["lon"], b["lat"], b["lon"])
+            if km <= 15:
+                adjacency[lo].append((hi, None, km))
+                adjacency[hi].append((lo, None, km))
+    # ponytail: station chains are straight between stations; Task 37's OSM geometry replaces them with track curves.
     for segment in network["segments"]:
         segment["derived"] = False
         if segment["polyline"] is not None:
@@ -40,31 +59,30 @@ def segment_geometry(network):
         chord = lengths.get(segment["id"], 0)
         if chord <= 20:
             continue
+        target = weights[segment["id"]]
         start, end = segment["stn_lo"], segment["stn_hi"]
         distances, previous = {start: 0}, {}
         queue = [(0, start)]
         while queue:
             distance, station = heapq.heappop(queue)
-            if distance > chord ** 2:
+            if distance > 1.2 * target:
                 break
             if distance != distances[station]:
                 continue
             if station == end:
-                path, km = [end], 0
+                path = [end]
                 while path[-1] != start:
-                    parent, edge_km = previous[path[-1]]
-                    path.append(parent)
-                    km += edge_km
-                if len(path) >= 3 and km <= 1.3 * chord:
+                    path.append(previous[path[-1]])
+                if len(path) >= 3:
                     segment["polyline"] = [[stations[code]["lon"], stations[code]["lat"]]
                                            for code in reversed(path)]
                     segment["derived"] = True
                 break
             for neighbor, edge_id, km in adjacency[station]:
-                candidate = distance + km ** 2
+                candidate = distance + km
                 if edge_id != segment["id"] and candidate < distances.get(neighbor, float("inf")):
                     distances[neighbor] = candidate
-                    previous[neighbor] = (station, km)
+                    previous[neighbor] = station
                     heapq.heappush(queue, (candidate, neighbor))
 
 
@@ -79,7 +97,6 @@ def export_network(conn, out_dir, overrides_file=OVERRIDES):
         """),
         "overrides_hash": hashlib.sha256(Path(overrides_file).read_bytes()).hexdigest(),
     }
-    segment_geometry(network)
     stops = records(conn, "select route_version_id,idx,station,occ,halt,dist_km,sched_off from ref.route_stop order by route_version_id,idx")
     segments = records(conn, "select route_version_id,idx,segment_id,forward from ref.route_segment order by route_version_id,idx")
     by_route = {route["id"]: route for route in network["routes"]}
@@ -89,6 +106,7 @@ def export_network(conn, out_dir, overrides_file=OVERRIDES):
         by_route[row.pop("route_version_id")]["stops"].append(row)
     for row in segments:
         by_route[row.pop("route_version_id")]["segments"].append(row)
+    segment_geometry(network)
     body = json.dumps(network, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
     etag = hashlib.sha256(body).hexdigest()
     folder = Path(out_dir)

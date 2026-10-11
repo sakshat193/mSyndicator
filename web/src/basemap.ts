@@ -6,9 +6,9 @@ export const basemapStyle: StyleSpecification = {
   layers: [
     { id: 'background', type: 'background', paint: { 'background-color': '#05070d' } },
     { id: 'earth', type: 'fill', source: 'india', 'source-layer': 'earth',
-      paint: { 'fill-color': '#0b1119' } },
+      filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': '#0b1119' } },
     { id: 'water', type: 'fill', source: 'india', 'source-layer': 'water',
-      paint: { 'fill-color': '#03050a' } },
+      filter: ['==', '$type', 'Polygon'], paint: { 'fill-color': '#03050a' } },
     { id: 'country', type: 'line', source: 'india', 'source-layer': 'boundaries',
       filter: ['==', ['get', 'kind'], 'country'], paint: { 'line-color': '#2b3b4f', 'line-width': 1 } },
     { id: 'region', type: 'line', source: 'india', 'source-layer': 'boundaries',

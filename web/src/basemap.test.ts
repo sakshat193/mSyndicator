@@ -11,6 +11,12 @@ it('uses the local PMTiles extract, overzooms it and needs no glyph server', () 
   ]);
 });
 
+it('filters every fill layer to polygons, excluding river and canal lines', () => {
+  for (const layer of basemapStyle.layers.filter(layer => layer.type === 'fill')) {
+    expect(layer.filter).toEqual(['==', '$type', 'Polygon']);
+  }
+});
+
 it('bounds the map to India without repeated worlds', () => {
   expect(mapOptions).toMatchObject({ renderWorldCopies: false, minZoom: 3.5, maxZoom: 13,
     maxBounds: [[60, 0], [106, 40]] });
