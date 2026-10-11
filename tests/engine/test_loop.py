@@ -309,7 +309,7 @@ def test_late_event_frame_equals_fresh_replay(db_url, runs):
         incremental = payload(conn)['runs'][runs[0]]
         conn.commit()
         rebuild(conn, fake_replay, tables, PARAMS)
-        # Full and delta frames can choose different shared bases; absolute paths must agree.
+        # Full and delta frames must preserve the same absolute paths.
         assert normalized_run(payload(conn)['runs'][runs[0]]) == normalized_run(incremental)
         assert incremental['next_q'] == [2.] * 7
 
@@ -392,6 +392,30 @@ def test_encode_run_uint16_and_truncation():
     out.paths[0, 0] = 6553.6
     with pytest.raises(ValueError, match='uint16'):
         encode_run(1, out, record, NOW)
+
+
+@pytest.mark.db
+def test_write_frame_preserves_per_run_time_bases(db):
+    from msynd.engine.frames import encode_run, write_frame
+    from msynd.engine.evidence import RouteEvent, RunEvidence
+
+    out = ReplayOut(np.full((1, 2, 7), np.nan), np.full(7, np.nan),
+                    np.array([[.2], [.4]]), .5, False, (), ())
+    encoded = {}
+    for run_id, base in ((2, NOW + timedelta(days=6)), (1, NOW)):
+        ev = RunEvidence(run_id, {}, (RouteEvent(0, 'A', 1, 'dep', 3, 0, 0, 0, 0),), (), 0, None)
+        record = {'evidence': ev, 'origin_ts': base.timestamp(), 'lifecycle': 'scheduled',
+                  'last_received': None, 'asof': base, 'diverted_from': None, 'part_cancelled': None}
+        encoded[run_id] = encode_run(run_id, out, record, base)
+
+    expected = {run_id: (run['paths'], run['base_ts']) for run_id, run in encoded.items()}
+    gen = write_frame(db, True, {}, encoded, [])
+    result = payload(db, gen)
+    assert result['base_ts'] == NOW.timestamp()
+    assert set(result['runs']) == set(encoded)
+    for run_id, (paths, base) in expected.items():
+        assert result['runs'][run_id]['paths'] == paths
+        assert result['runs'][run_id]['base_ts'] == base
 
 
 

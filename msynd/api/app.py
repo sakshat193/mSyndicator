@@ -10,7 +10,6 @@ import threading
 
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 import msgpack
-import numpy as np
 import psycopg
 from psycopg.rows import dict_row
 from starlette.responses import Response
@@ -38,14 +37,6 @@ class Frames:
         runs = {key: dict(value) for key, value in self.runs.items()}
         bases = [r['base_ts'] for r in runs.values() if 'paths' in r]
         base = min(bases) if bases else None
-        for run in runs.values():
-            if 'paths' in run:
-                paths = np.frombuffer(run['paths'], dtype='<u2').reshape(run['path_shape']).copy()
-                ticks = np.rint(paths[:, :, 1].astype(float) + (run['base_ts'] - base) / 6)
-                if np.any(ticks < 0) or np.any(ticks > 65535):
-                    raise ValueError('display paths outside uint16 frame range')
-                paths[:, :, 1] = ticks
-                run.update(paths=paths.tobytes(), base_ts=base)
         return msgpack.packb(latest | {'is_full': True, 'runs': runs,
                                      'base_ts': base, 'tombstones': []}, use_bin_type=True)
 

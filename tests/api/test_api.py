@@ -224,6 +224,24 @@ def test_restart_reads_retained_full_and_deltas(api, db_url, tmp_path):
             assert second['gen'] == delta and second['tombstones'] == [other]
 
 
+def test_full_resync_preserves_per_run_time_bases(api):
+    conn, _, app, run, other, *_ = api
+    runs = {
+        run: {'base_ts': NOW.timestamp(), 'paths': b'\x03\x00\x02\x00\x03\x00\x04\x00',
+              'path_shape': [2, 1, 2]},
+        other: {'base_ts': (NOW + timedelta(days=6)).timestamp(),
+                'paths': b'\x03\x00\x02\x00\x03\x00\x04\x00', 'path_shape': [2, 1, 2]},
+    }
+    frame(conn, True, {run: runs[run]})
+    last = frame(conn, False, {other: runs[other]})
+    wait_read(app, last)
+
+    result = msgpack.unpackb(app.state.frames.full(), raw=False, strict_map_key=False)
+    assert result['is_full'] and result['gen'] == last
+    assert result['base_ts'] == NOW.timestamp()
+    assert result['runs'] == runs
+
+
 def test_coalesced_paths_preserve_absolute_times(api):
     import struct
 
@@ -240,7 +258,9 @@ def test_coalesced_paths_preserve_absolute_times(api):
         ws.send_json({'gen': full})
         result = receive(ws)
         assert result['is_full'] and result['base_ts'] == 1000
-        assert struct.unpack('<HH', result['runs'][run]['paths']) == (2, 25)
+        assert result['runs'][run]['base_ts'] == 1060
+        assert struct.unpack('<HH', result['runs'][run]['paths']) == (2, 15)
+        assert result['runs'][other]['base_ts'] == 1000
         assert struct.unpack('<HH', result['runs'][other]['paths']) == (2, 20)
 
 

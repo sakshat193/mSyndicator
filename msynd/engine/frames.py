@@ -47,17 +47,7 @@ def write_frame(conn, is_full, versions, runs, tombstones):
     """Insert only; the caller owns the publication/acknowledgement transaction."""
     bases = [run['base_ts'] for run in runs.values() if 'paths' in run]
     base = min(bases) if bases else None
-    encoded = {}
-    for run_id, run in sorted(runs.items()):
-        run = dict(run)
-        if 'paths' in run:
-            paths = np.frombuffer(run['paths'], dtype='<u2').reshape(run['path_shape']).copy()
-            ticks = paths[:, :, 1].astype(float) + (run['base_ts'] - base) / 6
-            if not np.isfinite(ticks).all() or np.any(ticks > 65535):
-                raise ValueError('display paths outside uint16 frame range')
-            paths[:, :, 1] = np.rint(ticks)
-            run.update(base_ts=base, paths=paths.tobytes())
-        encoded[run_id] = run
+    encoded = dict(sorted(runs.items()))
     gen = conn.execute("SELECT nextval(pg_get_serial_sequence('sim.frame','gen'))").fetchone()[0]
     timestamp = conn.execute('SELECT clock_timestamp()').fetchone()[0]
     payload = msgpack.packb({'gen': gen, 'ts': timestamp.timestamp(), 'is_full': is_full,
