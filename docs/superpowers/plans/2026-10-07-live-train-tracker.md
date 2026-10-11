@@ -1574,6 +1574,36 @@ After Task 54, harvest still reaches many inventory runs that MMT says did not r
 
 ---
 
+### Task 56 (amendment 2026-10-11): bounded engine set and a responsive map (user request)
+
+First VM deploy of engine + API + map (2026-10-11 05:30Z). Two bottlenecks:
+- **Engine:** `ACTIVE` is every `scheduled`/`running` run, ~13,000 runs, 12,989 of them scheduled with no evidence. `rebuild` prepares all jobs (model tables included) before replaying anything. Memory grew ~1.7 GB/min, and the projected total was ~20 GB on a 23 GB VM, so the monitor stopped the engine. At 0.86 s per replay that is also ~47 min of CPU, and the full frame would be ~200 MB.
+- **Map:** `draw()` rebuilds the network layer every 100 ms. Each rebuild does a linear `stations.find` per segment end (15,949 segments × 8,550 stations), plus `routes.find`/`stops.find` per run and a fresh trips array. The page is unresponsive with zero trains.
+
+**Files:** modify `msynd/engine/__main__.py`, `tests/engine/test_loop.py`, `web/src/main.ts`, `web/src/layers.ts`; add web tests as needed.
+
+**Engine:**
+- Active set is `running`, plus `scheduled` runs whose scheduled origin departure (`dep_off + resched_min`, IST start date) is within ±1 h of now. That is ~560 runs on 2026-10-11. Mark it `# ponytail:` (window constant; widen after G8 and frame-size measurement).
+  - One SQL predicate serves `rebuild`, the version-change mark-all-dirty, and the window refresh.
+- `rebuild` prepares and replays in chunks of 200 run IDs, so peak memory is bounded by the chunk, not the active set.
+- `consume` replays a dirty run only if it is in the active set. A dirty `scheduled` run outside the window is acknowledged and tombstoned (if previously framed) without replay. Lifecycle handling for other states is unchanged.
+- Every 5 min (with the full frame), recompute the set: runs that entered are `mark_dirty`; runs that left (still `scheduled`) get a tombstone in a delta and leave `runs` and the cache.
+
+**Map:**
+- Index the network once on load: station code → coordinate, route id → route, and per route stop idx → stop.
+- Build the network layer once and reuse it.
+- Decode runs (trips, stop times) only when `store.gen` changes. Each 100 ms tick only recomputes heads and `currentTime`.
+- Trips data keeps its reference between generations. The hourly time base is passed via `updateTriggers`.
+- Rendering output is unchanged.
+
+- [ ] Tests:
+  - engine: a scheduled run 3 h before departure is not replayed by rebuild or consume, and its dirty row is acknowledged; a scheduled run 30 min before departure and a running run are replayed; a run leaving the window gets a tombstone; rebuild with more than 200 active runs produces the same frame as one batch.
+  - web: indexed lookups match the old `find` results; `displayRun` decodes the same trips and head as before on the existing fixtures; the network layer is built once per network.
+- [ ] Commit `task 56: bounded engine set and responsive map`.
+- [ ] Monitor: deploy, start the engine, and record cold rebuild time, peak memory and full-frame size. Confirm the map renders trains and stays responsive.
+
+---
+
 ## Spec coverage check
 
 | Spec section | Task(s) |
