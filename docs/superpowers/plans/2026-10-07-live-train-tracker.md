@@ -1632,6 +1632,35 @@ Monitor note 2026-10-11 (Tasks 56–58, VM at bac9940):
 - After Task 58: full frame gen 1744 had 700 runs, every entry with `run_id == key` and none state-only.
 - The web `connectLive`/`FrameStore`, run under Node over a tunnel to the VM API, accepted gen 1749 (700 runs, all with paths, 0 rejections).
 
+### Task 59 (amendment 2026-10-11): relay watchdog (user request)
+
+On 2026-10-11 at 13:49Z the PC relay exited. Its log ends with `^C`; the cause is unknown, and there was no low-memory event. Two things then went wrong:
+
+- Nothing restarted the relay.
+- Its `ssh -R` child survived as an orphan and kept holding VM `127.0.0.1:18080`. A fresh relay's ssh therefore could not bind (`ExitOnForwardFailure`) until the orphan was killed by hand.
+
+The collector got `transport_error`, its breaker paused 10 min, and collection stopped for 11 min.
+
+**Files:** modify `msynd/collect/relay.py`, `tests/collect/test_relay.py`, `docs/deploy.md`; create `relay-task.ps1`.
+
+- **`relay.py`:** on Windows, `main()` first puts the relay process in a job object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (ctypes, stdlib), and keeps the handle open for the life of the process. Children (ssh) inherit the job, so however the relay dies, its ssh dies with it and the VM port is freed. Elsewhere this is a no-op.
+- **`relay-task.ps1`:** registers the scheduled task `msynd-relay` for the current user.
+  - S4U logon, so there is no console and no logon is needed.
+  - Triggers at startup and every 5 min. `MultipleInstances IgnoreNew` means a trigger only starts a relay that is not running.
+  - No execution time limit; it starts and keeps running on battery.
+  - The action runs `uv run python -m msynd.collect.relay --ssh <target> --identity <key>` from the repo with Windows OpenSSH on PATH, and appends stdout and stderr to a log file.
+  - Parameters: `-SshTarget` (required, never hard-coded), `-Identity`, `-Log`. `-Unregister` removes the task.
+  - `# ponytail:` a 5-min poll gives a worst-case gap of 5 min plus the 10-min breaker; use a Windows service if that matters.
+- **`docs/deploy.md`:** the relay section points to the script instead of the manual command; the section stays short.
+- [ ] Tests, Windows-only:
+  - a child started after the job setup dies within 5 s when its parent is terminated (TerminateProcess), and outlives a parent that skipped the setup;
+  - `relay-task.ps1` parses without errors.
+- [ ] Commit `task 59: relay watchdog`.
+- [ ] Monitor:
+  1. Stop the CIM-launched relay tree.
+  2. Register and start the task, then confirm the VM gets `ok` fetches.
+  3. Kill the relay's Python process; confirm its ssh exits and the task restarts the relay within 5 min, and that fetches resume after the breaker pause.
+
 ---
 
 ## Spec coverage check
