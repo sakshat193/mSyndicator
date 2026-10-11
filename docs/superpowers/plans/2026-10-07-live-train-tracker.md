@@ -1907,6 +1907,38 @@ No new dependency: `pmtiles` and `maplibre-gl` are already installed. The UI fon
   3. Deploy `web/dist`.
   4. Take Playwright screenshots of Jhargram at z10.6, and of `00441` selected.
 
+### Task 64 (amendment 2026-10-12): timetable trains (user choice: "Show timetable trains")
+
+**Why (monitor, 2026-10-12):** search for a Rajdhani says "Not running now" while it is on the rails. The engine set holds `running` runs plus `scheduled` runs that depart within ±1 h, so a run the collector has not yet observed drops out one hour after departure. At 19:10Z on 10-11, 1,826 `scheduled` runs were between departure and arrival, but only 106 were in the set, and 5 were `running`.
+
+**Files:** `msynd/engine/__main__.py`, `msynd/engine/frames.py`, `tests/engine/test_loop.py` (it also tests `encode_run`), `web/src/layers.ts`, `web/src/layers.test.ts`, `web/src/main.ts`, `web/src/main.test.ts`.
+
+- **Engine set:** the `scheduled` branch of `ENGINE_SET` becomes "now lies between the origin departure − `WINDOW` and the destination arrival + `WINDOW`".
+  - Both times include `resched_min`. The origin departure is the `dep_off` of the first `ref.schedule_stop` by `idx`; the destination arrival is the `arr_off` of the last one.
+  - `running` stays in the set unchanged. `cancelled`, `completed` and `expired_unknown` stay out.
+  - `_engine_ids`, `_prepare` and `_refresh_window` keep sharing the one `ENGINE_SET`, so entering runs are replayed and leaving `scheduled` runs are tombstoned exactly as today.
+  - Update the `# ponytail:` comment: the window is the whole timetable journey ± 1 h; narrow it per class if G8 or frame size says so.
+- **Frames:** `encode_run` ships at most 8 display paths for a `schedule_only` run, the evenly strided rows `j·K/8` (all rows when K ≤ 8). Observed and stale runs keep all K. The web already draws only 8 streaks per run, and `displayRun` reads `path_shape`.
+  - `# ponytail:` schedule-only runs ship 8 of K paths to bound frame size; send all K if the panel ever needs them.
+- **Web:**
+  - `trainAlpha` takes the run's state. A `schedule_only` run draws at 0.45 × its alpha (heads, comets and streaks) unless it is the selected run, which stays at 1. With another run selected it draws at 0.3 × 0.45.
+  - The status count reads `"<n> live · <m> by timetable"`, where m counts `schedule_only` displays and n the rest, both formatted with `toLocaleString('en-IN')`. With no timetable runs it reads `"<n> live"`.
+  - Search needs no change: `pickLiveRun` finds any run in the frame.
+- [ ] Tests:
+  - engine window boundaries, using the fixture's 880-minute journey: departing in 61 min → out; departing in 60 min → in; departed 61 min ago and arriving later → in; arrived 60 min ago → in; arrived 61 min ago → out (tombstoned);
+  - the refresh test still tombstones a `scheduled` run once its arrival + 1 h passes, and replays one that enters;
+  - a `running` run that is past its timetable arrival stays in the set;
+  - `encode_run` on a `schedule_only` run with K = 32 ships `path_shape` (8, E, 2), with rows 0, 4, …, 28; an observed run ships (32, E, 2);
+  - `trainAlpha`: schedule-only unselected → 0.45, selected → 1, another selected → 0.135; observed → 1, 1 and 0.3;
+  - the count text for 5 observed plus 1,826 schedule-only displays is `"5 live · 1,826 by timetable"`;
+  - `uv run pytest -q tests/engine` passes, as do `npm --prefix web test` and `npm --prefix web run build`.
+- [ ] Commit `task 64: timetable trains`.
+- [ ] Monitor:
+  1. Deploy to the VM: rebuild the image, restart the engine, deploy `web/dist`.
+  2. Measure the set size, the cold rebuild time, the peak engine memory and the full-frame size. Stop and report if peak memory exceeds 4 GB or a full frame exceeds 16 MB.
+  3. Check that searching a Rajdhani that is between departure and arrival selects it.
+  4. Take a Playwright screenshot.
+
 ---
 
 ## Spec coverage check
