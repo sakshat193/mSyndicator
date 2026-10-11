@@ -1556,6 +1556,24 @@ Live on the VM, MMT answers HTTP 400 `{"success":false,"error":{"errorCode":1001
 
 ---
 
+### Task 55 (amendment 2026-10-11): the breaker ignores "not running" answers (user decision)
+
+After Task 54, harvest still reaches many inventory runs that MMT says did not run, about half of those it tries, so the breaker keeps pausing for 10 min. A "not running on given date" answer is a healthy, definitive reply, not source trouble. The user chose (2026-10-11) to exempt it from the breaker. Request spacing, budgets, logging, retries and the challenge stop are unchanged, and the fetch is still logged as `invalid`.
+
+**Files:** modify `msynd/collect/dispatcher.py`, `msynd/collect/mmt.py`, `tests/collect/test_dispatcher.py`, `tests/collect/test_mmt.py`.
+
+**Interfaces:**
+- `Dispatcher(..., breaker_exempt=None)`: an optional `Callable[[httpx.Response], bool]`. When an attempt's outcome is `invalid`, a response exists and `breaker_exempt(response)` is true, that outcome is not added to the breaker window. Every other outcome is counted as before.
+- `MmtClient.__init__` sets `d.breaker_exempt` to a function that is true only for HTTP 400 whose body is `not_running` (Task 54), in the same way it pins `d.classify`.
+
+- [ ] Tests:
+  - dispatcher: 25 exempt `invalid` answers in a row leave `state == 'ok'` and add no pause; 25 non-exempt `invalid` answers still trip the breaker; spacing between starts is unchanged;
+  - mmt: an `MmtClient` dispatcher fed 25 HTTP 400 1001 answers stays `ok`; 25 HTTP 400 9999 answers trip the breaker.
+- [ ] Commit `task 55: breaker ignores not-running answers`.
+- [ ] Monitor: deploy and confirm per-minute starts stay near 12 without 10-minute gaps.
+
+---
+
 ## Spec coverage check
 
 | Spec section | Task(s) |
