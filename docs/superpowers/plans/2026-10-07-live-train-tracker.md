@@ -1661,6 +1661,55 @@ The collector got `transport_error`, its breaker paused 10 min, and collection s
   2. Register and start the task, then confirm the VM gets `ok` fetches.
   3. Kill the relay's Python process; confirm its ssh exits and the task restarts the relay within 5 min, and that fetches resume after the breaker pause.
 
+### Task 60 (amendment 2026-10-11): neon trails (user request)
+
+The user asked for a cyberpunk look, with heads that are "practically non-existent", a gradient trail that tapers off, and much smoother motion. Measured on the PC before the change (689 runs):
+
+- Idle rendering runs at 135 fps.
+- Every frame arrival (about every 20 s) blocks the main thread for about 300 ms. Each one re-decodes every run and rebuilds about 22k streak paths.
+- Heads redraw at 10 Hz because of a 100 ms throttle.
+- At zoom 4 the 10-minute trail is about 1 px, so the map shows only 5 px dots.
+
+**Files:** modify `web/src/layers.ts`, `web/src/main.ts`, `web/index.html`, `web/src/layers.test.ts`, `web/src/main.test.ts`.
+
+- **Decode cache:**
+  - Keep the `displayRun` result in a `WeakMap` per `RunFrame` object. `FrameStore` keeps unchanged runs as the same object, so a new generation decodes only the runs that changed.
+  - The trail data arrays are rebuilt only when a generation changes.
+- **Every animation frame:**
+  - Drop the 100 ms throttle. The status text updates at most once per second.
+  - Each drawn head eases toward its computed head: `head += (target − head)·(1 − exp(−dt/250 ms))`. A run seen for the first time snaps to its target.
+- **Comet trail:**
+  - Each run's median track (`points`, with `times` made monotone by a running max) is drawn by three stacked `TripsLayer`s with `fadeTrail`:
+    - widths 4 / 2 / 1 px;
+    - trail lengths L/4 / L/2 / L;
+    - alpha rising toward the thin core, so the tail tapers and fades.
+  - `L = clamp(4 h · 2^(4 − zoom), 10 min, 6 h)`, so tails keep a roughly constant length on screen.
+- **Uncertainty:** a strided subset of 8 particle streaks per run, 1 px and faint. `# ponytail:` all K = 32 streaks cost about 4× in attribute rebuilds; raise the subset when rebuilds become incremental.
+- **Colour:**
+  - Delay at the next stop when decoded: `(times[e] − origin_ts)/60 − sched_off`; 0 if unknown.
+  - Neon stops, linear in between and clamped at the ends: ≤ 0 min cyan `[0,240,255]`, 15 min yellow `[252,238,10]`, ≥ 60 min hot magenta `[255,42,109]`.
+  - Trail layers use additive blending.
+- **Heads:** 1.5 px, the delay colour mixed 60 % toward white. The overlay gets `pickingRadius: 10`, so tiny heads stay clickable.
+- **Look:**
+  - background `#05070d`;
+  - network 1 px `[0,200,255,28]`;
+  - panels are translucent near-black with a thin cyan border and glow, and a monospace font stack;
+  - `LIVE` in neon magenta with a text-shadow glow.
+- [ ] Tests:
+  - an unchanged run is not decoded again on a new generation;
+  - the three comet tiers have widths 4 / 2 / 1 with lengths increasing in that order;
+  - median timestamps are monotone;
+  - the colour stops and clamps are correct;
+  - the zoom-to-L clamp is correct;
+  - easing moves part of the way, converges, and snaps on first sight;
+  - there are at most 8 strided streaks per run.
+  - `npm --prefix web test` and `npm --prefix web run build` both pass.
+- [ ] Commit `task 60: neon trails`.
+- [ ] Monitor:
+  1. Take a Playwright screenshot through the tunnel.
+  2. Check that a frame arrival blocks the main thread for < 100 ms on the PC, and that idle fps has not dropped.
+  3. Copy `web/dist` to the VM.
+
 ---
 
 ## Spec coverage check
