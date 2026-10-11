@@ -6,12 +6,13 @@
     <title>Train tracker</title>
     <style>
       html, body, #app, #map { height: 100%; margin: 0; }
-      body { background: #0c121a; color: #e3e9ef; font: 14px system-ui, sans-serif; }
-      #live { position: absolute; top: 16px; left: 16px; padding: 12px; background: #18222eee; border-radius: 4px; }
-      #live strong { color: #50ebd6; } #connection { margin-top: 4px; }
+      body { background: #05070d; color: #e3e9ef; font: 14px ui-monospace, 'Cascadia Mono', Consolas, monospace; }
+      #live, #panel { background: #05070ddd; border: 1px solid #00c8ff66; box-shadow: 0 0 18px #00c8ff22; }
+      #live { position: absolute; top: 16px; left: 16px; padding: 12px; border-radius: 4px; }
+      #live strong { color: #ff2a6d; text-shadow: 0 0 8px #ff2a6daa; } #connection { margin-top: 4px; }
       #panel { position: absolute; bottom: 16px; right: 16px; max-height: 65%; overflow: auto;
-        width: min(540px, calc(100% - 64px)); background: #18222ef5; padding: 16px; border-radius: 4px; }
-      button { float: right; padding: 6px 12px; cursor: pointer; }
+        width: min(540px, calc(100% - 64px)); padding: 16px; border-radius: 4px; }
+      button { float: right; padding: 6px 12px; cursor: pointer; font: inherit; }
       table { width: 100%; border-collapse: collapse; } th, td { text-align: left; padding: 8px 4px; border-bottom: 1px solid #344252; }
       h2 { font-size: 18px; margin-right: 70px; }
     </style>

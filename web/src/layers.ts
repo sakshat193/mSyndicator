@@ -12,8 +12,11 @@ export interface Network {
     segments: { idx: number; segment_id: number; forward: boolean }[] }[];
 }
 type Trip = { path: Point[]; timestamps: number[] };
+type NeonColor = [number, number, number];
+type Trail = Trip & { color: NeonColor };
+type Trails = { base: number; comets: Trail[]; streaks: Trail[] };
 type Display = { run: RunFrame; head: Point; trips: Trip[];
-  stops: Stop[]; points: Point[]; times: number[] };
+  stops: Stop[]; points: Point[]; times: number[]; color: NeonColor };
 type NetworkIndex = {
   stations: Map<string, Point | null>;
   routes: Map<number, Network['routes'][number]>;
@@ -21,6 +24,9 @@ type NetworkIndex = {
   halts: Map<number, Map<number, number>>;
 };
 const indices = new WeakMap<Network, NetworkIndex>();
+const ADDITIVE = { blend: true, blendColorOperation: 'add', blendColorSrcFactor: 'src-alpha',
+  blendColorDstFactor: 'one', blendAlphaOperation: 'add', blendAlphaSrcFactor: 'one',
+  blendAlphaDstFactor: 'one', depthWriteEnabled: false } as const;
 const networkLayers = new WeakMap<Network, PathLayer<Point[]>>();
 
 export function indexNetwork(network: Network): NetworkIndex {
@@ -89,7 +95,52 @@ export function displayRun(run: RunFrame, network: Network, simTime: number): Di
     const sorted = trips.map(t => t.timestamps[e]).sort((a, b) => a - b);
     return (sorted[Math.floor((k - 1) / 2)] + sorted[Math.floor(k / 2)]) / 2;
   });
-  return { run, trips, stops, points, times, head: headAt({ stops, points, times }, simTime) };
+  const e = times.findIndex(t => t > simTime);
+  const scheduled = stops[e]?.sched_off;
+  const delay = e >= 0 && typeof run.origin_ts === 'number' && Number.isFinite(run.origin_ts)
+    && typeof scheduled === 'number' && Number.isFinite(scheduled)
+    ? (times[e] - run.origin_ts) / 60 - scheduled : 0;
+  return { run, trips, stops, points, times, color: delayColor(delay),
+    head: headAt({ stops, points, times }, simTime) };
+}
+
+export function delayColor(delay: number): NeonColor {
+  const cyan: NeonColor = [0, 240, 255], yellow: NeonColor = [252, 238, 10],
+    magenta: NeonColor = [255, 42, 109];
+  const a = delay <= 15 ? cyan : yellow, b = delay <= 15 ? yellow : magenta;
+  const f = delay <= 15 ? Math.max(0, delay) / 15 : Math.min(1, (delay - 15) / 45);
+  return a.map((c, i) => c + (b[i] - c) * f) as NeonColor;
+}
+
+export function trailLength(zoom: number): number {
+  return Math.max(600, Math.min(21600, 14400 * 2 ** (4 - zoom)));
+}
+
+/** Returns `target` itself once within `eps` degrees, so callers can tell when a head has settled. */
+export function easeHead(head: Point | undefined, target: Point, dt: number, eps = 0): Point {
+  if (!head) return target;
+  const f = 1 - Math.exp(-dt / 250);
+  const next: Point = [head[0] + (target[0] - head[0]) * f, head[1] + (target[1] - head[1]) * f];
+  return Math.abs(next[0] - target[0]) <= eps && Math.abs(next[1] - target[1]) <= eps ? target : next;
+}
+
+export function trailData(displays: Display[], simTime: number): Trails {
+  // Rebase only on generations to retain float32 precision without rebuilding animation attributes.
+  const base = Math.floor(simTime / 3600) * 3600;
+  const comets = displays.map(d => {
+    let latest = -Infinity;
+    return { path: d.points, color: d.color,
+      timestamps: d.times.map(ts => { latest = Math.max(latest, ts); return latest - base; }) };
+  });
+  // ponytail: all K = 32 streaks cost about 4× in attribute rebuilds; raise the subset when rebuilds become incremental.
+  const streaks = displays.flatMap(d => {
+    const count = Math.min(8, d.trips.length);
+    return Array.from({ length: count }, (_, j) => {
+      const trip = d.trips[Math.floor(j * d.trips.length / count)];
+      return { path: trip.path, color: d.color, timestamps: trip.timestamps.map(ts => ts - base) };
+    });
+  });
+  return { base, comets, streaks };
 }
 
 export function headAt({ stops, points, times }: Pick<Display, 'stops' | 'points' | 'times'>,
@@ -118,21 +169,25 @@ export function networkLayer(network: Network) {
     return a && b ? [[a, b]] : [];
   });
   const layer = new PathLayer<Point[]>({ id: 'network', data: paths, getPath: p => p,
-    getColor: [63, 78, 92], getWidth: 1, widthUnits: 'pixels' });
+    getColor: [0, 200, 255, 28], getWidth: 1, widthUnits: 'pixels' });
   networkLayers.set(network, layer);
   return layer;
 }
 
-export function trainLayers(displays: Display[], trips: (Trip & { k: number })[],
-                            simTime: number, select: (run: RunFrame) => void) {
-  // Relative timestamps avoid float32 precision loss in TripsLayer's GPU attributes.
-  const base = Math.floor(simTime / 3600) * 3600;
-  return [new TripsLayer<Trip & { k: number }>({ id: 'streaks', data: trips,
-    getPath: t => t.path, getTimestamps: t => t.timestamps.map(ts => ts - base),
-    updateTriggers: { getTimestamps: base },
-    currentTime: simTime - base, trailLength: 600, getWidth: 2, widthUnits: 'pixels',
-    getColor: t => [54, 206, 186, Math.min(255, 768 / t.k)] }),
+export function trainLayers(displays: Display[], trails: Trails, simTime: number,
+                            zoom: number, select: (run: RunFrame) => void) {
+  const length = trailLength(zoom);
+  return [...[4, 2, 1].map((width, i) => new TripsLayer<Trail>({ id: `comet-${width}`,
+    data: trails.comets, getPath: t => t.path, getTimestamps: t => t.timestamps,
+    currentTime: simTime - trails.base, trailLength: length / width, fadeTrail: true,
+    getWidth: width, widthUnits: 'pixels', getColor: t => [...t.color, [48, 112, 224][i]],
+    parameters: ADDITIVE })),
+  new TripsLayer<Trail>({ id: 'streaks', data: trails.streaks,
+    getPath: t => t.path, getTimestamps: t => t.timestamps,
+    currentTime: simTime - trails.base, trailLength: length, fadeTrail: true,
+    getWidth: 1, widthUnits: 'pixels', getColor: t => [...t.color, 16], parameters: ADDITIVE }),
   new ScatterplotLayer<Display>({ id: 'heads', data: displays, getPosition: d => d.head,
-    getRadius: 5, radiusUnits: 'pixels', getFillColor: [80, 235, 214],
+    getRadius: 1.5, radiusUnits: 'pixels',
+    getFillColor: d => d.color.map(c => c + (255 - c) * 0.6) as NeonColor,
     pickable: true, onClick: info => { if (info.object) select(info.object.run); } })];
 }
