@@ -4,24 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Train tracker</title>
-    <style>
-      html, body, #app, #map { height: 100%; margin: 0; }
-      body { background: #05070d; color: #e3e9ef; font: 14px ui-monospace, 'Cascadia Mono', Consolas, monospace; }
-      #live, #panel { background: #05070ddd; border: 1px solid #00c8ff66; box-shadow: 0 0 18px #00c8ff22; }
-      #live { position: absolute; top: 16px; left: 16px; padding: 12px; border-radius: 4px; }
-      #live strong { color: #ff2a6d; text-shadow: 0 0 8px #ff2a6daa; } #connection { margin-top: 4px; }
-      #panel { position: absolute; bottom: 16px; right: 16px; max-height: 65%; overflow: auto;
-        width: min(540px, calc(100% - 64px)); padding: 16px; border-radius: 4px; }
-      button { float: right; padding: 6px 12px; cursor: pointer; font: inherit; }
-      table { width: 100%; border-collapse: collapse; } th, td { text-align: left; padding: 8px 4px; border-bottom: 1px solid #344252; }
-      h2 { font-size: 18px; margin-right: 70px; }
-    </style>
+    <link rel="icon" href="data:,">
   </head>
   <body>
     <main id="app">
       <div id="map" aria-label="India train map"></div>
-      <div id="live"><strong>LIVE</strong> · now − 15 s<div id="connection" role="status">Loading network…</div></div>
-      <aside id="panel" aria-label="Train predictions" hidden><button type="button">Close</button><div data-content aria-live="polite"></div></aside>
+      <section id="live" class="glass" aria-label="Live train tracker">
+        <div class="live-heading"><strong class="live-label"><span class="live-dot" aria-hidden="true"></span>LIVE</strong><time id="clock" aria-label="Current time in IST">--:--:--</time></div>
+        <div class="live-status"><span id="train-count">0 trains</span><span id="connection" role="status">Loading network…</span></div>
+        <div class="search-field">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+          <label class="sr-only" for="search">Train number or name</label>
+          <input id="search" type="search" placeholder="Train number or name" maxlength="100" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="search-results" aria-expanded="false">
+        </div>
+        <div id="search-results" role="listbox" aria-label="Trains" hidden></div>
+      </section>
+      <section id="legend" class="glass" aria-label="Train delay legend">
+        <div class="delay-gradient" aria-hidden="true"></div>
+        <div class="legend-labels"><span>On time</span><span>15 min</span><span>60+ min late</span></div>
+      </section>
+      <aside id="panel" class="glass" aria-label="Train predictions" tabindex="-1" hidden>
+        <button class="panel-close" data-close type="button" aria-label="Close train panel">×</button>
+        <div data-content aria-live="polite"></div>
+      </aside>
+      <div id="hover" class="glass" role="tooltip" hidden>
+        <strong data-hover-title></strong><p class="route-name" data-hover-route></p>
+        <div class="hover-metadata"><span class="delay-chip" data-hover-delay></span><span class="evidence" data-hover-evidence></span></div>
+      </div>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -1,8 +1,9 @@
 import { expect, it } from 'vitest';
 import { TripsLayer } from '@deck.gl/geo-layers';
-import { ScatterplotLayer } from '@deck.gl/layers';
+import { ScatterplotLayer, TextLayer } from '@deck.gl/layers';
 import { indexNetwork, networkLayer, displayRun, trailData, trainLayers,
-  delayColor, trailLength, easeHead, headAt, type Network } from './layers';
+  delayColor, trailLength, easeHead, headAt, labelBucket, labelStations, stationLabelLayer, selectionLayer,
+  trainAlpha, type Network } from './layers';
 
 const network: Network = {
   stations: [{ code: 'A', lon: 70, lat: 20 }, { code: 'B', lon: 72, lat: 22 },
@@ -39,8 +40,8 @@ it('builds one network layer and geometry array per network', () => {
   expect(networkLayer(network)).toBe(layer);
   expect(networkLayer(network).props.data).toBe(layer.props.data);
   expect(networkLayer({ ...network })).not.toBe(layer);
-  expect(layer.props.getColor).toEqual([0, 200, 255, 28]);
-  expect(layer.props.getWidth).toBe(1);
+  expect(layer.props.getColor).toEqual([0, 200, 255, 36]);
+  expect(layer.props.getWidth).toBe(1.5);
 });
 
 it('uses indexed geometry when decoding the existing P50 fixture', () => {
@@ -171,9 +172,10 @@ it('draws three fading comet tiers with additive blending and tiny pickable head
   const trips = layers.filter(layer => layer instanceof TripsLayer);
   const comets = trips.filter(layer => layer.id.startsWith('comet-'));
   expect(comets).toHaveLength(3);
-  expect(comets.map(layer => layer.props.getWidth)).toEqual([4, 2, 1]);
+  expect(comets.map(layer => layer.props.getWidth)).toEqual([6, 3, 1.5]);
   expect(comets.map(layer => layer.props.trailLength)).toEqual([3600, 7200, 14400]);
   const alphas = comets.map(layer => (layer.props.getColor as Function)(trails.comets[0])[3]);
+  expect(alphas).toEqual([48, 112, 224]);
   expect(alphas[0]).toBeGreaterThan(0);
   expect(alphas[1]).toBeGreaterThan(alphas[0]);
   expect(alphas[2]).toBeGreaterThan(alphas[1]);
@@ -185,10 +187,11 @@ it('draws three fading comet tiers with additive blending and tiny pickable head
       blendAlphaOperation: 'add', blendAlphaSrcFactor: 'one', blendAlphaDstFactor: 'one' });
   }
   const streaks = trips.find(layer => layer.id === 'streaks')!;
-  expect(streaks.props.getWidth).toBe(1);
+  expect(streaks.props.getWidth).toBe(1.5);
+  expect(streaks.props.trailLength).toBe(21600);
   expect((streaks.props.getColor as Function)(trails.streaks[0])[3]).toBeLessThan(alphas[0]);
   const heads = layers.find(layer => layer instanceof ScatterplotLayer)!;
-  expect(heads.props.getRadius).toBe(1.5);
+  expect(heads.props.getRadius).toBe(2);
   expect(heads.props.radiusUnits).toBe('pixels');
   expect(heads.props.pickable).toBe(true);
   const whiteMix = (heads.props.getFillColor as Function)(display);
@@ -229,7 +232,7 @@ it('uses next-stop delay at decode time, falling back to cyan when unknown', () 
   expect(displayRun(run, unknownSchedule, 1300)?.color).toEqual([0, 240, 255]);
 });
 
-it.each([[-10, 21600], [3, 21600], [4, 14400], [5, 7200], [8, 900], [9, 600], [20, 600]])(
+it.each([[-10, 32400], [3, 32400], [4, 21600], [5, 10800], [8, 1350], [9, 900], [20, 900]])(
   'clamps the trail to the zoom-dependent sim seconds at zoom %s', (zoom, length) => {
     expect(trailLength(zoom)).toBe(length);
   });
@@ -257,4 +260,130 @@ it.each([
   const trails = trailData([display, { ...display, run: { ...display.run, run_id: 10 } }], 1300);
   expect(trails.comets).toHaveLength(2);
   expect(trails.streaks.map(t => t.timestamps[1])).toEqual([...(times as number[]), ...(times as number[])]);
+});
+
+const labelNetwork: Network = { stations: [
+  { code: 'A', name: 'ALPHA CENTRAL', lon: 70, lat: 20 },
+  { code: 'B', name: 'BETA', lon: 71, lat: 21 },
+  { code: 'C', name: 'GAMMA', lon: 72, lat: 22 },
+  { code: 'D', name: 'DELTA', lon: 73, lat: 23 },
+  { code: 'E', name: 'EPSILON', lon: 74, lat: 24 },
+  { code: 'F', name: 'ZETA', lon: 75, lat: 25 },
+  { code: 'G', name: 'ETA', lon: 76, lat: 26 },
+  { code: 'M', name: 'MISSING', lon: null, lat: null },
+  { code: 'I', name: 'INVALID', lon: 181, lat: 20 },
+  { code: 'Z', name: 'UNUSED', lon: 77, lat: 27 }], segments: [],
+  routes: Array.from({ length: 400 }, (_, id) => ({ ...network.routes[0], id,
+    stops: ['T', 'A', 'A', ...(id < 250 ? ['B'] : []), ...(id < 150 ? ['C'] : []),
+      ...(id < 80 ? ['D'] : []), ...(id < 40 ? ['E'] : []), ...(id < 20 ? ['F'] : []),
+      ...(id < 1 ? ['G', 'M', 'I'] : []), 'T']
+      .map((station, idx, stops) => ({ idx, station, halt: true,
+        dist_km: idx * 300 / (stops.length - 1), sched_off: idx * 5 })) })) };
+
+it.each([[4.9, ['A']], [5, ['A', 'B']], [5.9, ['A', 'B']], [6, ['A', 'B', 'C']],
+  [6.9, ['A', 'B', 'C']], [7, ['A', 'B', 'C', 'D']], [7.9, ['A', 'B', 'C', 'D']],
+  [8, ['A', 'B', 'C', 'D', 'E']], [8.9, ['A', 'B', 'C', 'D', 'E']],
+  [9, ['A', 'B', 'C', 'D', 'E', 'F']], [9.9, ['A', 'B', 'C', 'D', 'E', 'F']],
+  [10, ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'Z']]])(
+  'labels only valid stations meeting the prominence threshold at zoom %s', (zoom, codes) => {
+    expect(labelStations(labelNetwork, zoom as number).map(s => s.code)).toEqual(codes);
+  });
+
+it('counts only long-distance routes once per station and adds two for their terminals', () => {
+  const calls = (codes: string[], distance: number) => codes.map((station, idx) => ({
+    idx, station, halt: true, dist_km: idx * distance / (codes.length - 1), sched_off: idx * 5,
+  }));
+  const indexed = indexNetwork({ ...labelNetwork, routes: [
+    { ...network.routes[0], id: 1, stops: calls(['A', 'B'], 299.99) },
+    { ...network.routes[0], id: 2, stops: calls(['A', 'C', 'C', 'B'], 300) },
+    { ...network.routes[0], id: 3, stops: calls(['C', 'A', 'D'], 600) },
+    { ...network.routes[0], id: 4, stops: calls(['E', 'F', 'E'], 300) },
+  ] });
+  expect(Object.fromEntries(indexed.prominence)).toEqual({ A: 4, B: 3, C: 4, D: 3, E: 3, F: 1 });
+  expect(indexed.routeCounts.get('A')).toBe(3);
+});
+
+it('ranks a long-distance terminal ahead of a suburban-only station with many more routes', () => {
+  const suburban: Network = { stations: [
+    { code: 'U', lon: 78, lat: 17 }, { code: 'L', lon: 80, lat: 20 },
+  ], segments: [], routes: Array.from({ length: 501 }, (_, id) => ({ ...network.routes[0], id,
+    stops: [
+      { idx: 0, station: id === 500 ? 'L' : 'U', halt: true, dist_km: 0, sched_off: 0 },
+      { idx: 1, station: 'T', halt: true, dist_km: id === 500 ? 300 : 50, sched_off: 10 },
+    ] })) };
+  expect(indexNetwork(suburban).routeCounts.get('U')).toBe(500);
+  expect(labelStations(suburban, 10).map(s => s.code)).toEqual(['L', 'U']);
+});
+
+it('breaks prominence ties by route count, then station code', () => {
+  const tied: Network = { ...network, segments: [], stations: [
+    { code: 'B', lon: 80, lat: 20 }, { code: 'C', lon: 81, lat: 21 }, { code: 'A', lon: 82, lat: 22 },
+  ], routes: [
+    { ...network.routes[0], id: 1, stops: ['T', 'A', 'B', 'C', 'T'].map((station, idx) => ({
+      idx, station, halt: true, dist_km: idx * 100, sched_off: idx * 5,
+    })) },
+    { ...network.routes[0], id: 2, stops: [
+      { idx: 0, station: 'C', halt: true, dist_km: 0, sched_off: 0 },
+      { idx: 1, station: 'T', halt: true, dist_km: 50, sched_off: 5 },
+    ] },
+  ] };
+  expect(labelStations(tied, 10).map(s => s.code)).toEqual(['C', 'A', 'B']);
+});
+
+it('declutters nearby stations by prominence until zoom separates their padded labels', () => {
+  const nearby: Network = { ...labelNetwork, stations: [
+    { code: 'B', name: 'BETA', lon: 78.52, lat: 17.52 },
+    { code: 'A', name: 'ALPHA CENTRAL', lon: 78.5, lat: 17.5 },
+  ] };
+  expect(labelStations(nearby, 8).map(s => s.code)).toEqual(['A']);
+  expect(labelStations(nearby, 12).map(s => s.code)).toEqual(['A', 'B']);
+});
+
+it('uses half-zoom buckets for label selection', () => {
+  expect(labelBucket(7.74)).toBe(7.5);
+  expect(labelBucket(8)).toBe(8);
+  const bucketed: Network = { ...labelNetwork, stations: [
+    { code: 'B', name: 'BETA', lon: 78.73, lat: 17.5 },
+    { code: 'A', name: 'ALPHA CENTRAL', lon: 78.5, lat: 17.5 },
+  ] };
+  expect(labelStations(bucketed, 7.5).map(s => s.code)).toEqual(['A']);
+  expect(labelStations(bucketed, 7.74).map(s => s.code)).toEqual(['A']);
+  expect(labelStations(bucketed, 8).map(s => s.code)).toEqual(['A', 'B']);
+});
+
+it('labels title case station names in a small deck font atlas', () => {
+  const layer = stationLabelLayer(labelStations(labelNetwork, 4), 4);
+  expect(layer).toBeInstanceOf(TextLayer);
+  expect((layer.props.getText as Function)(labelNetwork.stations[0])).toBe('Alpha Central');
+  expect(layer.props.getSize).toBe(11);
+  expect(layer.props.getColor).toEqual([150, 168, 190, 210]);
+  expect(layer.props.characterSet).toBe('auto');
+  expect(layer.props.fontSettings.sdf).toBe(true);
+  expect(layer.props.outlineWidth).toBeGreaterThan(0);
+  expect(layer.props.outlineColor).toEqual([5, 7, 13, 230]);
+  expect(stationLabelLayer(labelStations(labelNetwork, 7), 7).props.getSize).toBe(12);
+});
+
+it('dims other trains to 30 percent and highlights the selected expanded path without copying it', () => {
+  const selected = displayRun(runFixture(), chained, 1300)!;
+  const other = { ...selected, run: { ...selected.run, run_id: 10 } };
+  const trails = trailData([selected, other], 1300);
+  expect(trainAlpha(10, null)).toBe(1);
+  expect(trainAlpha(9, 9)).toBe(1);
+  expect(trainAlpha(10, 9)).toBe(0.3);
+  const highlight = selectionLayer(selected);
+  expect(highlight.props.data).toEqual([selected.points]);
+  expect((highlight.props.data as any[])[0]).toBe(selected.points);
+  expect(highlight.props.getWidth).toBe(3);
+  expect(highlight.props.getColor).toEqual([0, 240, 255, 190]);
+  const layers = trainLayers([selected, other], trails, 1300, 4, () => {}, 9);
+  for (const layer of layers.filter(l => l instanceof TripsLayer)) {
+    const data = layer.props.data as any[];
+    const color = layer.props.getColor as Function;
+    const otherIndex = layer.id === 'streaks' ? 2 : 1;
+    expect(color(data[otherIndex])[3]).toBeCloseTo(color(data[0])[3] * 0.3);
+  }
+  const heads = layers.find(l => l instanceof ScatterplotLayer)!;
+  expect((heads.props.getFillColor as Function)(other)[3]).toBeCloseTo(76.5);
+  expect((heads.props.getFillColor as Function)(selected)[3]).toBe(255);
 });

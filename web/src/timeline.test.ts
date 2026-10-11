@@ -45,8 +45,12 @@ it('keeps repeated-station dwell at the station and ignores missing coordinates'
 });
 
 it('uses P10/P50/P90 from run-detail halts and preserves unavailable arrivals', () => {
-  const rows = haltRows([{ station: 'B', occ: 2,
-    arr: [1, 2, 3, 4, 5, 6, 7], dep: [null, null, null, null, null, null, null] }], 1000, 1100);
-  expect(rows).toEqual([{ station: 'B', occ: 2, arr: [1120, 1240, 1360], dep: [null, null, null] }]);
-  expect(haltRows([{ station: 'A', occ: 1, arr: Array(7).fill(0), dep: Array(7).fill(1) }], 1000, 1100)).toEqual([]);
+  const schedule = [{ idx: 0, station: 'A', occ: 1, arr_off: null, dep_off: 0 },
+    { idx: 1, station: 'B', occ: 2, arr_off: 4, dep_off: null }];
+  const halts = [{ idx: 0, station: 'A', occ: 1, arr: Array(7).fill(null), dep: Array(7).fill(1) },
+    { idx: 1, station: 'B', occ: 2, arr: [1, 2, 3, 4, 5, 6, 7], dep: Array(7).fill(null) }];
+  const rows = haltRows(schedule, halts, [], 1000, 1100);
+  expect(rows[1].quantiles).toEqual([1120, 1240, 1360]);
+  expect(rows[0].status).toBe('past');
+  expect(haltRows(schedule, [], [], 1000, 1100)[1].quantiles).toEqual([null, null, null]);
 });

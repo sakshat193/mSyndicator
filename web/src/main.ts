@@ -1,25 +1,50 @@
 /// <reference types="vite/client" />
-import { Map as MapLibreMap, NavigationControl } from 'maplibre-gl';
+import { Map as MapLibreMap, NavigationControl, addProtocol, setWorkerUrl } from 'maplibre-gl';
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
+import { Protocol } from 'pmtiles';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import './style.css';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { connectLive, FrameStore, type RunFrame } from './frames';
 import { displayRun, headAt, easeHead, indexNetwork, networkLayer, trailData, trainLayers,
-  type Network } from './layers';
+  labelBucket, labelStations, stationLabelLayer, selectionLayer, delayColor, type Network } from './layers';
 import { liveTime } from './timeline';
-import { runPanel } from './panel';
+import { hoverText, runPanel } from './panel';
+import { mapOptions } from './basemap';
+import { initSearch } from './search';
 
-const map = new MapLibreMap({ container: 'map', center: [79, 22], zoom: 4,
-  style: { version: 8, sources: {}, layers: [{ id: 'background', type: 'background',
-    paint: { 'background-color': '#05070d' } }] } });
-map.addControl(new NavigationControl());
+setWorkerUrl(workerUrl);
+const protocol = new Protocol();
+addProtocol('pmtiles', protocol.tile);
+const map = new MapLibreMap({ container: 'map', ...mapOptions });
+map.on('error', event => {
+  if (!('sourceId' in event) || event.sourceId !== 'india') console.error(event.error);
+});
+map.addControl(new NavigationControl({ showCompass: false }), 'bottom-right');
 const overlay = new MapboxOverlay({ interleaved: false, layers: [], pickingRadius: 10 });
 map.addControl(overlay);
 const store = new FrameStore();
 const disconnect = connectLive(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/live`, store);
-const showRun = runPanel(document.querySelector<HTMLElement>('#panel')!);
+const panelElement = document.querySelector<HTMLElement>('#panel')!;
+const panel = runPanel(panelElement, () => network, clearSelection);
 const status = document.querySelector<HTMLElement>('#connection')!;
+const clockElement = document.querySelector<HTMLElement>('#clock')!;
+const count = document.querySelector<HTMLElement>('#train-count')!;
+const tooltip = document.querySelector<HTMLElement>('#hover')!;
+const hoverTitle = tooltip.querySelector<HTMLElement>('[data-hover-title]')!;
+const hoverRoute = tooltip.querySelector<HTMLElement>('[data-hover-route]')!;
+const hoverDelay = tooltip.querySelector<HTMLElement>('[data-hover-delay]')!;
+const hoverEvidence = tooltip.querySelector<HTMLElement>('[data-hover-evidence]')!;
+const istClock = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata',
+  hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 let network: Network | undefined;
 let background: ReturnType<typeof networkLayer> | undefined;
+let labels: ReturnType<typeof stationLabelLayer> | undefined;
+let labelZoom = -1;
+let selected: number | null = null;
+let panelRun: RunFrame | undefined;
+let highlight: ReturnType<typeof selectionLayer> | undefined;
+let hovered: { id: number; x: number; y: number } | undefined;
 let displays: NonNullable<ReturnType<typeof displayRun>>[] = [];
 const decoded = new WeakMap<RunFrame, ReturnType<typeof displayRun>>();
 const drawnHeads = new Map<number, ReturnType<typeof headAt>>();
@@ -29,6 +54,58 @@ let lastDraw = -Infinity;
 let settling = false;
 let lastStatus = -Infinity;
 let animation: number;
+
+function clearSelection() {
+  selected = null;
+  panelRun = undefined;
+  highlight = undefined;
+  panel.close();
+  settling = true;
+}
+
+function selectRun(run: RunFrame) {
+  run = store.runs[run.run_id];
+  if (!run) return;
+  const display = displays.find(d => d.run.run_id === run.run_id);
+  selected = run.run_id;
+  panelRun = run;
+  highlight = display ? selectionLayer(display) : undefined;
+  settling = true;
+  tooltip.hidden = true;
+  hovered = undefined;
+  void panel.show(run, liveTime());
+  if (display) map.easeTo({ center: headAt(display, liveTime()), zoom: Math.max(6, map.getZoom()) });
+}
+
+function renderHover() {
+  const display = hovered && displays.find(d => d.run.run_id === hovered!.id);
+  if (!display || !network || !hovered) { tooltip.hidden = true; return; }
+  const text = hoverText(display.run, network, display.delay, Date.now() / 1000);
+  hoverTitle.textContent = text.title;
+  hoverRoute.textContent = text.route;
+  hoverDelay.textContent = text.delay;
+  hoverDelay.style.setProperty('--delay-color', `rgb(${delayColor(display.delay).join(',')})`);
+  hoverEvidence.textContent = text.evidence;
+  tooltip.hidden = false;
+  const width = tooltip.offsetWidth, height = tooltip.offsetHeight;
+  const x = Math.max(8, Math.min(hovered.x + 14, window.innerWidth - width - 8));
+  const y = Math.max(8, Math.min(hovered.y + 14, window.innerHeight - height - 8));
+  tooltip.style.transform = `translate(${x}px, ${y}px)`;
+}
+
+function hoverRun(run: RunFrame | null, x: number, y: number) {
+  hovered = run ? { id: run.run_id, x, y } : undefined;
+  map.getCanvas().style.cursor = run ? 'pointer' : '';
+  renderHover();
+  settling = true;
+}
+
+const closeSearch = initSearch(document.querySelector<HTMLInputElement>('#search')!,
+  document.querySelector<HTMLElement>('#search-results')!, () => store.runs, selectRun);
+window.addEventListener('keydown', event => {
+  if (event.key === 'Escape') { closeSearch(); clearSelection(); hoverRun(null, 0, 0); }
+});
+map.on('move', () => { settling = true; hoverRun(null, 0, 0); });
 
 async function loadNetwork() {
   try {
@@ -59,6 +136,17 @@ function draw(tick: number) {
       trails = trailData(displays, simTime);
       const ids = new Set(displays.map(d => d.run.run_id));
       for (const id of drawnHeads.keys()) if (!ids.has(id)) drawnHeads.delete(id);
+      const chosen = displays.find(d => d.run.run_id === selected);
+      if (selected !== null && !store.runs[selected]) clearSelection();
+      else if (chosen) {
+        highlight = selectionLayer(chosen);
+        if (panelRun !== chosen.run) { panelRun = chosen.run; void panel.show(chosen.run, simTime); }
+      } else if (selected !== null) {
+        highlight = undefined;
+        const run = store.runs[selected];
+        if (panelRun !== run) { panelRun = run; void panel.show(run, simTime); }
+      }
+      renderHover();
       settling = true;
     }
     // Live motion is far below a pixel per frame, so redraw at ~70 Hz only while a head is
@@ -67,6 +155,11 @@ function draw(tick: number) {
       const dt = tick - lastDraw;
       lastDraw = tick;
       const zoom = map.getZoom();
+      const bucket = labelBucket(zoom);
+      if (bucket !== labelZoom) {
+        labelZoom = bucket;
+        labels = stationLabelLayer(labelStations(network, bucket), bucket);
+      }
       const eps = 0.05 * 360 / (512 * 2 ** zoom); // 0.05 px in degrees
       settling = false;
       const heads = displays.map(d => {
@@ -76,17 +169,26 @@ function draw(tick: number) {
         drawnHeads.set(d.run.run_id, head);
         return { ...d, head };
       });
-      overlay.setProps({ layers: [background, ...trainLayers(heads, trails, simTime, zoom,
-        run => { void showRun(run, liveTime()); })] });
+      overlay.setProps({ layers: [background, ...(highlight ? [highlight] : []),
+        ...trainLayers(heads, trails, simTime, zoom, selectRun, selected, hoverRun), ...(labels ? [labels] : [])] });
     }
-    if (tick - lastStatus >= 1000) {
-      lastStatus = tick;
-      const age = store.latest ? Math.max(0, Date.now() / 1000 - store.latest.ts) : null;
-      status.textContent = age === null ? 'Waiting for live frames' :
-        `${displays.length} trains · frame age ${Math.floor(age)} s`;
+  }
+  if (tick - lastStatus >= 1000) {
+    lastStatus = tick;
+    const now = Date.now();
+    clockElement.textContent = istClock.format(now);
+    count.textContent = `${displays.length} trains`;
+    if (network) {
+      const age = store.latest ? Math.max(0, Math.floor(now / 1000 - store.latest.ts)) : null;
+      status.textContent = age === null ? 'Waiting for live frames' : `updated ${age} s ago`;
+      status.dataset.freshness = age === null ? 'old' : age < 60 ? 'fresh' : age < 180 ? 'aging' : 'old';
     }
+    if (panelRun) panel.update(panelRun, simTime);
+    renderHover();
   }
   animation = requestAnimationFrame(draw);
 }
 animation = requestAnimationFrame(draw);
-window.addEventListener('pagehide', () => { disconnect(); cancelAnimationFrame(animation); map.remove(); }, { once: true });
+window.addEventListener('pagehide', () => {
+  closeSearch(); panel.close(); disconnect(); cancelAnimationFrame(animation); map.remove();
+}, { once: true });

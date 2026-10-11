@@ -1,4 +1,4 @@
-import { PathLayer, ScatterplotLayer } from '@deck.gl/layers';
+import { PathLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers';
 import { TripsLayer } from '@deck.gl/geo-layers';
 import type { RunFrame } from './frames';
 import { pos } from './position';
@@ -6,7 +6,7 @@ import { pos } from './position';
 type Point = [number, number];
 type Stop = { idx: number; station: string; halt: boolean; dist_km: number; sched_off: number | null };
 export interface Network {
-  stations: { code: string; lon: number | null; lat: number | null }[];
+  stations: { code: string; name?: string; lon: number | null; lat: number | null }[];
   segments: { id: number; stn_lo: string; stn_hi: string; polyline: Point[] | null;
     derived: boolean; confidence: number }[];
   routes: { id: number; train: string; name: string; class: string; stops: Stop[];
@@ -15,12 +15,16 @@ export interface Network {
 type Trip = { path: Point[]; timestamps: number[] };
 type Gap = { path: Point[]; lengths: number[] };
 type NeonColor = [number, number, number];
-type Trail = Trip & { color: NeonColor };
+type Trail = Trip & { runId: number; color: NeonColor };
 type Trails = { base: number; comets: Trail[]; streaks: Trail[] };
 type Display = { run: RunFrame; head: Point; trips: Trip[];
-  stops: Stop[]; points: Point[]; times: number[]; eventTimes: number[]; gaps: Gap[]; color: NeonColor };
+  stops: Stop[]; points: Point[]; times: number[]; eventTimes: number[]; gaps: Gap[];
+  delay: number; color: NeonColor };
 type NetworkIndex = {
   stations: Map<string, Point | null>;
+  names: Map<string, string>;
+  routeCounts: Map<string, number>;
+  prominence: Map<string, number>;
   routes: Map<number, Network['routes'][number]>;
   stops: Map<number, Map<number, Stop>>;
   halts: Map<number, Map<number, number>>;
@@ -35,9 +39,11 @@ const networkLayers = new WeakMap<Network, PathLayer<Point[]>>();
 export function indexNetwork(network: Network): NetworkIndex {
   const existing = indices.get(network);
   if (existing) return existing;
-  const index: NetworkIndex = { stations: new Map(), routes: new Map(),
+  const index: NetworkIndex = { stations: new Map(), names: new Map(), routeCounts: new Map(),
+    prominence: new Map(), routes: new Map(),
     stops: new Map(), halts: new Map(), geometry: new Map() };
   for (const s of network.stations) if (!index.stations.has(s.code)) {
+    index.names.set(s.code, titleCase(s.name || s.code));
     index.stations.set(s.code, typeof s.lon === 'number' && Number.isFinite(s.lon) && Math.abs(s.lon) <= 180
       && typeof s.lat === 'number' && Number.isFinite(s.lat) && Math.abs(s.lat) <= 90
       ? [s.lon, s.lat] : null);
@@ -45,6 +51,13 @@ export function indexNetwork(network: Network): NetworkIndex {
   const segments = new Map(network.segments.map(s => [s.id, s]));
   for (const route of network.routes) if (!index.routes.has(route.id)) {
     index.routes.set(route.id, route);
+    const longDistance = (route.stops.at(-1)?.dist_km ?? 0) >= 300;
+    const terminals = new Set([route.stops[0]?.station, route.stops.at(-1)?.station]);
+    for (const station of new Set(route.stops.map(s => s.station))) {
+      index.routeCounts.set(station, (index.routeCounts.get(station) ?? 0) + 1);
+      if (longDistance) index.prominence.set(station,
+        (index.prominence.get(station) ?? 0) + 1 + (terminals.has(station) ? 2 : 0));
+    }
     const stops = new Map<number, Stop>(), halts = new Map<number, number>();
     let h = 0;
     for (const stop of route.stops) {
@@ -135,7 +148,7 @@ export function displayRun(run: RunFrame, network: Network, simTime: number): Di
   const expanded = [points[0], ...gaps.flatMap(g => g.path.slice(1))];
   const expandedTrips = trips.map(t => ({ path: expanded, timestamps: expandTimes(t.timestamps, gaps) }));
   const times = expandTimes(eventTimes, gaps);
-  return { run, trips: expandedTrips, stops, points: expanded, times, eventTimes, gaps, color: delayColor(delay),
+  return { run, trips: expandedTrips, stops, points: expanded, times, eventTimes, gaps, delay, color: delayColor(delay),
     head: headAt({ stops, points: expanded, eventTimes, gaps }, simTime) };
 }
 
@@ -156,7 +169,7 @@ export function delayColor(delay: number): NeonColor {
 }
 
 export function trailLength(zoom: number): number {
-  return Math.max(600, Math.min(21600, 14400 * 2 ** (4 - zoom)));
+  return Math.max(900, Math.min(32400, 21600 * 2 ** (4 - zoom)));
 }
 
 /** Returns `target` itself once within `eps` degrees, so callers can tell when a head has settled. */
@@ -172,7 +185,7 @@ export function trailData(displays: Display[], simTime: number): Trails {
   const base = Math.floor(simTime / 3600) * 3600;
   const comets = displays.map(d => {
     let latest = -Infinity;
-    return { path: d.points, color: d.color,
+    return { path: d.points, runId: d.run.run_id, color: d.color,
       timestamps: d.times.map(ts => { latest = Math.max(latest, ts); return latest - base; }) };
   });
   // ponytail: all K = 32 streaks cost about 4× in attribute rebuilds; raise the subset when rebuilds become incremental.
@@ -180,7 +193,7 @@ export function trailData(displays: Display[], simTime: number): Trails {
     const count = Math.min(8, d.trips.length);
     return Array.from({ length: count }, (_, j) => {
       const trip = d.trips[Math.floor(j * d.trips.length / count)];
-      return { path: trip.path, color: d.color, timestamps: trip.timestamps.map(ts => ts - base) };
+      return { path: trip.path, runId: d.run.run_id, color: d.color, timestamps: trip.timestamps.map(ts => ts - base) };
     });
   });
   return { base, comets, streaks };
@@ -221,7 +234,7 @@ export function networkLayer(network: Network) {
     return s.polyline ? [s.polyline] : greatCircle(a, b) <= 150 ? [[a, b]] : [];
   });
   const layer = new PathLayer<Point[]>({ id: 'network', data: paths, getPath: p => p,
-    getColor: [0, 200, 255, 28], getWidth: 1, widthUnits: 'pixels' });
+    getColor: [0, 200, 255, 36], getWidth: 1.5, widthUnits: 'pixels' });
   networkLayers.set(network, layer);
   return layer;
 }
@@ -233,20 +246,86 @@ function greatCircle(a: Point, b: Point): number {
   return 6371.0088 * 2 * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
+export const LABEL_THRESHOLDS = [[5, 400], [6, 250], [7, 150], [8, 80],
+  [9, 40], [10, 20], [Infinity, 0]] as const;
+
+export function labelBucket(zoom: number): number {
+  return Math.floor(zoom * 2) / 2;
+}
+
+export function labelThreshold(zoom: number): number {
+  return LABEL_THRESHOLDS.find(([limit]) => zoom < limit)![1];
+}
+
+export function labelStations(network: Network, zoom: number) {
+  const bucket = labelBucket(zoom), index = indexNetwork(network), threshold = labelThreshold(bucket);
+  const candidates = network.stations.filter(s => index.stations.get(s.code)
+    && (index.prominence.get(s.code) ?? 0) >= threshold)
+    .sort((a, b) => (index.prominence.get(b.code) ?? 0) - (index.prominence.get(a.code) ?? 0)
+      || (index.routeCounts.get(b.code) ?? 0) - (index.routeCounts.get(a.code) ?? 0)
+      || a.code.localeCompare(b.code));
+  const world = 512 * 2 ** bucket;
+  const boxes: [number, number, number, number][] = [];
+  return candidates.filter(s => {
+    const x = (s.lon! + 180) / 360 * world;
+    const lat = Math.max(-85.051129, Math.min(85.051129, s.lat!)) * Math.PI / 180;
+    const y = (1 - Math.log(Math.tan(Math.PI / 4 + lat / 2)) / Math.PI) / 2 * world;
+    // ponytail: fixed label estimates; use measured glyph bounds if fonts or label layout change.
+    const halfWidth = titleCase(s.name || s.code).length * 6.5 / 2 + 4;
+    const box: [number, number, number, number] = [x - halfWidth, y + 6, x + halfWidth, y + 28];
+    if (boxes.some(b => box[0] <= b[2] && box[2] >= b[0] && box[1] <= b[3] && box[3] >= b[1]))
+      return false;
+    boxes.push(box);
+    return true;
+  });
+}
+
+export function titleCase(name: string): string {
+  return name.toLowerCase().replace(/\b\p{L}/gu, letter => letter.toUpperCase());
+}
+
+export function stationName(network: Network, code: string): string {
+  return indexNetwork(network).names.get(code) ?? code;
+}
+
+export function stationLabelLayer(stations: Network['stations'], zoom: number) {
+  return new TextLayer<Network['stations'][number]>({ id: 'station-labels', data: stations,
+    getPosition: s => [s.lon!, s.lat!], getText: s => titleCase(s.name || s.code),
+    getSize: zoom < 7 ? 11 : 12, sizeUnits: 'pixels', getColor: [150, 168, 190, 210], characterSet: 'auto',
+    // SDF preserves glyph bearings so letters such as j are not clipped by the atlas.
+    fontSettings: { sdf: true }, outlineWidth: 0.18, outlineColor: [5, 7, 13, 230],
+    fontFamily: "Inter, 'Segoe UI Variable', system-ui, sans-serif", getPixelOffset: [0, 10],
+    getTextAnchor: 'middle', getAlignmentBaseline: 'top', pickable: false });
+}
+
+export function trainAlpha(runId: number, selected: number | null): number {
+  return selected === null || selected === runId ? 1 : 0.3;
+}
+
+export function selectionLayer(display: Display) {
+  return new PathLayer<Point[]>({ id: 'selection', data: [display.points], getPath: p => p,
+    getWidth: 3, widthUnits: 'pixels', getColor: [0, 240, 255, 190] });
+}
+
 export function trainLayers(displays: Display[], trails: Trails, simTime: number,
-                            zoom: number, select: (run: RunFrame) => void) {
+                            zoom: number, select: (run: RunFrame) => void, selected: number | null = null,
+                            hover?: (run: RunFrame | null, x: number, y: number) => void) {
   const length = trailLength(zoom);
-  return [...[4, 2, 1].map((width, i) => new TripsLayer<Trail>({ id: `comet-${width}`,
+  return [...[6, 3, 1.5].map((width, i) => new TripsLayer<Trail>({ id: `comet-${width}`,
     data: trails.comets, getPath: t => t.path, getTimestamps: t => t.timestamps,
     currentTime: simTime - trails.base, trailLength: length / width, fadeTrail: true,
-    getWidth: width, widthUnits: 'pixels', getColor: t => [...t.color, [48, 112, 224][i]],
+    getWidth: width, widthUnits: 'pixels', getColor: t => [...t.color, [48, 112, 224][i] * trainAlpha(t.runId, selected)],
+    updateTriggers: { getColor: selected },
     parameters: ADDITIVE })),
   new TripsLayer<Trail>({ id: 'streaks', data: trails.streaks,
     getPath: t => t.path, getTimestamps: t => t.timestamps,
     currentTime: simTime - trails.base, trailLength: length, fadeTrail: true,
-    getWidth: 1, widthUnits: 'pixels', getColor: t => [...t.color, 16], parameters: ADDITIVE }),
+    getWidth: 1.5, widthUnits: 'pixels', getColor: t => [...t.color, 16 * trainAlpha(t.runId, selected)],
+    updateTriggers: { getColor: selected }, parameters: ADDITIVE }),
   new ScatterplotLayer<Display>({ id: 'heads', data: displays, getPosition: d => d.head,
-    getRadius: 1.5, radiusUnits: 'pixels',
-    getFillColor: d => d.color.map(c => c + (255 - c) * 0.6) as NeonColor,
-    pickable: true, onClick: info => { if (info.object) select(info.object.run); } })];
+    getRadius: 2, radiusUnits: 'pixels',
+    getFillColor: d => [...d.color.map(c => c + (255 - c) * 0.6), 255 * trainAlpha(d.run.run_id, selected)] as [number, number, number, number],
+    updateTriggers: { getFillColor: selected },
+    pickable: true, onClick: info => { if (info.object) select(info.object.run); },
+    onHover: info => hover?.(info.object?.run ?? null, info.x, info.y) })];
 }

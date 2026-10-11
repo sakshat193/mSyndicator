@@ -1,12 +1,29 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { encode } from '@msgpack/msgpack';
-import type { Frame } from './frames';
+import type { Frame, RunFrame } from './frames';
 import './layers';
 
 const rendered = vi.hoisted(() => ({ layers: [] as any[], options: {} as any,
-  draws: 0, zoom: 4 }));
+  draws: 0, zoom: 4, mapOptions: {} as any, setup: [] as string[],
+  ease: [] as any[], listeners: {} as Record<string, Function>,
+  selectSearch: undefined as ((run: RunFrame) => void) | undefined }));
+vi.mock('./search', async importOriginal => {
+  const actual = await importOriginal<typeof import('./search')>();
+  return { ...actual, initSearch: (...args: Parameters<typeof actual.initSearch>) => {
+    rendered.selectSearch = args[3];
+    return actual.initSearch(...args);
+  } };
+});
 vi.mock('maplibre-gl', () => ({
-  Map: class { addControl() {} remove() {} getZoom() { return rendered.zoom; } }, NavigationControl: class {},
+  Map: class {
+    constructor(options: unknown) { rendered.mapOptions = options; rendered.setup.push('map'); }
+    addControl() {} remove() {} getZoom() { return rendered.zoom; }
+    on(name: string, callback: Function) { rendered.listeners[`map:${name}`] = callback; }
+    easeTo(options: unknown) { rendered.ease.push(options); }
+    getCanvas() { return { style: {} }; }
+  }, NavigationControl: class {},
+  addProtocol() { rendered.setup.push('protocol'); },
+  setWorkerUrl(url: string) { if (url.includes('maplibre-gl-worker')) rendered.setup.push('worker'); },
 }));
 vi.mock('@deck.gl/mapbox', () => ({ MapboxOverlay: class {
   constructor(options: unknown) { rendered.options = options; }
@@ -30,12 +47,24 @@ it('decodes only on generations and reuses network and trips while animating hea
   let simTime = 1600;
   rendered.draws = 0;
   rendered.zoom = 4;
+  rendered.setup = [];
+  rendered.ease = [];
+  rendered.listeners = {};
   let statusWrites = 0;
-  const status = { set textContent(_text: string) { statusWrites++; } };
-  const panel = { hidden: true, querySelector: () => ({ addEventListener() {}, textContent: '' }) };
+  const element = (): any => ({ hidden: true, textContent: '', value: '', style: { setProperty() {} }, dataset: {},
+    setAttribute() {}, removeAttribute() {}, contains() { return false; }, scrollIntoView() {},
+    addEventListener() {}, replaceChildren() {}, append() {}, focus() {},
+    querySelector: () => element() });
+  const status = { ...element(), set textContent(_text: string) { statusWrites++; } };
+  const panel = element();
+  const elements = new Map<string, any>([['#connection', status], ['#panel', panel]]);
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { draw = callback; return 1; });
-  vi.stubGlobal('window', { addEventListener() {} });
-  vi.stubGlobal('document', { querySelector: (selector: string) => selector === '#connection' ? status : panel });
+  vi.stubGlobal('window', { innerWidth: 1000, innerHeight: 800,
+    addEventListener: (name: string, callback: Function) => { rendered.listeners[name] = callback; } });
+  vi.stubGlobal('document', { createElement: () => element(), querySelector: (selector: string) => {
+    if (!elements.has(selector)) elements.set(selector, element());
+    return elements.get(selector);
+  } });
   vi.stubGlobal('location', { protocol: 'http:', host: '127.0.0.1' });
   vi.stubGlobal('WebSocket', Socket);
   vi.spyOn(Date, 'now').mockImplementation(() => (simTime + 15) * 1000);
@@ -53,6 +82,8 @@ it('decodes only on generations and reuses network and trips while animating hea
     path_shape: [1, 2, 2] as [number, number, number],
     paths: new Uint8Array([0, 0, 0, 0, 1, 0, 200, 0]) };
   await import('./main');
+  expect(rendered.setup).toEqual(['worker', 'protocol', 'map']);
+  expect(rendered.mapOptions.bounds).toEqual([[68, 6.5], [97.5, 36]]);
   // Let loadNetwork finish both awaits before driving requestAnimationFrame.
   await Promise.resolve();
   Socket.current.receive({ gen: 1, ts: 1600, is_full: true, versions: {}, base_ts: 1000,
@@ -60,7 +91,7 @@ it('decodes only on generations and reuses network and trips while animating hea
   const reads = vi.spyOn(DataView.prototype, 'getUint16');
   draw!(100);
   const network = rendered.layers[0];
-  const trails = rendered.layers.filter(layer => layer.id !== 'heads' && layer.id !== 'network');
+  const trails = rendered.layers.filter(layer => layer.id.startsWith('comet-') || layer.id === 'streaks');
   const arrays = trails.map(layer => layer.props.data);
   const timestamps = trails.map(layer => layer.props.getTimestamps(layer.props.data[0]));
   const heads = () => rendered.layers.find(layer => layer.id === 'heads');
@@ -89,7 +120,7 @@ it('decodes only on generations and reuses network and trips while animating hea
     expect(animated.props.currentTime).toBe(3601);
     expect(animated.props.updateTriggers.getTimestamps).toBe(layer.props.updateTriggers.getTimestamps);
   });
-  expect(rendered.layers.find(layer => layer.id === 'comet-1').props.trailLength).toBe(7200);
+  expect(rendered.layers.find(layer => layer.id === 'comet-1.5').props.trailLength).toBe(7200);
   expect(statusWrites).toBe(1);
   // An empty delta advances the generation while keeping the same RunFrame object.
   Socket.current.receive({ gen: 2, ts: 3601, is_full: false, versions: {}, base_ts: 1000,
@@ -114,6 +145,7 @@ it('decodes only on generations and reuses network and trips while animating hea
   heads().props.onClick({ object: heads().props.data[0] });
   expect(panel.hidden).toBe(false);
   expect(fetch).toHaveBeenCalledWith('/api/run/9', expect.any(Object));
+  expect(rendered.ease.at(-1)).toMatchObject({ center: expect.any(Array), zoom: 6 });
   Socket.current.receive({ gen: 4, ts: 3601, is_full: false, versions: {}, base_ts: null,
     runs: {}, tombstones: [9] });
   draw!(500);
@@ -130,4 +162,53 @@ it('decodes only on generations and reuses network and trips while animating hea
   const draws = rendered.draws;
   draw!(1180);
   expect(rendered.draws).toBe(draws);
+  const trailArrays = rendered.layers.filter(l => l.id.startsWith('comet-') || l.id === 'streaks')
+    .map(l => l.props.data);
+  heads().props.onClick({ object: heads().props.data[0] });
+  draw!(1192);
+  expect(rendered.draws).toBe(draws + 1); // Selection wakes the idle overlay.
+  const highlight = rendered.layers.find(l => l.id === 'selection');
+  expect(highlight.props.data[0]).toEqual([[70, 20], [72, 22]]);
+  heads().props.onHover({ object: heads().props.data[0], x: 100, y: 100 });
+  draw!(1204);
+  expect(rendered.draws).toBe(draws + 2); // Hover also wakes it.
+  expect(rendered.layers.find(l => l.id === 'selection')).toBe(highlight);
+  rendered.layers.filter(l => l.id.startsWith('comet-') || l.id === 'streaks')
+    .forEach((l, i) => expect(l.props.data).toBe(trailArrays[i]));
+  rendered.listeners.keydown({ key: 'Escape' });
+  draw!(1216);
+  expect(rendered.layers.some(l => l.id === 'selection')).toBe(false);
+  expect(panel.hidden).toBe(true);
+  const pending = { run_id: 42, state: 'schedule_only', origin_ts: 1000, versions: { route: 7 } };
+  Socket.current.receive({ gen: 6, ts: 3601, is_full: false, versions: {}, base_ts: null,
+    runs: { 42: pending }, tombstones: [] });
+  rendered.selectSearch!(pending);
+  expect(panel.hidden).toBe(false); // Live store membership is sufficient, even before a path is drawable.
+  expect(fetch).toHaveBeenCalledWith('/api/run/42', expect.any(Object));
+  draw!(1228);
+  expect(panel.hidden).toBe(false);
+  expect(rendered.layers.some(l => l.id === 'selection')).toBe(false);
+  Socket.current.receive({ gen: 7, ts: 3601, is_full: false, versions: {}, base_ts: null,
+    runs: {}, tombstones: [42] });
+  draw!(1240);
+  expect(panel.hidden).toBe(true);
+  const labels = () => rendered.layers.find(l => l.id === 'station-labels');
+  rendered.zoom = 7.1;
+  draw!(1500);
+  const atSeven = labels();
+  expect(atSeven.props.getSize).toBe(12);
+  rendered.zoom = 7.49;
+  rendered.listeners['map:move']();
+  draw!(1512);
+  expect(labels()).toBe(atSeven);
+  rendered.zoom = 7.74;
+  draw!(1612);
+  const atSevenHalf = labels();
+  expect(atSevenHalf).not.toBe(atSeven);
+  rendered.zoom = 7.99;
+  draw!(1712);
+  expect(labels()).toBe(atSevenHalf);
+  rendered.listeners['map:move']();
+  draw!(1724);
+  expect(labels()).toBe(atSevenHalf); // Panning reuses the layer and its decluttered data.
 });
