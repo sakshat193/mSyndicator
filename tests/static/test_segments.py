@@ -31,9 +31,9 @@ def test_override_applied_and_versioned_by_file_hash(db, tmp_path):
     build_segments(db)
     _, first = export_network(db, tmp_path)
     override = tmp_path / "overrides.csv"
-    override.write_text('stn_a,stn_b,polyline,confidence\nAA,BB,abc,0.9\n')
+    override.write_text('stn_a,stn_b,polyline,confidence\nAA,BB,"[[0,0],[1,1]]",0.9\n')
     build_segments(db, override)
-    assert db.execute("select polyline,confidence from ref.segment").fetchone() == ("abc", pytest.approx(.9))
+    assert db.execute("select polyline,confidence from ref.segment").fetchone() == ("[[0,0],[1,1]]", pytest.approx(.9))
     _, second = export_network(db, tmp_path)
     assert first != second
     override.write_text('stn_a,stn_b,polyline,confidence\n')

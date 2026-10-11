@@ -42,8 +42,8 @@ it('decodes only on generations and reuses network and trips while animating hea
   const fetch = vi.fn(async (url: string) => url.startsWith('/api/run/') ? { ok: false, status: 503 } :
     ({ ok: true, json: async () => ({
     stations: [{ code: 'A', lon: 70, lat: 20 }, { code: 'B', lon: 72, lat: 22 }],
-    segments: [{ id: 1, stn_lo: 'A', stn_hi: 'B', polyline: null, confidence: 0 }],
-    routes: [{ id: 7, stops: [
+    segments: [{ id: 1, stn_lo: 'A', stn_hi: 'B', polyline: null, derived: false, confidence: 0 }],
+    routes: [{ id: 7, train: '00001', name: 'Express', class: 'EXP', stops: [
       { idx: 0, station: 'A', halt: true, dist_km: 0, sched_off: 0 },
       { idx: 1, station: 'B', halt: true, dist_km: 100, sched_off: 10 },
     ], segments: [] }],

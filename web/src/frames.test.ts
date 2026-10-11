@@ -10,7 +10,7 @@ it('applies error runs without display paths in full and delta frames', () => {
   const store = new FrameStore();
   const run = { run_id: 42, state: 'error', error: 'bad evidence', versions: { route: 7 } };
   const network: Network = { stations: [], segments: [],
-    routes: [{ id: 7, stops: [], segments: [] }] };
+    routes: [{ id: 7, train: '00001', name: 'Express', class: 'EXP', stops: [], segments: [] }] };
   for (const [gen, full] of [[10, true], [11, false]] as const) {
     expect(store.apply(frame(gen, full, { 42: run }))).toBe('ok');
     expect(store.gen).toBe(gen);

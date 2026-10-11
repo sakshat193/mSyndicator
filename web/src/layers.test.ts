@@ -2,14 +2,14 @@ import { expect, it } from 'vitest';
 import { TripsLayer } from '@deck.gl/geo-layers';
 import { ScatterplotLayer } from '@deck.gl/layers';
 import { indexNetwork, networkLayer, displayRun, trailData, trainLayers,
-  delayColor, trailLength, easeHead, type Network } from './layers';
+  delayColor, trailLength, easeHead, headAt, type Network } from './layers';
 
 const network: Network = {
   stations: [{ code: 'A', lon: 70, lat: 20 }, { code: 'B', lon: 72, lat: 22 },
     { code: 'missing', lon: null, lat: null }, { code: 'invalid', lon: 181, lat: 20 }],
-  segments: [{ id: 1, stn_lo: 'A', stn_hi: 'B', polyline: null, confidence: 0 },
-    { id: 2, stn_lo: 'A', stn_hi: 'missing', polyline: null, confidence: 0 }],
-  routes: [{ id: 7, stops: [
+  segments: [{ id: 1, stn_lo: 'A', stn_hi: 'B', polyline: [[70, 20], [72, 22]], derived: false, confidence: 0 },
+    { id: 2, stn_lo: 'A', stn_hi: 'missing', polyline: null, derived: false, confidence: 0 }],
+  routes: [{ id: 7, train: '00001', name: 'Express', class: 'EXP', stops: [
     { idx: 0, station: 'A', halt: true, dist_km: 0, sched_off: 0 },
     { idx: 1, station: 'B', halt: true, dist_km: 100, sched_off: 10 },
   ], segments: [] }],
@@ -67,6 +67,101 @@ function runFixture(k = 2) {
   return { run_id: 9, versions: { route: 7 }, origin_ts: 1000, base_ts: 1000,
     path_shape: [k, 2, 2] as [number, number, number], paths };
 }
+
+const chain: [number, number][] = [[70, 20], [70, 21], [70, 22], [72, 22]];
+const chained: Network = { ...network,
+  stations: [...network.stations, { code: 'X', lon: 70, lat: 21 }, { code: 'Y', lon: 70, lat: 22 }],
+  segments: [{ ...network.segments[0], polyline: chain, derived: true }],
+  routes: [{ ...network.routes[0], segments: [{ idx: 0, segment_id: 1, forward: true }] }],
+};
+
+it('expands comets and all particle streaks along the chain with length-based timestamps', () => {
+  const display = displayRun(runFixture(), chained, 1300)!;
+  const trails = trailData([display], 1300);
+  expect(trails.comets[0].path).toEqual(chain);
+  expect(trails.comets[0].timestamps).toEqual([1000, 1150.75, 1301.5, 1603]);
+  expect(display.trips.map(t => t.path)).toEqual([chain, chain]);
+  expect(trails.streaks.map(t => t.path)).toEqual([chain, chain]);
+  expect(trails.streaks.map(t => t.timestamps)).toEqual([
+    [1000, 1150, 1300, 1600], [1000, 1151.5, 1303, 1606],
+  ]);
+  for (const trip of [...trails.comets, ...trails.streaks])
+    expect(trip.timestamps.every((t, i) => i === 0 || t >= trip.timestamps[i - 1])).toBe(true);
+});
+
+it('walks the chain by the pos fraction, including its midpoint instead of the chord', () => {
+  const display = displayRun(runFixture(1), chained, 1300)!;
+  expect(display.head).toEqual([70, 22]);
+  expect(headAt(display, 1450)).toEqual([71, 22]);
+  expect(headAt(display, 900)).toEqual(chain[0]);
+  expect(headAt(display, 1700)).toEqual(chain.at(-1));
+});
+
+it('orients a reversed segment from the route start without mutating stored geometry', () => {
+  const reversed: Network = { ...chained, routes: [{ ...chained.routes[0],
+    stops: chained.routes[0].stops.map(s => ({ ...s, station: s.idx === 0 ? 'B' : 'A' })),
+    segments: [{ idx: 0, segment_id: 1, forward: false }],
+  }] };
+  const display = displayRun(runFixture(1), reversed, 1300)!;
+  const path = [...chain].reverse();
+  expect(display.trips[0].path).toEqual(path);
+  expect(trailData([display], 1300).comets[0].path).toEqual(path);
+  expect(display.trips[0].timestamps).toEqual([1000, 1300, 1450, 1600]);
+  expect(display.head).toEqual([70, 22]);
+  expect(headAt(display, 1150)).toEqual([71, 22]);
+  expect(chained.segments[0].polyline).toEqual(chain);
+});
+
+function eventRun(events: [number, number][]) {
+  const paths = new Uint8Array(events.length * 4);
+  const bytes = new DataView(paths.buffer);
+  events.forEach(([idx, time], e) => {
+    bytes.setUint16(e * 4, idx, true);
+    bytes.setUint16(e * 4 + 2, time, true);
+  });
+  return { ...runFixture(1), paths, path_shape: [1, events.length, 2] as [number, number, number] };
+}
+
+it('joins every route segment across skipped events and keeps repeated-stop dwell', () => {
+  const skipped: Network = { ...chained, segments: [
+    { ...chained.segments[0], polyline: null, stn_hi: 'X' },
+    { ...chained.segments[0], id: 2, stn_lo: 'B', stn_hi: 'X', polyline: [chain[3], chain[2], chain[1]] },
+  ], routes: [{ ...chained.routes[0], stops: [chained.routes[0].stops[0],
+    { idx: 1, station: 'X', halt: false, dist_km: 25, sched_off: null },
+    { ...chained.routes[0].stops[1], idx: 2 }], segments: [
+    { idx: 0, segment_id: 1, forward: true }, { idx: 1, segment_id: 2, forward: false },
+  ] }] };
+  const display = displayRun(eventRun([[0, 0], [0, 20], [2, 100]]), skipped, 1100)!;
+  const path = [chain[0], ...chain];
+  expect(display.trips[0].path).toEqual(path);
+  expect(display.trips[0].timestamps).toEqual([1000, 1120, 1240, 1360, 1600]);
+  expect(trailData([display], 1100).comets[0].path).toEqual(path);
+  expect(display.head).toEqual(chain[0]);
+  expect(headAt(display, 1360)).toEqual(chain[2]);
+  expect(displayRun(eventRun([[0, 50], [2, 20]]), skipped, 1100)).toBeNull();
+  expect(displayRun(eventRun([[0, 0], [2, 100]]), { ...skipped,
+    stations: skipped.stations.filter(s => s.code !== 'X') }, 1100)).toBeNull();
+});
+
+it('keeps zero-length segment timestamps finite and event endpoints intact', () => {
+  const stationary: Network = { ...network, stations: [
+    { code: 'A', lon: 70, lat: 20 }, { code: 'B', lon: 70, lat: 20 }],
+    segments: [], routes: network.routes };
+  const display = displayRun(runFixture(1), stationary, 1300)!;
+  expect(display.trips[0]).toEqual({ path: [[70, 20], [70, 20]], timestamps: [1000, 1600] });
+  expect(display.head).toEqual([70, 20]);
+});
+
+it('hides derived segments and straight chords over 150 km while retaining stored polylines', () => {
+  const drawing: Network = { ...chained, stations: [...chained.stations,
+    { code: 'C', lon: 70.1, lat: 20 }], segments: [
+    chained.segments[0], // Derived.
+    { ...network.segments[0], id: 2, polyline: null }, // Long chord.
+    { ...network.segments[0], id: 3, polyline: chain }, // Stored long polyline.
+    { ...network.segments[0], id: 4, stn_hi: 'C', polyline: null }, // Short chord.
+  ] };
+  expect(networkLayer(drawing).props.data).toEqual([chain, [[70, 20], [70.1, 20]]]);
+});
 
 it('draws three fading comet tiers with additive blending and tiny pickable heads', () => {
   const display = displayRun(runFixture(), network, 1300)!;

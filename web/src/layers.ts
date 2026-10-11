@@ -7,21 +7,24 @@ type Point = [number, number];
 type Stop = { idx: number; station: string; halt: boolean; dist_km: number; sched_off: number | null };
 export interface Network {
   stations: { code: string; lon: number | null; lat: number | null }[];
-  segments: { id: number; stn_lo: string; stn_hi: string; polyline: string | null; confidence: number }[];
-  routes: { id: number; stops: Stop[];
+  segments: { id: number; stn_lo: string; stn_hi: string; polyline: Point[] | null;
+    derived: boolean; confidence: number }[];
+  routes: { id: number; train: string; name: string; class: string; stops: Stop[];
     segments: { idx: number; segment_id: number; forward: boolean }[] }[];
 }
 type Trip = { path: Point[]; timestamps: number[] };
+type Gap = { path: Point[]; lengths: number[] };
 type NeonColor = [number, number, number];
 type Trail = Trip & { color: NeonColor };
 type Trails = { base: number; comets: Trail[]; streaks: Trail[] };
 type Display = { run: RunFrame; head: Point; trips: Trip[];
-  stops: Stop[]; points: Point[]; times: number[]; color: NeonColor };
+  stops: Stop[]; points: Point[]; times: number[]; eventTimes: number[]; gaps: Gap[]; color: NeonColor };
 type NetworkIndex = {
   stations: Map<string, Point | null>;
   routes: Map<number, Network['routes'][number]>;
   stops: Map<number, Map<number, Stop>>;
   halts: Map<number, Map<number, number>>;
+  geometry: Map<number, Map<number, Point[]>>;
 };
 const indices = new WeakMap<Network, NetworkIndex>();
 const ADDITIVE = { blend: true, blendColorOperation: 'add', blendColorSrcFactor: 'src-alpha',
@@ -33,12 +36,13 @@ export function indexNetwork(network: Network): NetworkIndex {
   const existing = indices.get(network);
   if (existing) return existing;
   const index: NetworkIndex = { stations: new Map(), routes: new Map(),
-    stops: new Map(), halts: new Map() };
+    stops: new Map(), halts: new Map(), geometry: new Map() };
   for (const s of network.stations) if (!index.stations.has(s.code)) {
     index.stations.set(s.code, typeof s.lon === 'number' && Number.isFinite(s.lon) && Math.abs(s.lon) <= 180
       && typeof s.lat === 'number' && Number.isFinite(s.lat) && Math.abs(s.lat) <= 90
       ? [s.lon, s.lat] : null);
   }
+  const segments = new Map(network.segments.map(s => [s.id, s]));
   for (const route of network.routes) if (!index.routes.has(route.id)) {
     index.routes.set(route.id, route);
     const stops = new Map<number, Stop>(), halts = new Map<number, number>();
@@ -52,6 +56,17 @@ export function indexNetwork(network: Network): NetworkIndex {
     }
     index.stops.set(route.id, stops);
     index.halts.set(route.id, halts);
+    const routeSegments = new Map(route.segments.map(s => [s.idx, s]));
+    const geometry = new Map<number, Point[]>();
+    for (const stop of stops.values()) {
+      const next = stops.get(stop.idx + 1);
+      const a = index.stations.get(stop.station), b = next && index.stations.get(next.station);
+      if (!a || !b) continue;
+      const ref = routeSegments.get(stop.idx);
+      const polyline = ref && segments.get(ref.segment_id)?.polyline;
+      geometry.set(stop.idx, polyline ? (ref!.forward ? polyline : [...polyline].reverse()) : [a, b]);
+    }
+    index.geometry.set(route.id, geometry);
   }
   indices.set(network, index);
   return index;
@@ -82,9 +97,26 @@ export function displayRun(run: RunFrame, network: Network, simTime: number): Di
     if (timestamps.some((t, e) => e > 0 && t < timestamps[e - 1])) return null;
     trips.push({ path: points, timestamps });
   }
+  const gaps: Gap[] = [];
+  for (let e = 1; e < count; e++) {
+    const a = stops[e - 1].idx, b = stops[e].idx;
+    let path = [points[e - 1], points[e]];
+    if (a < b) {
+      path = [points[e - 1]];
+      for (let i = a; i < b; i++) {
+        const segment = index.geometry.get(route.id)!.get(i);
+        if (!segment) return null;
+        path.push(...segment.slice(1));
+      }
+    }
+    const lengths = [0];
+    for (let v = 1; v < path.length; v++)
+      lengths.push(lengths[v - 1] + Math.hypot(path[v][0] - path[v - 1][0], path[v][1] - path[v - 1][1]));
+    gaps.push({ path, lengths });
+  }
   const halts = index.halts.get(route.id)!;
   const qs = run.halt_q as (number | null)[][][] | undefined;
-  const times = stops.map((s, e) => {
+  const eventTimes = stops.map((s, e) => {
     const h = halts.get(s.idx) ?? -1;
     // Arrival then departure at intermediate halts; origin has departure only.
     const kind = h === 0 || (e > 0 && stops[e - 1].idx === s.idx) ? 1 : 0;
@@ -95,13 +127,24 @@ export function displayRun(run: RunFrame, network: Network, simTime: number): Di
     const sorted = trips.map(t => t.timestamps[e]).sort((a, b) => a - b);
     return (sorted[Math.floor((k - 1) / 2)] + sorted[Math.floor(k / 2)]) / 2;
   });
-  const e = times.findIndex(t => t > simTime);
+  const e = eventTimes.findIndex(t => t > simTime);
   const scheduled = stops[e]?.sched_off;
   const delay = e >= 0 && typeof run.origin_ts === 'number' && Number.isFinite(run.origin_ts)
     && typeof scheduled === 'number' && Number.isFinite(scheduled)
-    ? (times[e] - run.origin_ts) / 60 - scheduled : 0;
-  return { run, trips, stops, points, times, color: delayColor(delay),
-    head: headAt({ stops, points, times }, simTime) };
+    ? (eventTimes[e] - run.origin_ts) / 60 - scheduled : 0;
+  const expanded = [points[0], ...gaps.flatMap(g => g.path.slice(1))];
+  const expandedTrips = trips.map(t => ({ path: expanded, timestamps: expandTimes(t.timestamps, gaps) }));
+  const times = expandTimes(eventTimes, gaps);
+  return { run, trips: expandedTrips, stops, points: expanded, times, eventTimes, gaps, color: delayColor(delay),
+    head: headAt({ stops, points: expanded, eventTimes, gaps }, simTime) };
+}
+
+function expandTimes(times: number[], gaps: Gap[]): number[] {
+  return [times[0], ...gaps.flatMap((g, e) => {
+    const total = g.lengths[g.lengths.length - 1];
+    return g.lengths.slice(1).map((length, i) => i === g.path.length - 2 ? times[e + 1]
+      : times[e] + (times[e + 1] - times[e]) * (total ? length / total : 0));
+  })];
 }
 
 export function delayColor(delay: number): NeonColor {
@@ -143,17 +186,25 @@ export function trailData(displays: Display[], simTime: number): Trails {
   return { base, comets, streaks };
 }
 
-export function headAt({ stops, points, times }: Pick<Display, 'stops' | 'points' | 'times'>,
+export function headAt({ stops, points, eventTimes: times, gaps }: Pick<Display, 'stops' | 'points' | 'eventTimes' | 'gaps'>,
                        simTime: number): Point {
   let head = points[0];
-  for (let e = 1; e < points.length; e++) {
-    if (simTime >= times[e]) { head = points[e]; continue; }
+  for (let e = 1; e < stops.length; e++) {
+    const { path, lengths } = gaps[e - 1];
+    if (simTime >= times[e]) { head = path[path.length - 1]; continue; }
     const a = stops[e - 1], b = stops[e];
     const km = pos(simTime, times[e - 1], times[e - 1], a.dist_km,
       times[e], a.dist_km, b.dist_km, null);
     const f = b.dist_km === a.dist_km ? 0 : (km - a.dist_km) / (b.dist_km - a.dist_km);
-    head = [points[e - 1][0] + f * (points[e][0] - points[e - 1][0]),
-      points[e - 1][1] + f * (points[e][1] - points[e - 1][1])];
+    const distance = f * lengths[lengths.length - 1];
+    head = path[0];
+    for (let v = 1; v < path.length; v++) {
+      if (distance >= lengths[v]) { head = path[v]; continue; }
+      const fraction = (distance - lengths[v - 1]) / (lengths[v] - lengths[v - 1]);
+      head = [path[v - 1][0] + fraction * (path[v][0] - path[v - 1][0]),
+        path[v - 1][1] + fraction * (path[v][1] - path[v - 1][1])];
+      break;
+    }
     break;
   }
   return head;
@@ -163,15 +214,23 @@ export function networkLayer(network: Network) {
   const existing = networkLayers.get(network);
   if (existing) return existing;
   const index = indexNetwork(network);
-  // ponytail: straight station geometry for part 1; upgrade with Task 37's OSM geometry contract.
+  // ponytail: hidden long chords remain only as train trails; Task 37 replaces them.
   const paths = network.segments.flatMap(s => {
     const a = index.stations.get(s.stn_lo), b = index.stations.get(s.stn_hi);
-    return a && b ? [[a, b]] : [];
+    if (s.derived || !a || !b) return [];
+    return s.polyline ? [s.polyline] : greatCircle(a, b) <= 150 ? [[a, b]] : [];
   });
   const layer = new PathLayer<Point[]>({ id: 'network', data: paths, getPath: p => p,
     getColor: [0, 200, 255, 28], getWidth: 1, widthUnits: 'pixels' });
   networkLayers.set(network, layer);
   return layer;
+}
+
+function greatCircle(a: Point, b: Point): number {
+  const radians = Math.PI / 180;
+  const h = Math.sin((b[1] - a[1]) * radians / 2) ** 2
+    + Math.cos(a[1] * radians) * Math.cos(b[1] * radians) * Math.sin((b[0] - a[0]) * radians / 2) ** 2;
+  return 6371.0088 * 2 * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
 export function trainLayers(displays: Display[], trails: Trails, simTime: number,
