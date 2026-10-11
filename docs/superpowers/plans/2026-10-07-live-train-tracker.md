@@ -1613,6 +1613,18 @@ After the Task 56 deploy, engine memory peaked at ~1.3 GB, but every rebuild fai
 - [ ] Commit `task 57: per-run frame time base`.
 - [ ] Monitor: deploy, and confirm a full frame is written, the engine stays up and the map shows trains.
 
+### Task 58 (amendment 2026-10-11): runs leave the frame when they leave the engine set (blast radius of Task 56)
+
+After Task 57 the engine published frames, but the map stayed on "Waiting for live frames". Draining the dirty backlog published 6,786 `{'state': 'expired_unknown'|'cancelled'}` entries with no `run_id` (`_prepare`'s non-active branch). The client's `validate` rejects a run whose `run_id` does not match its key, closes the socket and reconnects, silently and forever. These entries also pile up in every full frame until a restart, while `rebuild` never emits them.
+
+**Files:** modify `msynd/engine/__main__.py`, `tests/engine/test_loop.py`, `web/src/frames.ts`.
+
+- `_prepare`: a run that is missing or not `in_engine_set` (completed, cancelled, expired_unknown, or scheduled outside the window) becomes a tombstone. Every published run entry carries `run_id` equal to its key. `rebuild`, `consume` and `_refresh_window` then agree: the frame holds exactly the engine set.
+- `connectLive`: log the rejection reason with `console.error` before closing. Validation itself is unchanged.
+- [ ] Tests: dirty `cancelled` and `expired_unknown` runs produce tombstones and no run entries, and their dirty rows are acknowledged. Every run entry in frames from `rebuild` and `consume` has `run_id == key`.
+- [ ] Commit `task 58: runs leave the frame with the engine set`.
+- [ ] Monitor: deploy, restart the engine and API, and confirm the map receives frames and draws trains.
+
 ---
 
 ## Spec coverage check
