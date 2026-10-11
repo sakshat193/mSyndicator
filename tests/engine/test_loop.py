@@ -68,6 +68,7 @@ def runs(db_url):
         existing_stations = {row[0] for row in conn.execute('SELECT code FROM ref.station')}
         prefix = uuid4().hex[:10]
         ids = [make_run(conn, train=f'{prefix}{i}', start='2025-10-08') for i in range(3)]
+        conn.execute("UPDATE obs.run SET lifecycle='running' WHERE id=ANY(%s)", (ids,))
         bindings = conn.execute('SELECT train,schedule_version_id,route_version_id FROM obs.run WHERE id=ANY(%s)', (ids,)).fetchall()
         conn.commit()
     yield ids
@@ -396,8 +397,13 @@ def test_encode_run_uint16_and_truncation():
 
 
 @pytest.mark.db
-def test_model_change_and_bias_generation_dirty_all_active(db_url, runs):
+def test_model_change_and_bias_generation_dirty_all_active(db_url, runs, monkeypatch):
+    import msynd.engine.__main__ as loop
     from msynd.engine.__main__ import run_loop
+    monkeypatch.setattr(loop, '_now', lambda conn: NOW, raising=False)
+    with psycopg.connect(db_url) as conn:
+        scheduled(conn, runs[0], 180)
+        scheduled(conn, runs[1], 30)
     ready, stop = threading.Event(), threading.Event()
     errors = []
     def engine():
@@ -425,8 +431,8 @@ def test_model_change_and_bias_generation_dirty_all_active(db_url, runs):
                     frame = payload(api)
                     if (not frame['is_full'] and frame['versions']['bias_gen'] == bias
                             and frame['versions']['models'].get('run') == model):
-                        assert set(runs) <= set(frame['runs'])
-                        assert all(frame['runs'][run]['versions']['models']['run'] == model for run in runs)
+                        assert set(frame['runs']) == set(runs[1:])
+                        assert all(frame['runs'][run]['versions']['models']['run'] == model for run in runs[1:])
                         break
                     time.sleep(.01)
                 else:
@@ -462,6 +468,135 @@ def test_periodic_full_frame_reuses_published_runs(db_url, runs, monkeypatch):
                       stop=StopAfterOnePass(), notifications=False)
         assert conn.execute('SELECT count(*) FROM sim.frame WHERE is_full').fetchone()[0] == 2
         assert calls == len(runs)
+
+
+def scheduled(conn, run_id, departure_minutes):
+    # NOW is 05:30 IST; include both the schedule offset and rescheduling.
+    conn.execute("UPDATE ref.schedule_stop SET dep_off=60 WHERE idx=0 AND version_id="
+                 "(SELECT schedule_version_id FROM obs.run WHERE id=%s)", (run_id,))
+    conn.execute("UPDATE obs.run SET lifecycle='scheduled',resched_min=%s WHERE id=%s",
+                 (270 + departure_minutes, run_id))
+
+
+@pytest.mark.db
+def test_engine_window_filters_rebuild_and_acknowledges_dirty(db_url, runs, monkeypatch):
+    import msynd.engine.__main__ as loop
+    monkeypatch.setattr(loop, '_now', lambda conn: NOW, raising=False)
+    far, near, running = runs
+    replayed = []
+
+    def replay(ev, models, params, key):
+        replayed.append(ev.run_id)
+        return fake_replay(ev, models, params, key)
+
+    with psycopg.connect(db_url) as conn:
+        scheduled(conn, far, 180)
+        scheduled(conn, near, 30)
+        conn.commit()
+        cache = {}
+        loop.rebuild(conn, replay, tables, PARAMS, cache=cache)
+        assert set(replayed) == {near, running}
+        assert set(payload(conn)['runs']) == {near, running}
+        assert set(cache) == {near, running}
+        conn.commit()
+        replayed.clear()
+        dirty(conn, runs)
+        loop.consume(conn, replay, tables, PARAMS, cache=cache)
+        assert set(replayed) == {near, running}
+        assert payload(conn)['tombstones'] == [far]
+        assert conn.execute('SELECT count(*) FROM obs.dirty_run').fetchone()[0] == 0
+        assert set(cache) == {near, running}
+
+
+@pytest.mark.db
+@pytest.mark.parametrize('departure_minutes, included', [(-61, False), (-60, True),
+                                                      (60, True), (61, False)])
+def test_engine_window_boundaries(db_url, runs, monkeypatch, departure_minutes, included):
+    import msynd.engine.__main__ as loop
+    monkeypatch.setattr(loop, '_now', lambda conn: NOW, raising=False)
+    with psycopg.connect(db_url) as conn:
+        scheduled(conn, runs[0], departure_minutes)
+        dirty(conn, runs[:1])
+        consume(conn)
+        frame = payload(conn)
+        assert (runs[0] in frame['runs']) is included
+        assert frame['tombstones'] == ([] if included else runs[:1])
+        assert conn.execute('SELECT count(*) FROM obs.dirty_run').fetchone()[0] == 0
+
+
+@pytest.mark.db
+def test_window_refresh_tombstones_departed_and_replays_entered(db_url, runs, monkeypatch):
+    import msynd.engine.__main__ as loop
+    now = NOW
+    monkeypatch.setattr(loop, '_now', lambda conn: now, raising=False)
+    ticks = iter([0, 301])
+    monkeypatch.setattr(loop, 'monotonic', lambda: next(ticks))
+    cached = []
+    monkeypatch.setattr(loop, 'write_periodic', lambda conn, cache, now, **kw: cached.append(set(cache)))
+
+    class Stop:
+        done = False
+        def is_set(self):
+            nonlocal now
+            now = NOW + timedelta(hours=2)
+            done, self.done = self.done, True
+            return done
+        def wait(self, timeout):
+            self.done = True
+
+    leaving, entering, running = runs
+    with psycopg.connect(db_url) as conn, ThreadPoolExecutor(4) as pool:
+        scheduled(conn, leaving, 0)
+        scheduled(conn, entering, 180)
+        conn.commit()
+        loop.run_loop(conn, fake_replay, tables, PARAMS, pool=pool,
+                      stop=Stop(), notifications=False)
+        frames = [payload(conn, row[0]) for row in conn.execute('SELECT gen FROM sim.frame ORDER BY gen').fetchall()]
+        assert set(frames[0]['runs']) == {leaving, running}
+        assert any(f['tombstones'] == [leaving] and not f['is_full'] for f in frames)
+        assert frames[-1]['is_full'] and set(frames[-1]['runs']) == {entering, running}
+        assert cached == [{entering, running}]
+        assert conn.execute('SELECT count(*) FROM obs.dirty_run').fetchone()[0] == 0
+
+
+@pytest.mark.db
+def test_rebuild_chunks_match_unchunked_payload(db_url, runs, monkeypatch):
+    import msynd.engine.__main__ as loop
+    monkeypatch.setattr(loop, '_now', lambda conn: NOW, raising=False)
+    prepare = loop._prepare
+    batches = []
+
+    def prepare_chunk(conn, ids, *args, **kwargs):
+        batches.append(len(ids))
+        return prepare(conn, ids, *args, **kwargs)
+
+    monkeypatch.setattr(loop, '_prepare', prepare_chunk)
+    prefix = uuid4().hex
+    with psycopg.connect(db_url) as conn:
+        conn.execute("INSERT INTO ref.train(number,name) SELECT %s||i,'chunk' FROM generate_series(1,201) i", (prefix,))
+        extra = [row[0] for row in conn.execute('''INSERT INTO obs.run
+            (train,start_date,schedule_version_id,route_version_id,lifecycle)
+            SELECT %s||i,r.start_date,r.schedule_version_id,r.route_version_id,'running'
+            FROM obs.run r CROSS JOIN generate_series(1,201) i WHERE r.id=%s RETURNING id''', (prefix, runs[0]))]
+        conn.commit()
+        try:
+            cache = {}
+            loop.rebuild(conn, fake_replay, tables, PARAMS, cache=cache)
+            chunked = payload(conn)
+            assert batches == [200, 4]
+            assert set(cache) == set(runs + extra)
+            conn.commit()
+            jobs, all_runs, tombstones = prepare(conn, sorted(runs + extra), tables, PARAMS, fake_replay)
+            loop._replay_jobs(jobs, all_runs, None)
+            loop._publish(conn, True, chunked['versions'], all_runs, tombstones)
+            unchunked = payload(conn)
+            for key in ('is_full', 'versions', 'base_ts', 'runs', 'tombstones'):
+                assert chunked[key] == unchunked[key]
+        finally:
+            conn.rollback()
+            conn.execute('DELETE FROM obs.run WHERE id=ANY(%s)', (extra,))
+            conn.execute('DELETE FROM ref.train WHERE number LIKE %s', (prefix + '%',))
+            conn.commit()
 
 
 

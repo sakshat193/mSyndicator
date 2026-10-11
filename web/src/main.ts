@@ -3,7 +3,7 @@ import { Map, NavigationControl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { connectLive, FrameStore } from './frames';
-import { displayRun, networkLayer, trainLayers, type Network } from './layers';
+import { displayRun, headAt, indexNetwork, networkLayer, trainLayers, type Network } from './layers';
 import { liveTime } from './timeline';
 import { runPanel } from './panel';
 
@@ -18,7 +18,9 @@ const disconnect = connectLive(`${location.protocol === 'https:' ? 'wss' : 'ws'}
 const showRun = runPanel(document.querySelector<HTMLElement>('#panel')!);
 const status = document.querySelector<HTMLElement>('#connection')!;
 let network: Network | undefined;
+let background: ReturnType<typeof networkLayer> | undefined;
 let displays: NonNullable<ReturnType<typeof displayRun>>[] = [];
+let trips: Parameters<typeof trainLayers>[1] = [];
 let generation = -1;
 let lastTick = 0;
 let animation: number;
@@ -30,6 +32,8 @@ async function loadNetwork() {
     const data = await response.json();
     if (!Array.isArray(data.stations) || !Array.isArray(data.segments) || !Array.isArray(data.routes))
       throw new Error('Invalid network');
+    indexNetwork(data);
+    background = networkLayer(data);
     network = data;
   } catch (error) {
     status.textContent = `Network unavailable: ${error instanceof Error ? error.message : 'request failed'}`;
@@ -39,14 +43,18 @@ void loadNetwork();
 
 function draw(tick: number) {
   const simTime = liveTime();
-  if (network && (generation !== store.gen || tick - lastTick >= 100)) {
-    generation = store.gen;
+  if (network && background && (generation !== store.gen || tick - lastTick >= 100)) {
     lastTick = tick;
-    displays = Object.values(store.runs).flatMap(run => {
-      const display = displayRun(run, network!, simTime);
-      return display ? [display] : [];
-    });
-    overlay.setProps({ layers: [networkLayer(network), ...trainLayers(displays, simTime,
+    if (generation !== store.gen) {
+      generation = store.gen;
+      displays = Object.values(store.runs).flatMap(run => {
+        const display = displayRun(run, network!, simTime);
+        return display ? [display] : [];
+      });
+      trips = displays.flatMap(d => d.trips.map(t => ({ ...t, k: d.trips.length })));
+    }
+    const heads = displays.map(d => ({ ...d, head: headAt(d, simTime) }));
+    overlay.setProps({ layers: [background, ...trainLayers(heads, trips, simTime,
       run => { void showRun(run, liveTime()); })] });
     const age = store.latest ? Math.max(0, Date.now() / 1000 - store.latest.ts) : null;
     status.textContent = age === null ? 'Waiting for live frames' :

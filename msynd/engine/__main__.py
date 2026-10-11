@@ -5,7 +5,7 @@ returns ModelTables; replay_fn has the existing replay(ev, models, params, key)
 signature. Neither provider clients nor a registry are constructed here.
 """
 from dataclasses import replace
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 import hashlib
 import json
 import logging
@@ -26,7 +26,24 @@ from msynd.engine.worker import _job
 from msynd.labels import IST
 
 log = logging.getLogger(__name__)
-ACTIVE = "lifecycle IN ('scheduled','running')"
+# ponytail: scheduled window is ±1 hour; widen after G8 and frame-size measurement.
+WINDOW = timedelta(hours=1)
+ENGINE_SET = """(r.lifecycle='running' OR (r.lifecycle='scheduled' AND
+    (r.start_date::timestamp AT TIME ZONE 'Asia/Kolkata')
+    + ((SELECT s.dep_off FROM ref.schedule_stop s
+        WHERE s.version_id=r.schedule_version_id ORDER BY s.idx LIMIT 1)
+       + r.resched_min)*interval '1 minute'
+    BETWEEN %(asof)s - %(window)s AND %(asof)s + %(window)s))"""
+
+
+def _now(conn):
+    return conn.execute('SELECT clock_timestamp()').fetchone()[0]
+
+
+def _engine_ids(conn, asof):
+    return [row[0] for row in conn.execute(
+        f'SELECT r.id FROM obs.run r WHERE {ENGINE_SET} ORDER BY r.id',
+        {'asof': asof, 'window': WINDOW})]
 
 
 def _versions(conn):
@@ -36,21 +53,25 @@ def _versions(conn):
             'feature_ver': max((feature for _, _, feature in models), default=None)}
 
 
-def _prepare(conn, run_ids, model_source, params, replay_fn):
+def _prepare(conn, run_ids, model_source, params, replay_fn, *, asof=None):
     jobs, runs, tombstones = [], {}, []
-    asof = conn.execute('SELECT clock_timestamp()').fetchone()[0]
+    asof = _now(conn) if asof is None else asof
     params_hash = hashlib.sha256(json.dumps(
         {'s_tables': params.s_tables, 'v_max': params.v_max, 'ess_min': params.ess_min},
         sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
     for run_id in run_ids:
         with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute('''SELECT r.*,
+            cur.execute(f'''SELECT r.*, {ENGINE_SET} AS in_engine_set,
                 (SELECT max(t) FROM (
-                    SELECT received_at AS t FROM obs.event_rev WHERE run_id=r.id AND received_at<=%s
-                    UNION ALL SELECT received_at FROM obs.pending_rev WHERE run_id=r.id AND received_at<=%s
-                ) receipts) AS last_received FROM obs.run r WHERE id=%s''', (asof, asof, run_id))
+                    SELECT received_at AS t FROM obs.event_rev WHERE run_id=r.id AND received_at<=%(asof)s
+                    UNION ALL SELECT received_at FROM obs.pending_rev WHERE run_id=r.id AND received_at<=%(asof)s
+                ) receipts) AS last_received FROM obs.run r WHERE id=%(run_id)s''',
+                {'asof': asof, 'window': WINDOW, 'run_id': run_id})
             record = cur.fetchone()
         if record is None or record['lifecycle'] == 'completed':
+            tombstones.append(run_id)
+            continue
+        if record['lifecycle'] == 'scheduled' and not record['in_engine_set']:
             tombstones.append(run_id)
             continue
         if record['lifecycle'] not in ('scheduled', 'running'):
@@ -120,13 +141,37 @@ def rebuild(conn, replay_fn, model_source, params=Params(), *, pool=None, cache=
     """Startup full replay; dirty rows are left for version-checked consume."""
     with conn.transaction():
         conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
-        ids = [row[0] for row in conn.execute(f'SELECT id FROM obs.run WHERE {ACTIVE} ORDER BY id')]
+        asof = _now(conn)
+        ids = _engine_ids(conn, asof)
         versions = _versions(conn)
-        jobs, runs, tombstones = _prepare(conn, ids, model_source, params, replay_fn)
-    cached = _replay_jobs(jobs, runs, pool)
+        runs, tombstones, cached = {}, [], {}
+        for offset in range(0, len(ids), 200):
+            jobs, chunk_runs, chunk_tombstones = _prepare(
+                conn, ids[offset:offset + 200], model_source, params, replay_fn, asof=asof)
+            cached.update(_replay_jobs(jobs, chunk_runs, pool))
+            runs.update(chunk_runs)
+            tombstones.extend(chunk_tombstones)
+            del jobs
     gen = _publish(conn, True, versions, runs, tombstones)
-    _update_cache(cache, runs, tombstones, cached)
+    if cache is not None:
+        cache.clear()
+        cache.update(cached)
     return gen
+
+
+def _refresh_window(conn, runs, cache, versions):
+    with conn.transaction():
+        asof = _now(conn)
+        ids = _engine_ids(conn, asof)
+        mark_dirty(conn, sorted(set(ids) - runs.keys()))
+        tombstones = [row[0] for row in conn.execute(f'''SELECT r.id FROM obs.run r
+            WHERE r.id=ANY(%(ids)s) AND r.lifecycle='scheduled' AND NOT {ENGINE_SET}''',
+            {'ids': list(runs), 'asof': asof, 'window': WINDOW})]
+        if tombstones:
+            _publish(conn, False, versions, {}, tombstones)
+    for run_id in tombstones:
+        runs.pop(run_id, None)
+        cache.pop(run_id, None)
 
 
 def _read_frame(conn, gen):
@@ -160,15 +205,17 @@ def run_loop(conn, replay_fn, model_source, params=Params(), *, pool=None,
             with conn.transaction():
                 latest = _versions(conn)
                 if changed or latest != versions:
-                    mark_dirty(conn, [row[0] for row in conn.execute(f'SELECT id FROM obs.run WHERE {ACTIVE}')])
+                    mark_dirty(conn, _engine_ids(conn, _now(conn)))
             versions, changed = latest, False
+            tick = monotonic()
+            if tick >= full_at:
+                _refresh_window(conn, runs, cache, versions)
             gen = consume(conn, replay_fn, model_source, params, pool=pool, cache=cache)
             if gen is not None:
                 delta = _read_frame(conn, gen)
                 runs.update(delta['runs'])
                 for run_id in delta['tombstones']:
                     runs.pop(run_id, None)
-            tick = monotonic()
             if tick >= full_at:
                 _publish(conn, True, versions, runs, [])
                 full_at = tick + 300
