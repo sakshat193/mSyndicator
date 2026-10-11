@@ -85,7 +85,8 @@ export function connectLive(url: string, store: FrameStore): () => void {
         validate(frame);
         if (store.apply(frame) === 'gap') ws.send(JSON.stringify({ gen: store.gen }));
         else delay = 1000;
-      } catch {
+      } catch (error) {
+        console.error('Rejected live frame', error);
         ws.close();
       }
     };

@@ -287,13 +287,24 @@ def test_publication_failure_rolls_back_ack_and_metric(db_url, runs):
 
 
 @pytest.mark.db
-def test_tombstone_for_retired_run(db_url, runs):
+@pytest.mark.parametrize('lifecycle', ['completed', 'cancelled', 'expired_unknown'])
+def test_tombstone_for_retired_run(db_url, runs, lifecycle):
+    from msynd.engine.__main__ import rebuild
     with psycopg.connect(db_url) as conn:
-        conn.execute("UPDATE obs.run SET lifecycle='completed' WHERE id=%s", (runs[0],))
-        dirty(conn, runs[:1])
+        rebuild(conn, fake_replay, tables, PARAMS)
+        full = payload(conn)
+        assert set(full['runs']) == set(runs)
+        conn.commit()
+        conn.execute('UPDATE obs.run SET lifecycle=%s WHERE id=%s', (lifecycle, runs[0]))
+        dirty(conn, runs)
         consume(conn)
-        assert payload(conn)['tombstones'] == [runs[0]]
-        assert payload(conn)['runs'] == {}
+        delta = payload(conn)
+        assert delta['tombstones'] == [runs[0]]
+        assert set(delta['runs']) == set(runs[1:])
+        assert conn.execute('SELECT count(*) FROM obs.dirty_run').fetchone()[0] == 0
+        for frame in (full, delta):
+            for run_id, run in frame['runs'].items():
+                assert run['run_id'] == run_id
 
 
 @pytest.mark.db

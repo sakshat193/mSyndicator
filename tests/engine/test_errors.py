@@ -28,7 +28,7 @@ def test_prepare_error_payload_identifies_run(monkeypatch, failure):
     conn = MagicMock()
     conn.execute.return_value.fetchone.return_value = (datetime(2025, 10, 8, tzinfo=timezone.utc),)
     conn.cursor.return_value.__enter__.return_value.fetchone.return_value = {
-        'id': 42, 'lifecycle': 'running',
+        'id': 42, 'lifecycle': 'running', 'in_engine_set': True,
     }
     ev = RunEvidence(42, {'route': 7}, (), (), 0, None)
     monkeypatch.setattr(engine, 'load_run_evidence',

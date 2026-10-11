@@ -68,14 +68,8 @@ def _prepare(conn, run_ids, model_source, params, replay_fn, *, asof=None):
                 ) receipts) AS last_received FROM obs.run r WHERE id=%(run_id)s''',
                 {'asof': asof, 'window': WINDOW, 'run_id': run_id})
             record = cur.fetchone()
-        if record is None or record['lifecycle'] == 'completed':
+        if record is None or not record['in_engine_set']:
             tombstones.append(run_id)
-            continue
-        if record['lifecycle'] == 'scheduled' and not record['in_engine_set']:
-            tombstones.append(run_id)
-            continue
-        if record['lifecycle'] not in ('scheduled', 'running'):
-            runs[run_id] = {'state': record['lifecycle']}
             continue
         try:
             ev = load_run_evidence(conn, run_id, asof)

@@ -71,7 +71,7 @@ class Socket {
   receive(value: unknown) { this.onmessage?.({ data: encode(value).slice().buffer }); }
 }
 
-afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); Socket.all = []; });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); Socket.all = []; });
 
 it('decodes binary frames, requests gap resync and resumes after full replacement', () => {
   vi.stubGlobal('WebSocket', Socket);
@@ -118,13 +118,18 @@ it('reconnects exponentially, sends the last generation and cancels on disconnec
   expect(Socket.all).toHaveLength(4);
 });
 
-it('reconnects after invalid binary input without mutating the store', () => {
+it('logs a rejected run before closing and reconnects without mutating the store', () => {
   vi.useFakeTimers();
   vi.stubGlobal('WebSocket', Socket);
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {});
   const store = new FrameStore();
   const disconnect = connectLive('ws://localhost/api/live', store);
+  const close = vi.spyOn(Socket.all[0], 'close');
   Socket.all[0].onopen?.();
-  Socket.all[0].receive({ gen: 1 });
+  Socket.all[0].receive(frame(1, false, { 42: { state: 'cancelled' } }));
+  expect(error).toHaveBeenCalledWith(expect.any(String), expect.any(Error));
+  expect(error.mock.calls[0][1].message).toBe('Invalid run');
+  expect(error.mock.invocationCallOrder[0]).toBeLessThan(close.mock.invocationCallOrder[0]);
   expect(store.gen).toBe(0);
   vi.advanceTimersByTime(1000);
   expect(Socket.all).toHaveLength(2);
