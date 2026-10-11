@@ -1,5 +1,6 @@
 import asyncio
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, time as day_time, timedelta, timezone
 from email.utils import parsedate_to_datetime
@@ -69,7 +70,7 @@ def real_transport():
 
 class Dispatcher:
     def __init__(self, host, rate, conn_factory, transport, clock=None, rand=None, classify=None, on_empty=None,
-                 budgets: dict[str, int] | None = None):
+                 budgets: dict[str, int] | None = None, breaker_exempt: Callable[[httpx.Response], bool] | None = None):
         if not math.isfinite(rate) or rate <= 0:
             raise ValueError("rate must be finite and positive")
         self.host, self.rate = host, rate
@@ -77,6 +78,7 @@ class Dispatcher:
         self.clock = clock or RealClock()
         self.rand = rand or random.Random()
         self.classify, self.on_empty = classify, on_empty
+        self.breaker_exempt = breaker_exempt
         self.budgets = budgets
         self.client = httpx.AsyncClient(transport=transport, headers={"User-Agent": f"m-syndicator/{VERSION} (personal research)"}, timeout=30, follow_redirects=False)
         self.lock = asyncio.Lock()
@@ -147,6 +149,7 @@ class Dispatcher:
             fetch_id = self.conn.execute("insert into obs.fetch(host,purpose,key,run_id,started_at,mode,outcome) values (%s,%s,%s,%s,%s,%s,'inflight') returning id", (self.host, purpose, key, run_id, started_at, mode)).fetchone()[0]
             status, body, retry_after = None, b"", 0
             cancelled = None
+            response = None
             try:
                 response = await self.client.request(method, url, **kwargs)
                 status, body = response.status_code, response.content
@@ -167,7 +170,9 @@ class Dispatcher:
             received = self.clock.now()
             self.conn.execute("update obs.fetch set received_at=%s,http_status=%s,outcome=%s,body_zstd=%s where id=%s", (received, status, outcome, zstandard.compress(body), fetch_id))
             now = self.clock.monotonic()
-            self.outcomes.append((now, outcome))
+            if not (outcome == "invalid" and response is not None and self.breaker_exempt is not None
+                    and self.breaker_exempt(response)):
+                self.outcomes.append((now, outcome))
             while self.outcomes and self.outcomes[0][0] < now - 300:
                 self.outcomes.popleft()
             if outcome == "challenge":

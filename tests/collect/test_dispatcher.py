@@ -133,6 +133,43 @@ def test_breaker_pauses_10_min(db_url):
     asyncio.run(run())
 
 
+@pytest.mark.parametrize('exempt', [True, False, None])
+def test_breaker_exemption_preserves_invalid_logging_and_spacing(db_url, exempt):
+    async def run():
+        clock = FakeClock()
+        starts, states, ids = [], [], []
+
+        def handle(request):
+            starts.append(clock.t)
+            return httpx.Response(400, content=b'bad')
+
+        kwargs = {} if exempt is None else {'breaker_exempt': lambda response: exempt}
+        d = dispatcher(db_url, clock, handle, **kwargs)
+        await d.start()
+        try:
+            pause_until = d.pause_until
+            for _ in range(25):
+                result = await d.request('status', 'GET', 'https://h/x')
+                assert result.outcome == 'invalid'
+                ids.append(result.fetch_id)
+                states.append(d.state)
+            assert len(starts) == 25
+            assert all(b - a >= 1 / d.rate - 1e-9 for a, b in zip(starts, starts[1:]))
+            if exempt:
+                assert states == ['ok'] * 25
+                assert d.pause_until == pause_until
+                assert starts[-1] - starts[0] == 24 / d.rate
+            else:
+                assert states[19] == 'breaker'
+                assert d.pause_until > pause_until
+                assert starts[20] - starts[19] >= 600
+            assert d.conn.execute('select outcome from obs.fetch where id=any(%s) order by id',
+                                  (ids,)).fetchall() == [('invalid',)] * 25
+        finally:
+            await d.close()
+    asyncio.run(run())
+
+
 def test_empty_refreshes_session_once_then_retries_once(db_url):
     async def run():
         clock = FakeClock()
@@ -426,6 +463,20 @@ def test_invalid_max_attempts_rejected(budget_url, max_attempts):
         try:
             with pytest.raises(ValueError):
                 await d.request('status', 'GET', 'https://h/x', max_attempts=max_attempts)
+        finally:
+            await d.close()
+    asyncio.run(run())
+
+
+def test_breaker_exemption_only_applies_to_invalid(db_url):
+    async def run():
+        clock = FakeClock()
+        d = dispatcher(db_url, clock, lambda request: httpx.Response(503), breaker_exempt=lambda response: True)
+        await d.start()
+        try:
+            for _ in range(20):
+                assert (await d.request('status', 'GET', 'https://h/x', max_attempts=1)).outcome == 'transport_error'
+            assert d.state == 'breaker'
         finally:
             await d.close()
     asyncio.run(run())

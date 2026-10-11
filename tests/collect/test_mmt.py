@@ -45,6 +45,39 @@ def test_single_post_with_origin_date_and_no_next_running_date(db_url):
     asyncio.run(run())
 
 
+@pytest.mark.db
+@pytest.mark.parametrize('status,code,exempt', [(400, 1001, True), (400, 1002, True),
+                                             (400, 9999, False), (404, 1001, False)])
+def test_not_running_breaker_exemption_keeps_invalid_fetch_log(db_url, status, code, exempt):
+    from msynd.collect.mmt import HOST, MmtClient
+
+    async def run():
+        clock = FakeClock()
+        d = Dispatcher(HOST, .2, lambda: connect(db_url), httpx.MockTransport(lambda r:
+            httpx.Response(status, json={'success': False, 'error': {'errorCode': code}})), clock=clock)
+        client = MmtClient(d)
+        await d.start()
+        try:
+            pause_until = d.pause_until
+            states, ids = [], []
+            for _ in range(25):
+                result = await client.train_running('12951', date(2026, 10, 7))
+                assert result.outcome == 'invalid' and result.status == status
+                ids.append(result.fetch_id)
+                states.append(d.state)
+            if exempt:
+                assert states == ['ok'] * 25
+                assert d.pause_until == pause_until
+            else:
+                assert states[19] == 'breaker'
+                assert d.pause_until > pause_until
+            assert d.conn.execute('select http_status,outcome from obs.fetch where id=any(%s) order by id',
+                                  (ids,)).fetchall() == [(status, 'invalid')] * 25
+        finally:
+            await d.close()
+    asyncio.run(run())
+
+
 def test_factory_requires_live_flag(monkeypatch):
     from msynd.collect.mmt import MmtClient
 

@@ -20,6 +20,10 @@ def not_running(body: bytes) -> bool:
             and payload['error'].get('errorCode') in (1001, 1002))
 
 
+def breaker_exempt(response) -> bool:
+    return response.status_code == 400 and not_running(response.content)
+
+
 def classify(purpose, response) -> str:
     body = response.content.lower()
     if (response.status_code == 403 or "text/html" in response.headers.get("Content-Type", "").lower()
@@ -43,6 +47,7 @@ class MmtClient:
             raise ValueError("MMT dispatcher requires its status classifier")
         self.d = d
         self.d.classify = classify
+        self.d.breaker_exempt = breaker_exempt
 
     @classmethod
     def from_env(cls, *, budgets=None):
