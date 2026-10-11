@@ -190,6 +190,54 @@ def test_cancelled_not_created(db):
     assert db.execute("SELECT resched_min FROM obs.run WHERE start_date='2026-10-07'").fetchone() == (60,)
 
 
+@pytest.mark.parametrize('state', ['scheduled', 'expired_unknown'])
+def test_cancel_not_running_marks_dirty(db, state):
+    from msynd.collect.lifecycle import cancel_not_running
+
+    run = make_run(db)
+    db.execute('UPDATE obs.run SET lifecycle=%s WHERE id=%s', (state, run))
+    with db.transaction():
+        assert cancel_not_running(db, run, at(10)) is True
+    assert db.execute('SELECT lifecycle,updated_at FROM obs.run WHERE id=%s', (run,)).fetchone() == (
+        'cancelled', at(10))
+    dirty = db.execute('SELECT run_id,ver FROM obs.dirty_run').fetchall()
+    assert [row[0] for row in dirty] == [run]
+    assert cancel_not_running(db, run, at(20)) is False
+    assert db.execute('SELECT lifecycle,updated_at FROM obs.run WHERE id=%s', (run,)).fetchone() == (
+        'cancelled', at(10))
+    assert db.execute('SELECT run_id,ver FROM obs.dirty_run').fetchall() == dirty
+
+
+@pytest.mark.parametrize('state', ['running', 'completed', 'cancelled'])
+def test_cancel_not_running_preserves_other_lifecycles(db, state):
+    from msynd.collect.lifecycle import cancel_not_running
+
+    run = make_run(db)
+    db.execute('UPDATE obs.run SET lifecycle=%s,updated_at=%s WHERE id=%s', (state, at(0), run))
+    assert cancel_not_running(db, run, at(10)) is False
+    assert db.execute('SELECT lifecycle,updated_at FROM obs.run WHERE id=%s', (run,)).fetchone() == (
+        state, at(0))
+    assert db.execute('SELECT count(*) FROM obs.dirty_run').fetchone() == (0,)
+
+
+def test_cancel_not_running_shares_evidence_transaction(db):
+    from msynd.collect.lifecycle import cancel_not_running
+
+    run = make_run(db)
+    with pytest.raises(RuntimeError), db.transaction():
+        assert cancel_not_running(db, run, at(10)) is True
+        raise RuntimeError('rollback')
+    assert db.execute('SELECT lifecycle FROM obs.run WHERE id=%s', (run,)).fetchone() == ('scheduled',)
+    assert db.execute('SELECT count(*) FROM obs.dirty_run').fetchone() == (0,)
+    db.rollback()
+    db.autocommit = True
+    try:
+        with pytest.raises(ValueError, match='evidence transaction'):
+            cancel_not_running(db, run, at(10))
+    finally:
+        db.autocommit = False
+
+
 @pytest.mark.parametrize('receipt,delay,now,want', [
     (1000, 0, 1661, 0),   # Destination grace elapsed, but no 12-hour silence.
     (300, 0, 1660, 0),    # Strictly later than arrival + 12 hours.

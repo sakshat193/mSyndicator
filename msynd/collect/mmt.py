@@ -10,6 +10,16 @@ from msynd.db import connect
 HOST = "rails-ris.makemytrip.com"
 
 
+def not_running(body: bytes) -> bool:
+    try:
+        payload = json.loads(body)
+    except (ValueError, RecursionError):
+        return False
+    return (isinstance(payload, dict) and payload.get('success') is False
+            and isinstance(payload.get('error'), dict)
+            and payload['error'].get('errorCode') in (1001, 1002))
+
+
 def classify(purpose, response) -> str:
     body = response.content.lower()
     if (response.status_code == 403 or "text/html" in response.headers.get("Content-Type", "").lower()

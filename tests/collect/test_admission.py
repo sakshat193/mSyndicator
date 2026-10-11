@@ -209,6 +209,38 @@ def test_loop_stores_valid_evidence_and_rejects_bad_pages(collector_url, tmp_pat
 
 
 @pytest.mark.db
+@pytest.mark.parametrize('error_code,lifecycle', [(1001, 'cancelled'), (9999, 'scheduled')])
+def test_loop_not_running_answer_cancels_run(collector_url, tmp_path, error_code, lifecycle):
+    from msynd.collect.__main__ import load_state, run_loop
+
+    with connect(collector_url) as conn:
+        run = make_run(conn)
+        conn.execute("UPDATE ref.schedule_version SET valid_from='2026-10-07'")
+    clock = FakeClock()
+    clock.base = NOW
+    starts = []
+    def handle(request):
+        starts.append(clock.now())
+        return httpx.Response(400, json={
+            'response': None, 'success': False,
+            'error': {'errorCode': error_code, 'errorDescription': 'Train is not running on given date'},
+        })
+    d = Dispatcher(HOST, .2, lambda: connect(collector_url), httpx.MockTransport(handle), clock=clock)
+    async def execute():
+        with connect(collector_url) as conn:
+            await run_loop(MmtClient(d), conn, disk_path=tmp_path, stop=lambda: bool(starts) or clock.t >= 60)
+    asyncio.run(execute())
+    with connect(collector_url) as conn:
+        assert conn.execute('SELECT lifecycle FROM obs.run WHERE id=%s', (run,)).fetchone() == (lifecycle,)
+        assert conn.execute('SELECT http_status,outcome FROM obs.fetch WHERE run_id=%s', (run,)).fetchall() == [
+            (400, 'invalid')]
+        poll = load_state(conn, clock.now())
+        harvest = load_state(conn, NOW + timedelta(days=1))
+        assert (run in [r.id for r in poll.runs]) is (lifecycle == 'scheduled')
+        assert (run in [r.id for r in harvest.harvest]) is (lifecycle == 'scheduled')
+
+
+@pytest.mark.db
 def test_idle_loop_runs_hourly_expiry_and_body_retention(collector_url, tmp_path):
     from msynd.collect.__main__ import run_loop
 

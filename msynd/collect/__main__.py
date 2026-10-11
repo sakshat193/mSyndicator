@@ -8,8 +8,8 @@ import os
 
 from msynd.collect.admission import AdmissionState, PollRun, SCOPE_MIN_KM, next_job
 from msynd.collect.dispatcher import BudgetExhausted, HostStopped
-from msynd.collect.lifecycle import create_runs, expire_runs
-from msynd.collect.mmt import HOST, MmtClient, classify
+from msynd.collect.lifecycle import cancel_not_running, create_runs, expire_runs
+from msynd.collect.mmt import HOST, MmtClient, classify, not_running
 from msynd.collect.parse_mmt import parse_status
 from msynd.collect.status import InvalidResponse
 from msynd.collect.store import store_status
@@ -156,6 +156,9 @@ async def run_loop(client, conn, *, disk_path='/data', T_max=None, t_max_factor=
                 page = parse_status(result.body, job.run.train, job.run.start_date)
                 with conn.transaction():
                     store_status(conn, job.run.id, result, page)
+            elif result.outcome == 'invalid' and result.status == 400 and not_running(result.body):
+                with conn.transaction():
+                    cancel_not_running(conn, job.run.id, result.received_at)
     finally:
         await d.close()
 

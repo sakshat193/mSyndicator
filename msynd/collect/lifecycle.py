@@ -122,6 +122,19 @@ def expire_runs(conn, now) -> int:
         return len(expired)
 
 
+def cancel_not_running(conn, run_id, now) -> bool:
+    if conn.autocommit:
+        raise ValueError('cancel_not_running requires an evidence transaction')
+    # ponytail: one answer is final; add a confirmation fetch if MMT shows false negatives.
+    changed = conn.execute('''
+        UPDATE obs.run SET lifecycle='cancelled',updated_at=%s
+        WHERE id=%s AND lifecycle IN ('scheduled','expired_unknown')
+    ''', (now, run_id)).rowcount > 0
+    if changed:
+        mark_dirty(conn, [run_id])
+    return changed
+
+
 def apply_exception(conn, row, fetch) -> None:
     """The status fetch identifies the run; row contains only exception detail."""
     if conn.autocommit:

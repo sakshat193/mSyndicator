@@ -63,11 +63,38 @@ def test_factory_requires_live_flag(monkeypatch):
     (200, b'CAPTCHA required', {}, "challenge"),
     (200, b'{broken', {}, "invalid"),
     (404, b'{"error": "not found"}', {}, "invalid"),
+    (400, b'{"success":false,"error":{"errorCode":1001}}', {}, "invalid"),
+    (400, b'{"success":false,"error":{"errorCode":1002}}', {}, "invalid"),
 ])
 def test_classification(status, body, headers, want):
     from msynd.collect.mmt import classify
 
     assert classify("status", httpx.Response(status, content=body, headers=headers)) == want
+
+
+@pytest.mark.parametrize('body,want', [
+    (b'{"success":false,"error":{"errorCode":1001}}', True),
+    (b'{"success":false,"error":{"errorCode":1002}}', True),
+    (b'{"success":false,"error":{"errorCode":9999}}', False),
+    (b'{"success":true,"error":{"errorCode":1001}}', False),
+    (b'not JSON', False),
+    (b'[{"success":false,"error":{"errorCode":1001}}]', False),
+    (b'{"success":false}', False),
+    (b'{"error":{"errorCode":1001}}', False),
+    (b'{"success":0,"error":{"errorCode":1001}}', False),
+    (b'null', False),
+    (b'{"success":false,"error":null}', False),
+    (b'{"success":false,"error":[]}', False),
+    (b'{"success":false,"error":{}}', False),
+    (b'{"success":false,"error":{"errorCode":[1001]}}', False),
+    (b'{"success":false,"error":{"errorCode":"1001"}}', False),
+    (b'\xff', False),
+    (b'[' * 2000 + b']' * 2000, False),
+])
+def test_not_running(body, want):
+    from msynd.collect.mmt import not_running
+
+    assert not_running(body) is want
 
 
 def test_only_status_purpose_is_accepted():
