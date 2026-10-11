@@ -1890,18 +1890,19 @@ No new dependency: `pmtiles` and `maplibre-gl` are already installed. The UI fon
   - **Snapping:** a station with no such edge gets snap edges, weighted by great-circle km, to every station within 15 km that has one.
   - **Search:** a plain-km Dijkstra from `stn_lo` to `stn_hi`.
     - It never uses the segment itself, and it stops once the distance exceeds 1.2 × the target, where the target is `max(segment track km, chord)`.
-  - **Acceptance:** a path is accepted when it has ≥ 2 edges and its weight is within ±20 % of the target.
+  - **Acceptance:** a path is accepted when it has ≥ 2 edges. The 1.2 × target search bound is the only length limit, so a chain shorter than the target still beats the chord. (A ±20 % lower bound was tried and dropped in review: it left BSB–MFP, BSB–SEE and RC–SC straight.)
   - **Unchanged from Task 61:** the eligibility rules (no stored polyline, both coordinates, chord > 20 km), the polyline format, `derived`, no DB writes, and the content etag.
   - `# ponytail:` station chains are straight between stations; Task 37's OSM geometry replaces them with real track curves.
-- [ ] Tests:
+- [x] Tests:
   - every basemap fill layer is polygon-filtered;
   - a 2-stop route whose origin has no other segment (the CP→PTNR shape) chains through a station within 15 km;
   - a chain whose track km match but whose great-circle km detours 1.5× is still rejected (keep the existing case);
   - a real detour whose route track km is 1.9 × the chord, and whose chain matches that, is accepted;
+  - a chain shorter than the target track km is still drawn;
   - a chain that the old squared-km search missed is now found. The case: a meandering path of tiny hops beside a direct path of medium hops, where only the direct one is within tolerance;
   - `uv run pytest -q tests/static` passes, as do `npm --prefix web test` and `npm --prefix web run build`.
-- [ ] Commit `task 63: map geometry fixes`.
-- [ ] Monitor:
+- [x] Commit `task 63: map geometry fixes`.
+- [x] Monitor (2026-10-12, VM at ede9c2e, network-0120115ba2b6 exported in 7.6 s): straight segments over 20/50/100/150 km went from 327/142/76/– to 179/11/2/0; 4,436 segments derived; CP–PTNR (00441) now draws through 49 stations, BSB–MFP 12, JSM–UDZ 29. Basemap fills are polygon-only and the screenshots show no stripes.
   1. Rebuild the VM image and re-export the network.
   2. Recount straight segments over 20, 50, 100 and 150 km.
   3. Deploy `web/dist`.
