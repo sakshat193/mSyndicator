@@ -1695,7 +1695,7 @@ The user asked for a cyberpunk look, with heads that are "practically non-existe
   - network 1 px `[0,200,255,28]`;
   - panels are translucent near-black with a thin cyan border and glow, and a monospace font stack;
   - `LIVE` in neon magenta with a text-shadow glow.
-- [ ] Tests:
+- [x] Tests:
   - an unchanged run is not decoded again on a new generation;
   - the three comet tiers have widths 4 / 2 / 1 with lengths increasing in that order;
   - median timestamps are monotone;
@@ -1704,11 +1704,16 @@ The user asked for a cyberpunk look, with heads that are "practically non-existe
   - easing moves part of the way, converges, and snaps on first sight;
   - there are at most 8 strided streaks per run.
   - `npm --prefix web test` and `npm --prefix web run build` both pass.
-- [ ] Commit `task 60: neon trails`.
-- [ ] Monitor:
+- [x] Commit `task 60: neon trails`.
+- [x] Monitor:
   1. Take a Playwright screenshot through the tunnel.
   2. Check that a frame arrival blocks the main thread for < 100 ms on the PC, and that idle fps has not dropped.
   3. Copy `web/dist` to the VM.
+- **Monitor result (2026-10-11):**
+  - Redrawing deck on every frame cost 14–20 ms per frame on the PC's Intel iGPU: the 16k-segment network was about 7 ms and the streaks about 7 ms. That cut idle fps to 49.
+  - Live heads move far less than a pixel per frame, so the monitor changed `main.ts`: it redraws at about 70 Hz while any head is still easing (more than 0.05 px from its target, after which the head snaps) and at 10 Hz otherwise. The `parameters` object was also moved to a module constant.
+  - Measured afterwards over 150 s on the PC (635 trains): idle 144 fps (p50 6.9 ms, max 69 ms); frame arrivals took 52–70 ms of main-thread time; a pan ran at about 100 fps.
+  - Deployed at a43d235.
 
 ---
 
