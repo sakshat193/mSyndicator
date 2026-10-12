@@ -2222,14 +2222,37 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
 - **Eye toggle:** the button holds an eye icon and an eye-off (slashed) icon, and CSS shows only the eye-off one when `aria-pressed="true"`. The fixed `aria-label` and the `title` stay.
 - **Head:** an inline SVG data-URI favicon (a cyan train-head dot on `#05070d`), `<meta name="theme-color" content="#05070d">`, `<meta name="color-scheme" content="dark">` and a one-line `<meta name="description">`.
 - **Dead layer:** delete the `rail` layer from `basemap.ts`, and drop `'transit'` from `STYLE_LAYERS` in `msynd/static/tiles.py`, so the mirror comment stays true.
-- [ ] Tests:
+- [x] Tests:
   - `liveStatus`: null → `Connecting…`/`pending`; 0 and 59 → fresh; 60 → aging; 180 → old;
   - main: before any frame the count reads `Loading…` and `#connection` has freshness `pending`; after a frame the count shows the total;
   - basemap: the layer ids no longer include `rail`, and no layer uses source-layer `transit`;
   - web test, build and `tsc` pass; `uv run pytest -q tests/static` passes.
-- [ ] Commit `task 69: hud polish`.
-- [ ] Monitor: deploy the dist, then screenshot 390 × 844 (legend fully visible, no overlap; hidden mode with the eye-off icon), the loading state and the desktop.
+- [x] Commit `task 69: hud polish`. (ab4b8ab; 158 web tests, `tsc`, build and 98 `tests/static` pass; monitor mutations `pending`→`old` and `if (store.latest)`→`if (true)` each fail tests.)
+- [x] Monitor: deploy the dist, then screenshot 390 × 844 (legend fully visible, no overlap; hidden mode with the eye-off icon), the loading state and the desktop. Done 2026-10-12: VM at ab4b8ab; `reports/t69-mobile-{loading,shown,hidden}.png` and `reports/t69-desktop-{shown,panel,search}.png` show no overlap, the eye-off icon, muted `Connecting…` and `Loading…`.
 
+### Task 70 (amendment 2026-10-12): legible station labels (user request: "/loop until the UI looks production grade")
+
+**Why (monitor, 2026-10-12, `reports/t69-label-crop.png`):** station labels such as "Gaya Jn" or "Barauni Jn" are faint grey smudges on the bright trails. Root cause: deck.gl 9.4 measures `outlineWidth` in SDF atlas pixels (64 px glyphs) and divides it by `fontSettings.radius` (default 12). The halo extends `0.75 × outlineWidth` atlas pixels past the glyph edge and is clipped by `fontSettings.buffer` (default 4). So the current `outlineWidth: 0.18` draws a 0.135 atlas-px halo, about 0.03 screen px: no halo at all.
+
+**Files:** `web/src/layers.ts`, `web/src/layers.test.ts`.
+
+- `stationLabelLayer`:
+  - `fontSettings: { sdf: true, buffer: 10, radius: 16 }`;
+  - `outlineWidth: 12`, which gives a 9 atlas-px halo, about 1.7 px at 12 px text;
+  - `outlineColor: [5, 7, 13, 255]`;
+  - `fontWeight: 600`;
+  - `getColor: [214, 224, 238, 255]`;
+  - `getSize`: 12 below zoom 7, otherwise 13.
+- Add a comment stating the halo relation (`0.75 × outlineWidth` atlas px, which must be ≤ `buffer` and < `radius`).
+- In `labelStations`, the collision box estimate scales with the new size: use 7 px per character instead of 6.5 and keep the `ponytail:` comment. Nothing else changes.
+- [ ] Tests (replace the label-style assertions in `layers.test.ts`):
+  - halo in screen px, `0.75 × outlineWidth × size / 64`, is ≥ 1.5 at both sizes;
+  - `0.75 × outlineWidth ≤ fontSettings.buffer` and `outlineWidth < fontSettings.radius`;
+  - outline alpha is 255; `fontWeight` is 600; sizes are 12 below zoom 7 and 13 at zoom 7 and above;
+  - the existing collision tests still pass after the width change (update their expectations only if the 7 px estimate changes which labels are kept, and say so).
+  - Web test, build and `tsc` pass.
+- [ ] Commit `task 70: legible station labels`.
+- [ ] Monitor: deploy the dist; crop the label region at 1440 × 900 (India zoom and the Bihar zoom used for `t69-label-crop.png`); check that labels are readable over trunk trails and that fps with the panel closed is ≥ 60.
 
 ---
 
