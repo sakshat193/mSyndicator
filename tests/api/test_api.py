@@ -71,6 +71,40 @@ def receive(ws):
     return msgpack.unpackb(ws.receive_bytes(), raw=False, strict_map_key=False)
 
 
+@pytest.fixture
+def halt_run():
+    qs = np.arange(42, dtype='<f4').reshape(3, 2, 7)
+    qs[0, 0] = np.nan
+    qs[1, 1, 3] = 6139.6
+    stored = {'state': 'observed', 'halt_q': qs.tobytes(), 'halt_shape': [3, 2, 7]}
+    projected = {'state': 'observed',
+                 'halt_p50': np.asarray([[np.nan, 10], [17, 6139.6], [31, 38]], '<f4').tobytes()}
+    return stored, projected
+
+
+def test_live_full_delta_and_resync_carry_only_halt_p50(api, halt_run):
+    conn, client, app, run, other, *_ = api
+    stored, projected = halt_run
+    error = {'state': 'error', 'error': 'bad evidence'}
+    full = frame(conn, True, {run: stored, other: error})
+    wait_read(app, full)
+    with client.websocket_connect('/api/live') as ws:
+        ws.send_json({'gen': 0})
+        baseline = receive(ws)
+        assert baseline['is_full'] and baseline['runs'] == {run: projected, other: error}
+        delta = frame(conn, False, {run: stored | {'state': 'stale'}})
+        update = receive(ws)
+        assert update['gen'] == delta and not update['is_full']
+        assert update['runs'] == {run: projected | {'state': 'stale'}}
+        ws.send_json({'gen': full})
+        assert receive(ws) == update
+        ws.send_json({'gen': 0})
+        assert receive(ws) == baseline
+        assert receive(ws) == update
+    assert app.state.frames.runs == {run: projected | {'state': 'stale'}, other: error}
+    assert 'halt_q' in stored and 'halt_shape' in stored
+
+
 def test_gap_triggers_full_resync(api):
     conn, client, app, run, *_ = api
     full = frame(conn, True, {run: {'state': 'observed'}})
@@ -89,19 +123,20 @@ def test_gap_triggers_full_resync(api):
         assert receive(ws)['is_full']
 
 
-def test_slow_client_coalesces_to_full(api):
+def test_slow_client_coalesces_to_full(api, halt_run):
     conn, client, app, run, other, *_ = api
-    full = frame(conn, True, {run: {'state': 'observed'}, other: {'state': 'observed'}})
+    stored, projected = halt_run
+    full = frame(conn, True, {run: stored, other: {'state': 'observed'}})
     wait_read(app, full)
     queue = client.portal.call(app.state.frames.subscribe, full)
     try:
         frame(conn, False, {run: {'state': 'stale'}})
         frame(conn, False, tombstones=[other])
-        last = frame(conn, False, {run: {'state': 'error'}})
+        last = frame(conn, False, {run: stored | {'state': 'stale'}})
         wait_read(app, last)
         result = msgpack.unpackb(client.portal.call(queue.get), raw=False, strict_map_key=False)
         assert result['is_full'] and result['gen'] == last
-        assert result['runs'] == {run: {'state': 'error'}}
+        assert result['runs'] == {run: projected | {'state': 'stale'}}
         with client.websocket_connect('/api/live') as ws:
             ws.send_json({'gen': full})
             assert receive(ws) == result
@@ -128,6 +163,8 @@ def test_contiguous_full_is_delta_for_connected_client_and_full_for_resync(api):
                  'halt_q': np.asarray([[[np.nan] * 7, [1.5] * 7]], '<f4').tobytes(),
                  'next_q': np.full(7, np.nan, '<f4').tobytes(),
                  'headline': {'last_received': None}}
+    projected = {key: value for key, value in unchanged.items() if key not in ('halt_q', 'halt_shape')}
+    projected['halt_p50'] = np.asarray([[np.nan, 1.5]], '<f4').tobytes()
     full = frame(conn, True, {run: unchanged, other: unchanged | {'state': 'observed'},
                              999: {'state': 'expired'}})
     wait_read(app, full)
@@ -135,8 +172,13 @@ def test_contiguous_full_is_delta_for_connected_client_and_full_for_resync(api):
     try:
         # Reordering a decoded dictionary is not a payload change.
         same = dict(reversed(list(unchanged.items())))
+        qs = np.frombuffer(same['halt_q'], '<f4').copy()
+        qs[7] = -20  # A change outside P50 must not resend the run.
+        same['halt_q'] = qs.tobytes()
         changed = unchanged | {'state': 'observed', 'paths': b'\x00\x00\x01\x00'}
+        projected_changed = projected | {'state': 'observed', 'paths': b'\x00\x00\x01\x00'}
         updated = {run: same, other: changed, 1000: {'state': 'observed'}}
+        projected_updated = {run: projected, other: projected_changed, 1000: {'state': 'observed'}}
         last = write_frame(conn, True, {'static': 'network-v2', 'model': 5}, updated, ())
         conn.execute('NOTIFY sim_frame')
         conn.commit()
@@ -144,10 +186,10 @@ def test_contiguous_full_is_delta_for_connected_client_and_full_for_resync(api):
         result = msgpack.unpackb(client.portal.call(queue.get), raw=False, strict_map_key=False)
         baseline = app.state.frames.history[-1]
         assert result == baseline | {'is_full': False,
-                                     'runs': {other: changed, 1000: {'state': 'observed'}},
+                                     'runs': {other: projected_changed, 1000: {'state': 'observed'}},
                                      'tombstones': [999]}
-        assert baseline['is_full'] and baseline['runs'] == updated
-        assert app.state.frames.runs == updated
+        assert baseline['is_full'] and baseline['runs'] == projected_updated
+        assert app.state.frames.runs == projected_updated
         with client.websocket_connect('/api/live') as ws:
             ws.send_json({'gen': 0})
             assert receive(ws) == baseline
@@ -191,7 +233,7 @@ def test_train_number_ambiguous_lists_runs(api):
 def test_run_endpoint_all_remaining_halts_and_eta_age(api):
     conn, client, app, run, other, *_ = api
     now = conn.execute('SELECT clock_timestamp()').fetchone()[0]
-    qs = [[None] * 7, [None] * 7], [[310.123456] * 7, [315.] * 7], [[950.] * 6 + [None], [None] * 7]
+    qs = [[None] * 7, [None] * 7], [[310.123456 + q for q in range(7)], [315.] * 7], [[950.] * 6 + [None], [None] * 7]
     insert_event(conn, run, 'MMCT', 1, 'dep', now, now - timedelta(minutes=2))
     insert_event(conn, run, 'MMCT', 1, 'dep', now + timedelta(minutes=1), now - timedelta(minutes=1))
     for age in (20, 10):
@@ -204,7 +246,7 @@ def test_run_endpoint_all_remaining_halts_and_eta_age(api):
     assert [s['idx'] for s in result['halts']] == [1, 2]
     assert result['halts'] == [
         {'idx': 1, 'station': 'BRC', 'occ': 1,
-         'arr': [float(np.float32(310.123456))] * 7, 'dep': [315.] * 7},
+         'arr': [float(np.float32(310.123456 + q)) for q in range(7)], 'dep': [315.] * 7},
         {'idx': 2, 'station': 'NDLS', 'occ': 1, 'arr': [950.] * 6 + [None], 'dep': [None] * 7},
     ]
     assert client.get(f'/api/run/{other}').json()['halts'] == []

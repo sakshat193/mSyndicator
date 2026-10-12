@@ -24,6 +24,18 @@ def unpack(payload):
     return msgpack.unpackb(bytes(payload), raw=False, strict_map_key=False)
 
 
+def wire(frame):
+    runs = {}
+    for key, run in frame['runs'].items():
+        if 'halt_q' not in run:
+            runs[key] = run
+            continue
+        qs = np.frombuffer(run['halt_q'], '<f4').reshape(run['halt_shape'])
+        runs[key] = {k: v for k, v in run.items() if k not in ('halt_q', 'halt_shape')}
+        runs[key]['halt_p50'] = qs[:, :, 3].tobytes()
+    return frame | {'runs': runs}
+
+
 class Frames:
     """One process snapshot and a bounded queue per connected client."""
 
@@ -50,10 +62,10 @@ class Frames:
 
     def ingest(self, payloads):
         for payload in payloads:
-            frame = unpack(payload)
+            frame = wire(unpack(payload))
             if frame['gen'] <= self.gen:
                 continue
-            outgoing = bytes(payload)
+            outgoing = msgpack.packb(frame, use_bin_type=True)
             if self.clients and frame['is_full'] and frame['gen'] == self.gen + 1:
                 outgoing = msgpack.packb(frame | {'is_full': False,
                     'runs': {key: value for key, value in frame['runs'].items()

@@ -158,16 +158,16 @@ export function displayRun(run: RunFrame, network: Network, simTime: number): Di
     gaps.push({ path, lengths });
   }
   const halts = index.halts.get(route.id)!;
-  const qs = run.halt_q && new DataView(run.halt_q.buffer, run.halt_q.byteOffset, run.halt_q.byteLength);
+  const p50 = run.halt_p50 && new DataView(run.halt_p50.buffer, run.halt_p50.byteOffset, run.halt_p50.byteLength);
   const eventTimes = stops.map((s, e) => {
     const h = halts.get(s.idx) ?? -1;
     // Arrival then departure at intermediate halts; origin has departure only.
     const kind = h === 0 || (e > 0 && stops[e - 1].idx === s.idx) ? 1 : 0;
-    const q = h >= 0 && h < (run.halt_shape?.[0] ?? 0)
-      ? qs?.getFloat32(((h * 2 + kind) * 7 + 3) * 4, true) : NaN;
+    const q = p50 && h >= 0 && h < p50.byteLength / 8
+      ? p50.getFloat32((h * 2 + kind) * 4, true) : NaN;
     if (typeof q === 'number' && Number.isFinite(q) && typeof run.origin_ts === 'number')
       return run.origin_ts + q * 60;
-    // ponytail: past/pass anchors use display medians; upgrade when frames expose their full P50.
+    // ponytail: past/pass or missing halt P50s use path medians; upgrade when all anchors carry P50.
     const sorted = trips.map(t => t.timestamps[e]).sort((a, b) => a - b);
     return (sorted[Math.floor((k - 1) / 2)] + sorted[Math.floor(k / 2)]) / 2;
   });

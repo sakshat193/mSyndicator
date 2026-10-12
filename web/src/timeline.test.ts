@@ -28,9 +28,7 @@ it('decodes little-endian paths and uses full-particle P50 rather than a streak 
   const run = { run_id: 9, versions: { route: 7 }, origin_ts: 1000, base_ts: 1000,
     path_shape: [2, 2, 2] as [number, number, number],
     paths: new Uint8Array([0, 0, 0, 0, 1, 0, 100, 0, 0, 0, 0, 0, 1, 0, 200, 0]),
-    halt_shape: [2, 2, 7] as [number, number, number],
-    halt_q: new Uint8Array(new Float32Array([...Array(7).fill(NaN), ...Array(7).fill(0),
-      ...Array(7).fill(20), ...Array(7).fill(NaN)]).buffer) };
+    halt_p50: new Uint8Array(new Float32Array([NaN, 0, 20, NaN]).buffer) };
   const result = displayRun(run, network, 1600);
   expect(result?.head).toEqual([71, 21]);
   expect(result?.trips.map(t => t.timestamps)).toEqual([[1000, 1600], [1000, 2200]]);

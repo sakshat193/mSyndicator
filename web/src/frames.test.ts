@@ -56,31 +56,26 @@ it('rejects malformed frames before changing state', () => {
   }
 });
 
-it('passes packed quantiles through unchanged and accepts an empty halt array', () => {
+it('passes packed halt P50s through unchanged and accepts an empty halt array', () => {
   const store = new FrameStore();
-  const halt_q = new Uint8Array(2 * 2 * 7 * 4), next_q = new Uint8Array(28);
-  store.apply(frame(10, true, { 1: { run_id: 1, halt_q, halt_shape: [2, 2, 7], next_q } }));
-  expect(store.runs['1'].halt_q).toBe(halt_q);
+  const halt_p50 = new Uint8Array(2 * 2 * 4), next_q = new Uint8Array(28);
+  store.apply(frame(10, true, { 1: { run_id: 1, halt_p50, next_q } }));
+  expect(store.runs['1'].halt_p50).toBe(halt_p50);
   expect(store.runs['1'].next_q).toBe(next_q);
-  expect(store.apply(frame(11, false, { 2: { run_id: 2, halt_q: new Uint8Array(0),
-    halt_shape: [0, 2, 7] } }))).toBe('ok');
+  expect(store.apply(frame(11, false, { 2: { run_id: 2, halt_p50: new Uint8Array(0) } }))).toBe('ok');
 });
 
-it('rejects malformed quantile bytes and shapes atomically', () => {
+it('rejects malformed halt P50 and next quantile bytes atomically', () => {
   const store = new FrameStore();
   const baseline = frame(10, true, { 1: { run_id: 1 } });
   store.apply(baseline);
   for (const fields of [
-    { halt_q: new Uint8Array(55), halt_shape: [1, 2, 7] },
-    { halt_q: new Uint8Array(56), halt_shape: [2, 2, 7] },
-    { halt_q: new Uint8Array(56), halt_shape: [1, 1, 7] },
-    { halt_q: new Uint8Array(56), halt_shape: [1, 2, 6] },
-    { halt_q: new Uint8Array(56), halt_shape: [1, 2] },
-    { halt_q: new Uint8Array(56), halt_shape: [-1, 2, 7] },
-    { halt_q: new Uint8Array(56), halt_shape: [1.5, 2, 7] },
-    { halt_q: new Uint8Array(56) },
-    { halt_q: [[Array(7).fill(null), Array(7).fill(1)]], halt_shape: [1, 2, 7] },
-    { halt_q: new Float32Array(14), halt_shape: [1, 2, 7] },
+    { halt_p50: new Uint8Array(12) },
+    { halt_p50: [[null, 1], [2, null]] },
+    { halt_p50: new Float32Array(4) },
+    { halt_p50: new ArrayBuffer(16) },
+    { halt_p50: null },
+    { halt_p50: undefined },
     { next_q: new Uint8Array(27) },
     { next_q: new Uint8Array(29) },
     { next_q: Array(7).fill(null) },
@@ -118,11 +113,11 @@ it('decodes binary frames, requests gap resync and resumes after full replacemen
   socket.onopen?.();
   expect(socket.sent).toEqual(['{"gen":0}']);
   const paths = new Uint8Array([2, 0, 10, 0]);
-  const halt_q = new Uint8Array(56), next_q = new Uint8Array(28);
+  const halt_p50 = new Uint8Array(8), next_q = new Uint8Array(28);
   socket.receive(frame(10, true, { 1: { run_id: 1, base_ts: 900, path_shape: [1, 1, 2], paths,
-    halt_q, halt_shape: [1, 2, 7], next_q } }));
+    halt_p50, next_q } }));
   expect(store.runs['1'].paths).toEqual(paths);
-  expect(store.runs['1'].halt_q).toEqual(halt_q);
+  expect(store.runs['1'].halt_p50).toEqual(halt_p50);
   expect(store.runs['1'].next_q).toEqual(next_q);
   socket.receive(frame(12));
   expect(socket.sent.at(-1)).toBe('{"gen":10}');

@@ -4,8 +4,7 @@ export interface RunFrame {
   run_id: number;
   paths?: Uint8Array;
   path_shape?: [number, number, number];
-  halt_q?: Uint8Array;
-  halt_shape?: [number, number, number];
+  halt_p50?: Uint8Array;
   next_q?: Uint8Array;
   base_ts?: number;
   [key: string]: unknown;
@@ -46,12 +45,8 @@ function validate(value: unknown): asserts value is Frame {
         || shape[0] * shape[1] * 4 !== run.paths.byteLength
         || !Number.isFinite(run.base_ts)) throw new Error('Invalid display paths');
     }
-    if ('halt_q' in run) {
-      const shape = run.halt_shape;
-      if (!(run.halt_q instanceof Uint8Array) || !Array.isArray(shape)
-        || shape.length !== 3 || !shape.every(id) || shape[1] !== 2 || shape[2] !== 7
-        || shape[0] * 2 * 7 * 4 !== run.halt_q.byteLength) throw new Error('Invalid halt quantiles');
-    }
+    if ('halt_p50' in run && (!(run.halt_p50 instanceof Uint8Array) || run.halt_p50.byteLength % 8 !== 0))
+      throw new Error('Invalid halt P50s');
     if ('next_q' in run && (!(run.next_q instanceof Uint8Array) || run.next_q.byteLength !== 28))
       throw new Error('Invalid next quantiles');
   }
