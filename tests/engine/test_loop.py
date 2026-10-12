@@ -387,21 +387,24 @@ def test_batch_cap_and_frame_retention(db_url, runs):
 def test_encode_run_uint16_and_truncation():
     from msynd.engine.frames import encode_run
     from msynd.engine.evidence import RouteEvent, RunEvidence
-    ev = RunEvidence(1, {}, (RouteEvent(0, 'A', 1, 'dep', 3, 0, 0, 0, 0),
+    ev = RunEvidence(1, {'route': 7}, (RouteEvent(0, 'A', 1, 'dep', 3, 0, 0, 0, 0),
                             RouteEvent(1, 'B', 1, 'arr', 9, 1, 10, 20, 0)), (), 0, 0)
     record = {'evidence': ev, 'origin_ts': NOW.timestamp(), 'lifecycle': 'scheduled',
               'last_received': None, 'asof': NOW, 'diverted_from': None, 'part_cancelled': None}
     out = ReplayOut(np.full((2, 2, 7), np.nan), np.full(7, np.nan),
                     np.array([[.2, np.nan], [.4, np.nan]]), .5, True, ('cold_start',), ())
     encoded = encode_run(1, out, record, NOW)
-    assert encoded['paths'] == b'\x03\x00\x02\x00\x03\x00\x04\x00'
-    assert encoded['path_shape'] == (2, 1, 2)
+    assert encoded['paths'] == b'\x03\x00\x03\x00'
+    assert encoded['path_shape'] == (1, 1, 2)
     assert encoded['state'] == 'schedule_only'
     assert encoded['headline']['surprise'] is True
     assert encoded['flags'] == ('cold_start',)
     assert len(encoded['next_q']) == 28
     assert np.isnan(np.frombuffer(encoded['next_q'], '<f4')).all()
     out.paths[0, 0] = 6553.6
+    encoded = encode_run(1, out, record, NOW)
+    assert np.frombuffer(encoded['paths'], '<u2').tolist() == [3, 32770]
+    out.paths[:, 0] = 6553.6
     with pytest.raises(ValueError, match='uint16'):
         encode_run(1, out, record, NOW)
 
@@ -414,7 +417,7 @@ def test_encode_run_float32_quantiles_preserves_epoch_precision(dtype):
     base = NOW + timedelta(microseconds=123456)
     origin = NOW + timedelta(microseconds=654321)
     last = NOW + timedelta(microseconds=345678)
-    ev = RunEvidence(1, {}, (RouteEvent(0, 'A', 1, 'dep', 3, 0, 0, 0, 0),), (), 0, None)
+    ev = RunEvidence(1, {'route': 7}, (RouteEvent(0, 'A', 1, 'dep', 3, 0, 0, 0, 0),), (), 0, None)
     record = {'evidence': ev, 'origin_ts': origin.timestamp(), 'lifecycle': 'running',
               'last_received': last, 'asof': base, 'diverted_from': None, 'part_cancelled': None}
     halt_q = np.arange(28, dtype=float).reshape(2, 2, 7) + .123456
@@ -433,28 +436,34 @@ def test_encode_run_float32_quantiles_preserves_epoch_precision(dtype):
     assert encoded['headline']['last_received'] == last.timestamp()
 
 
-@pytest.mark.parametrize('state,k,rows', [
-    ('schedule_only', 1, [0]), ('schedule_only', 8, list(range(8))),
-    ('schedule_only', 10, [0, 1, 2, 3, 5, 6, 7, 8]),
-    ('schedule_only', 32, [0, 4, 8, 12, 16, 20, 24, 28]),
-    ('observed', 32, list(range(32))), ('stale', 32, list(range(32))),
+@pytest.mark.parametrize('state,k,median', [
+    ('schedule_only', 1, [0, 1]), ('schedule_only', 8, [3.5, 4.5]),
+    ('schedule_only', 10, [4.5, 5.5]), ('schedule_only', 32, [15.5, 16.5]),
+    ('schedule_only', 4, [.145, 1.355]),
+    ('observed', 32, None), ('stale', 32, None),
 ])
-def test_encode_run_strides_only_schedule_paths(state, k, rows):
+def test_encode_run_medians_only_schedule_paths(state, k, median):
     from msynd.engine.frames import encode_run
     from msynd.engine.evidence import RouteEvent, RunEvidence
-    ev = RunEvidence(1, {}, (RouteEvent(0, 'A', 1, 'dep', 3, 0, 0, 0, 0),
+    ev = RunEvidence(1, {'route': 7, 'models': {'run': 42}, 'bias_gen': 3},
+                     (RouteEvent(0, 'A', 1, 'dep', 3, 0, 0, 0, 0),
                             RouteEvent(1, 'B', 1, 'arr', 9, 1, 10, 20, 0)), (), 0, None)
     last = None if state == 'schedule_only' else NOW - timedelta(minutes=61 if state == 'stale' else 0)
     record = {'evidence': ev, 'origin_ts': NOW.timestamp(), 'lifecycle': 'scheduled',
               'last_received': last, 'asof': NOW, 'diverted_from': None, 'part_cancelled': None}
     out = ReplayOut(np.full((2, 2, 7), np.nan), np.full(7, np.nan),
                     np.array([[j, j + 1] for j in range(k)]), .5, False, (), ())
+    if k == 4:
+        out.paths = np.array([[.4, 1.43], [.15, 1.27], [.12, 1.28], [.14, 1.67]])
     encoded = encode_run(1, out, record, NOW)
     assert encoded['state'] == state
-    assert encoded['path_shape'] == (len(rows), 2, 2)
+    rows = 1 if state == 'schedule_only' else k
+    assert encoded['path_shape'] == (rows, 2, 2)
     packed = np.frombuffer(encoded['paths'], dtype='<u2').reshape(encoded['path_shape'])
-    assert packed[:, :, 0].tolist() == [[3, 9]] * len(rows)
-    assert packed[:, :, 1].tolist() == [[j * 10, (j + 1) * 10] for j in rows]
+    assert packed[:, :, 0].tolist() == [[3, 9]] * rows
+    expected = [median] if state == 'schedule_only' else out.paths
+    np.testing.assert_array_equal(packed[:, :, 1], np.rint(np.asarray(expected) * 10))
+    assert encoded['versions'] == {'route': 7}
 
 
 @pytest.mark.db
@@ -467,7 +476,7 @@ def test_write_frame_preserves_per_run_time_bases(db):
     encoded = {}
     fractional = NOW + timedelta(microseconds=123456)
     for run_id, base in ((2, fractional + timedelta(days=6)), (1, fractional)):
-        ev = RunEvidence(run_id, {}, (RouteEvent(0, 'A', 1, 'dep', 3, 0, 0, 0, 0),), (), 0, None)
+        ev = RunEvidence(run_id, {'route': 7}, (RouteEvent(0, 'A', 1, 'dep', 3, 0, 0, 0, 0),), (), 0, None)
         record = {'evidence': ev, 'origin_ts': base.timestamp(), 'lifecycle': 'scheduled',
                   'last_received': None, 'asof': base, 'diverted_from': None, 'part_cancelled': None}
         encoded[run_id] = encode_run(run_id, out, record, base)
@@ -496,10 +505,14 @@ def test_model_change_and_bias_generation_dirty_all_active(db_url, runs, monkeyp
         scheduled(conn, runs[1], 30)
     ready, stop = threading.Event(), threading.Event()
     errors = []
+    replayed_models = {}
+    def replay(ev, models, params, key):
+        replayed_models[ev.run_id] = ev.versions['models'].get('run')
+        return fake_replay(ev, models, params, key)
     def engine():
         try:
             with psycopg.connect(db_url) as conn, ThreadPoolExecutor(4) as pool:
-                run_loop(conn, fake_replay, tables, PARAMS, pool=pool, ready=ready, stop=stop)
+                run_loop(conn, replay, tables, PARAMS, pool=pool, ready=ready, stop=stop)
         except BaseException as exc:
             errors.append(exc)
             ready.set()
@@ -522,7 +535,7 @@ def test_model_change_and_bias_generation_dirty_all_active(db_url, runs, monkeyp
                     if (not frame['is_full'] and frame['versions']['bias_gen'] == bias
                             and frame['versions']['models'].get('run') == model):
                         assert set(frame['runs']) == set(runs[1:])
-                        assert all(frame['runs'][run]['versions']['models']['run'] == model for run in runs[1:])
+                        assert all(replayed_models[run] == model for run in runs[1:])
                         break
                     time.sleep(.01)
                 else:

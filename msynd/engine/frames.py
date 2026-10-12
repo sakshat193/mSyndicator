@@ -11,6 +11,14 @@ def encode_run(run_id, out, ev, base_ts):
     evidence = ev['evidence']
     end = len(evidence.events) if evidence.stop_event is None else evidence.stop_event + 1
     paths = np.asarray(out.paths, dtype=float)[:, :end]
+    last = ev['last_received']
+    state = ev['lifecycle']
+    if state in ('scheduled', 'running'):
+        state = 'schedule_only' if last is None else (
+            'observed' if (ev['asof'] - last).total_seconds() <= settings.f_minutes * 60 else 'stale')
+    # ponytail: timetable-only runs ship one median path; ship K once the UI draws timetable streaks.
+    if state == 'schedule_only':
+        paths = np.median(paths, axis=0, keepdims=True)
     indices = np.array([e.route_idx for e in evidence.events[:end]])
     base = base_ts.timestamp()
     ticks = np.rint((paths * 60 + ev['origin_ts'] - base) / 6)
@@ -20,15 +28,7 @@ def encode_run(run_id, out, ev, base_ts):
         raise ValueError('display paths outside uint16 frame range')
     packed = np.empty((*paths.shape, 2), dtype='<u2')
     packed[:, :, 0], packed[:, :, 1] = indices, ticks
-    last = ev['last_received']
-    state = ev['lifecycle']
-    if state in ('scheduled', 'running'):
-        state = 'schedule_only' if last is None else (
-            'observed' if (ev['asof'] - last).total_seconds() <= settings.f_minutes * 60 else 'stale')
-    # ponytail: schedule-only runs ship 8 of K paths to bound frame size; send all K if the panel needs them.
-    if state == 'schedule_only' and len(packed) > 8:
-        packed = packed[np.arange(8) * len(packed) // 8]
-    return {'run_id': run_id, 'state': state, 'versions': evidence.versions,
+    return {'run_id': run_id, 'state': state, 'versions': {'route': evidence.versions['route']},
             'origin_ts': ev['origin_ts'], 'base_ts': base,
             # Age is frame.ts - last_received, so restarts don't change evidence payloads.
             'headline': {'last_received': last.timestamp() if last else None,

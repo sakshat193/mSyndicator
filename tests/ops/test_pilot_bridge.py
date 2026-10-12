@@ -261,7 +261,7 @@ def test_engine_main_configuration(monkeypatch, workers, check):
             from tests.engine.test_replay import fixture
 
             ev, tables, _ = fixture()
-            ev = replace(ev, evidence=(Evidence(1, False, 202, 'mmt_status'),))
+            ev = replace(ev, versions=ev.versions | {'route': 1}, evidence=(Evidence(1, False, 202, 'mmt_status'),))
             record = dict(evidence=ev, origin_ts=0, lifecycle='running',
                           last_received=RECEIVED, asof=RECEIVED,
                           diverted_from=None, part_cancelled=False)
