@@ -42,7 +42,10 @@ class Socket {
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.resetModules(); });
 
-it('decodes only on generations and reuses network and trips while animating heads', async () => {
+it.each([
+  { browser: 'Chromium', navigator: { userAgentData: {} }, refraction: { refract: '' } },
+  { browser: 'other engines', navigator: {}, refraction: {} },
+])('gates refraction for $browser and reuses network and trips while animating heads', async ({ navigator: browserNavigator, refraction }) => {
   let draw: FrameRequestCallback;
   let simTime = 1600;
   rendered.draws = 0;
@@ -70,7 +73,8 @@ it('decodes only on generations and reuses network and trips while animating hea
   vi.stubGlobal('cancelAnimationFrame', () => {});
   vi.stubGlobal('window', { innerWidth: 1000, innerHeight: 800,
     addEventListener: (name: string, callback: Function) => { rendered.listeners[name] = callback; } });
-  const body = { dataset: { hud: undefined as string | undefined } };
+  const body = { dataset: {} as Record<string, string | undefined> };
+  vi.stubGlobal('navigator', browserNavigator);
   vi.stubGlobal('localStorage', {
     getItem: () => 'shown', setItem() {},
   });
@@ -98,6 +102,7 @@ it('decodes only on generations and reuses network and trips while animating hea
     path_shape: [1, 2, 2] as [number, number, number],
     paths: new Uint8Array([0, 0, 0, 0, 1, 0, 200, 0]) };
   await import('./main');
+  expect(body.dataset).toEqual({ hud: 'shown', ...refraction });
   expect(rendered.setup).toEqual(['worker', 'protocol', 'map']);
   expect(rendered.mapOptions.bounds).toEqual([[68, 6.5], [97.5, 36]]);
   // Let loadNetwork finish both awaits before driving requestAnimationFrame.

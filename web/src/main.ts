@@ -15,6 +15,9 @@ import { mapOptions } from './basemap';
 import { initSearch } from './search';
 import { initHud, liveStatus, trainCount } from './hud';
 
+// ponytail: userAgentData gates SVG backdrop filters to Chromium; drop once @supports can detect them.
+if ('userAgentData' in navigator) document.body.dataset.refract = '';
+
 const disposeHud = initHud(document, {
   getItem: key => localStorage.getItem(key),
   setItem: (key, value) => localStorage.setItem(key, value),
