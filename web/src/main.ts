@@ -3,6 +3,7 @@ import { Map as MapLibreMap, NavigationControl, addProtocol, setWorkerUrl } from
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import { Protocol } from 'pmtiles';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import '@fontsource-variable/inter';
 import './style.css';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { connectLive, FrameStore, type RunFrame } from './frames';
@@ -12,6 +13,12 @@ import { liveTime } from './timeline';
 import { hoverText, runPanel } from './panel';
 import { mapOptions } from './basemap';
 import { initSearch } from './search';
+import { initHud, trainCount } from './hud';
+
+const disposeHud = initHud(document, {
+  getItem: key => localStorage.getItem(key),
+  setItem: (key, value) => localStorage.setItem(key, value),
+});
 
 setWorkerUrl(workerUrl);
 const protocol = new Protocol();
@@ -88,8 +95,9 @@ function renderHover() {
   hoverEvidence.textContent = text.evidence;
   tooltip.hidden = false;
   const width = tooltip.offsetWidth, height = tooltip.offsetHeight;
-  const x = Math.max(8, Math.min(hovered.x + 14, window.innerWidth - width - 8));
-  const y = Math.max(8, Math.min(hovered.y + 14, window.innerHeight - height - 8));
+  const gutter = window.innerWidth < 640 ? 12 : 16;
+  const x = Math.max(gutter, Math.min(hovered.x + 16, window.innerWidth - width - gutter));
+  const y = Math.max(gutter, Math.min(hovered.y + 16, window.innerHeight - height - gutter));
   tooltip.style.transform = `translate(${x}px, ${y}px)`;
 }
 
@@ -177,9 +185,9 @@ function draw(tick: number) {
     lastStatus = tick;
     const now = Date.now();
     clockElement.textContent = istClock.format(now);
-    const timetable = displays.filter(d => d.run.state === 'schedule_only').length;
-    count.textContent = `${(displays.length - timetable).toLocaleString('en-IN')} live`
-      + (timetable ? ` · ${timetable.toLocaleString('en-IN')} by timetable` : '');
+    const total = trainCount(displays);
+    count.textContent = total.text;
+    count.title = total.title;
     if (network) {
       const age = store.latest ? Math.max(0, Math.floor(now / 1000 - store.latest.ts)) : null;
       status.textContent = age === null ? 'Waiting for live frames' : `updated ${age} s ago`;
@@ -192,5 +200,5 @@ function draw(tick: number) {
 }
 animation = requestAnimationFrame(draw);
 window.addEventListener('pagehide', () => {
-  closeSearch(); panel.close(); disconnect(); cancelAnimationFrame(animation); map.remove();
+  disposeHud(); closeSearch(); panel.close(); disconnect(); cancelAnimationFrame(animation); map.remove();
 }, { once: true });

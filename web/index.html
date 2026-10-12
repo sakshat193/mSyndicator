@@ -6,12 +6,18 @@
     <title>Train tracker</title>
     <link rel="icon" href="data:,">
   </head>
-  <body>
+  <body data-hud="shown">
     <main id="app">
       <div id="map" aria-label="India train map"></div>
       <section id="live" class="glass" aria-label="Live train tracker">
-        <div class="live-heading"><strong class="live-label"><span class="live-dot" aria-hidden="true"></span>LIVE</strong><time id="clock" aria-label="Current time in IST">--:--:--</time></div>
-        <div class="live-status"><span id="train-count">0 trains</span><span id="connection" role="status">Loading network…</span></div>
+        <div class="live-heading">
+          <strong class="live-label"><span class="live-dot" aria-hidden="true"></span>LIVE</strong>
+          <span id="train-count">0 trains</span>
+          <button id="hud-toggle" class="glass" type="button" aria-label="Hide overlays" aria-pressed="false" title="Toggle overlays (H)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <div class="live-status"><time id="clock" aria-label="Current time in IST">--:--:--</time><span id="connection" role="status">Loading network…</span></div>
         <div class="search-field">
           <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
           <label class="sr-only" for="search">Train number or name</label>

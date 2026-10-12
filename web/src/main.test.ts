@@ -51,17 +51,30 @@ it('decodes only on generations and reuses network and trips while animating hea
   rendered.ease = [];
   rendered.listeners = {};
   let statusWrites = 0;
-  const element = (): any => ({ hidden: true, textContent: '', value: '', style: { setProperty() {} }, dataset: {},
-    setAttribute() {}, removeAttribute() {}, contains() { return false; }, scrollIntoView() {},
-    addEventListener() {}, replaceChildren() {}, append() {}, focus() {},
-    querySelector: () => element() });
+  const element = (): any => ({ hidden: true, textContent: '', value: '', offsetWidth: 180, offsetHeight: 80,
+    style: { setProperty() {} }, dataset: {},
+    attributes: {}, listeners: {}, children: {},
+    setAttribute(name: string, value: string) { this.attributes[name] = value; },
+    removeAttribute() {}, contains() { return false; }, scrollIntoView() {},
+    addEventListener(name: string, callback: Function) { this.listeners[name] = callback; },
+    removeEventListener(name: string) { delete this.listeners[name]; },
+    replaceChildren() {}, append() {}, focus() {},
+    querySelector(selector: string) { return this.children[selector] ??= element(); } });
   const status = { ...element(), set textContent(_text: string) { statusWrites++; } };
   const panel = element();
   const elements = new Map<string, any>([['#connection', status], ['#panel', panel]]);
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { draw = callback; return 1; });
+  vi.stubGlobal('cancelAnimationFrame', () => {});
   vi.stubGlobal('window', { innerWidth: 1000, innerHeight: 800,
     addEventListener: (name: string, callback: Function) => { rendered.listeners[name] = callback; } });
-  vi.stubGlobal('document', { createElement: () => element(), querySelector: (selector: string) => {
+  const body = { dataset: { hud: undefined as string | undefined } };
+  vi.stubGlobal('localStorage', {
+    getItem: () => 'shown', setItem() {},
+  });
+  vi.stubGlobal('document', { body, createElement: () => element(),
+    addEventListener: (name: string, callback: Function) => { rendered.listeners[`document:${name}`] = callback; },
+    removeEventListener: (name: string) => { delete rendered.listeners[`document:${name}`]; },
+    querySelector: (selector: string) => {
     if (!elements.has(selector)) elements.set(selector, element());
     return elements.get(selector);
   } });
@@ -103,7 +116,8 @@ it('decodes only on generations and reuses network and trips while animating hea
   expect(head()).toEqual([71, 21]);
   expect(rendered.options.pickingRadius).toBe(10);
   expect(statusWrites).toBe(1);
-  expect(elements.get('#train-count').textContent).toBe('1 live');
+  expect(elements.get('#train-count').textContent).toBe('1 train');
+  expect(elements.get('#train-count').title).toBe('1 live · 0 by timetable');
   simTime = 1900;
   draw!(116); // Settled heads redraw at 10 Hz only.
   expect(rendered.draws).toBe(1);
@@ -160,7 +174,8 @@ it('decodes only on generations and reuses network and trips while animating hea
   expect(statusWrites).toBe(1);
   draw!(1150);
   expect(statusWrites).toBe(2);
-  expect(elements.get('#train-count').textContent).toBe('0 live');
+  expect(elements.get('#train-count').textContent).toBe('0 trains');
+  expect(elements.get('#train-count').title).toBe('0 live · 0 by timetable');
   Socket.current.receive({ gen: 5, ts: 3601, is_full: false, versions: {}, base_ts: null,
     runs: { 9: run }, tombstones: [] });
   simTime = 1600;
@@ -176,7 +191,25 @@ it('decodes only on generations and reuses network and trips while animating hea
   expect(rendered.draws).toBe(draws + 1); // Selection wakes the idle overlay.
   const highlight = rendered.layers.find(l => l.id === 'selection');
   expect(highlight.props.data[0]).toEqual([[70, 20], [72, 22]]);
+  const toggle = elements.get('#hud-toggle');
+  const content = panel.querySelector('[data-content]');
+  toggle.listeners.click();
+  expect(body.dataset.hud).toBe('hidden');
+  expect(panel.hidden).toBe(false); // CSS hides the panel without clearing its selection or content.
+  expect(panel.querySelector('[data-content]')).toBe(content);
+  expect(rendered.layers.find(l => l.id === 'selection')).toBe(highlight);
+  rendered.listeners['document:keydown']({ key: 'h' });
+  expect(body.dataset.hud).toBe('shown');
+  expect(panel.hidden).toBe(false);
+  expect(rendered.layers.find(l => l.id === 'selection')).toBe(highlight);
   heads().props.onHover({ object: heads().props.data[0], x: 100, y: 100 });
+  expect(elements.get('#hover').style.transform).toBe('translate(116px, 116px)');
+  heads().props.onHover({ object: heads().props.data[0], x: 1000, y: 800 });
+  expect(elements.get('#hover').style.transform).toBe('translate(804px, 704px)');
+  window.innerWidth = 390;
+  heads().props.onHover({ object: heads().props.data[0], x: 390, y: 800 });
+  expect(elements.get('#hover').style.transform).toBe('translate(198px, 708px)');
+  window.innerWidth = 1000;
   draw!(1204);
   expect(rendered.draws).toBe(draws + 2); // Hover also wakes it.
   expect(rendered.layers.find(l => l.id === 'selection')).toBe(highlight);
@@ -223,11 +256,13 @@ it('decodes only on generations and reuses network and trips while animating hea
   Socket.current.receive({ gen: 8, ts: 3601, is_full: true, versions: {}, base_ts: 1000,
     runs: Object.fromEntries(counted.map(r => [r.run_id, r])), tombstones: [] });
   draw!(2150);
-  expect(elements.get('#train-count').textContent).toBe('5 live · 1,826 by timetable');
+  expect(elements.get('#train-count').textContent).toBe('1,831 trains');
+  expect(elements.get('#train-count').title).toBe('5 live · 1,826 by timetable');
   Socket.current.receive({ gen: 9, ts: 3601, is_full: true, versions: {}, base_ts: 1000,
     runs: { 9: { ...run, state: 'schedule_only' }, 42: pending }, tombstones: [] });
   draw!(3150);
-  expect(elements.get('#train-count').textContent).toBe('0 live · 1 by timetable');
+  expect(elements.get('#train-count').textContent).toBe('1 train');
+  expect(elements.get('#train-count').title).toBe('0 live · 1 by timetable');
   Socket.current.receive({ gen: 10, ts: 3601, is_full: true, versions: {}, base_ts: 1000,
     runs: { 9: { ...run, state: 'observed' }, 10: { ...run, run_id: 10, state: 'schedule_only' } }, tombstones: [] });
   draw!(3250);
@@ -253,4 +288,7 @@ it('decodes only on generations and reuses network and trips while animating hea
   expect(heads().props.data).toBe(sameHeads);
   expect(heads().props.updateTriggers.getFillColor).toBe(sameHeadColors);
   expect(heads().props.updateTriggers.getPosition).not.toBe(beforeRedraw);
+  rendered.listeners.pagehide();
+  expect(toggle.listeners.click).toBeUndefined();
+  expect(rendered.listeners['document:keydown']).toBeUndefined();
 });
