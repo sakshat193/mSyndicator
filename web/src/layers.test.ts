@@ -195,7 +195,7 @@ it('draws brighter fading comet tiers with additive blending and pickable heads'
   expect(heads.props.radiusUnits).toBe('pixels');
   expect(heads.props.pickable).toBe(true);
   const whiteMix = (heads.props.getFillColor as Function)(display);
-  display.color.forEach((channel, i) => expect(whiteMix[i]).toBeCloseTo(channel * 0.4 + 153));
+  display.color.forEach((channel, i) => expect(whiteMix[i]).toBeCloseTo(channel * 0.75 + 63.75));
   (heads.props.onClick as Function)({ object: display });
   expect(selected).toBe(display.run);
 });
@@ -411,14 +411,14 @@ it.each([
   expect(heads.props.updateTriggers!.getFillColor).toBe(selected);
 });
 
-it.each(['observed', 'stale'])('keeps %s glow and eight streaks separate from the neutral timetable core', state => {
+it.each(['observed', 'stale'])('keeps %s glow and eight streaks separate from the delay-coloured timetable core', state => {
   const live = displayRun({ ...runFixture(32), state }, network, 1300)!;
   const timetable = displayRun({ ...runFixture(8), run_id: 10, state: 'schedule_only' }, network, 1300)!;
   const onlyTimetable = trailData([timetable], 1300);
   expect(onlyTimetable.comets).toEqual([]);
   expect(onlyTimetable.streaks).toEqual([]);
   expect(onlyTimetable.timetable).toHaveLength(1);
-  expect(onlyTimetable.timetable[0].color).toEqual([200, 214, 235]);
+  expect(onlyTimetable.timetable[0].color).toEqual(delayColor(timetable.delay));
   const trails = trailData([live, timetable], 1300);
   expect(trails.comets.map(t => t.runId)).toEqual([9]);
   expect(trails.streaks).toHaveLength(8);
@@ -429,10 +429,21 @@ it.each(['observed', 'stale'])('keeps %s glow and eight streaks separate from th
   expect(core.props.data).toBe(trails.timetable);
   expect(core.props.getWidth).toBe(2);
   expect(core.props.trailLength).toBe(21600);
-  expect((core.props.getColor as Function)(trails.timetable[0])).toEqual([200, 214, 235, 230]);
+  expect((core.props.getColor as Function)(trails.timetable[0])).toEqual([...timetable.color, 230]);
   const heads = layers.find(l => l instanceof ScatterplotLayer)!;
   expect((heads.props.getRadius as Function)(timetable)).toBe(2.5);
-  expect((heads.props.getFillColor as Function)(timetable)).toEqual([233, 238.6, 247, 255]);
+  const fill = (heads.props.getFillColor as Function)(timetable);
+  timetable.color.forEach((channel, i) => expect(fill[i]).toBeCloseTo(channel * 0.75 + 63.75));
+  expect(fill[3]).toBe(255);
+});
+
+it.each(['schedule_only', 'observed', 'stale'])('lightens %s heads 25 percent toward white from the delay colour', state => {
+  const run = { ...runFixture(), state, halt_q: [[Array(7).fill(null), Array(7).fill(0)],
+    [Array(7).fill(25), Array(7).fill(null)]] };
+  const display = displayRun(run, network, 1300)!;
+  const layers = trainLayers([display], trailData([display], 1300), 1300, 4, () => {});
+  const heads = layers.find(l => l instanceof ScatterplotLayer)!;
+  expect((heads.props.getFillColor as Function)(display)).toEqual([252.75, 242.25, 71.25, 255]);
 });
 
 it('reuses each unchanged display\'s trail objects within an hour and rebases them in a new hour', () => {

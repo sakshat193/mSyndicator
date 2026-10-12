@@ -35,7 +35,6 @@ const ADDITIVE = { blend: true, blendColorOperation: 'add', blendColorSrcFactor:
   blendColorDstFactor: 'one', blendAlphaOperation: 'add', blendAlphaSrcFactor: 'one',
   blendAlphaDstFactor: 'one', depthWriteEnabled: false } as const;
 const networkLayers = new WeakMap<Network, PathLayer<Point[]>>();
-const TIMETABLE: NeonColor = [200, 214, 235];
 const trailCache = new WeakMap<Display, { base: number; core: Trail; streaks: Trail[] }>();
 
 export function indexNetwork(network: Network): NetworkIndex {
@@ -192,7 +191,7 @@ export function trailData(displays: Display[], simTime: number): Trails {
     let cached = trailCache.get(d);
     if (!cached || cached.base !== base) {
       let latest = -Infinity;
-      const core = { path: d.points, runId: d.run.run_id, color: scheduled ? TIMETABLE : d.color,
+      const core = { path: d.points, runId: d.run.run_id, color: d.color,
         timestamps: d.times.map(ts => { latest = Math.max(latest, ts); return latest - base; }) };
       // ponytail: draw eight of K streaks; raise the subset when rebuilds become incremental.
       const count = scheduled ? 0 : Math.min(8, d.trips.length);
@@ -346,7 +345,7 @@ export function trainLayers(displays: Display[], trails: Trails, simTime: number
   new ScatterplotLayer<Display>({ id: 'heads', data: displays, dataComparator,
     getPosition: d => heads?.get(d.run.run_id) ?? d.head,
     getRadius: d => d.run.state === 'schedule_only' ? 2.5 : 3, radiusUnits: 'pixels',
-    getFillColor: d => [...(d.run.state === 'schedule_only' ? TIMETABLE : d.color).map(c => c + (255 - c) * 0.6),
+    getFillColor: d => [...d.color.map(c => c + (255 - c) * 0.25),
       255 * trainAlpha(d.run.run_id, selected)] as [number, number, number, number],
     updateTriggers: { getPosition: redraw, getFillColor: selected },
     pickable: true, onClick: info => { if (info.object) select(info.object.run); },
