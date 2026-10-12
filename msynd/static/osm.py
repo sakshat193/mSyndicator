@@ -1,0 +1,317 @@
+import argparse
+from collections import defaultdict
+import difflib
+import heapq
+import json
+import math
+from pathlib import Path
+import re
+import time
+
+from msynd.db import connect
+from msynd.static.gtfs import haversine
+
+
+ESCAPE = re.compile(r"%([0-9a-fA-F]{1,6})%")
+
+
+def decode(value):
+    if "%" not in value:
+        return value
+    if "%" in ESCAPE.sub("", value):
+        raise ValueError("malformed")
+
+    def codepoint(match):
+        number = int(match[1], 16)
+        if number > 0x10ffff or 0xd800 <= number <= 0xdfff:
+            raise ValueError("malformed")
+        return chr(number)
+
+    return ESCAPE.sub(codepoint, value)
+
+
+def point(lon, lat):
+    lon, lat = float(lon), float(lat)
+    if not math.isfinite(lon) or not math.isfinite(lat):
+        raise ValueError("non_finite")
+    if not (68 <= lon <= 98 and 6 <= lat <= 37):
+        raise ValueError("out_of_bbox")
+    return lon, lat
+
+
+def node_ref(value):
+    if not value.startswith("n"):
+        raise ValueError("malformed")
+    number, located, location = value[1:].partition("x")
+    if not number.isascii() or not number.isdecimal() or int(number) <= 0:
+        raise ValueError("malformed")
+    if not located:
+        return int(number), None
+    lon, separator, lat = location.partition("y")
+    if not separator:
+        raise ValueError("malformed")
+    return int(number), point(lon, lat)
+
+
+def parse_opl(path):
+    points, graph, stations, ends = {}, {}, {}, set()
+    skipped = {"malformed": 0, "non_finite": 0, "out_of_bbox": 0}
+    with Path(path).open("rb") as stream:
+        for raw in stream:
+            try:
+                fields = raw.decode("utf-8").split()
+                if not fields or fields[0][0] not in "nwr":
+                    raise ValueError("malformed")
+                kind, number = fields[0][0], fields[0][1:]
+                if not number.isascii() or not number.isdecimal() or int(number) <= 0:
+                    raise ValueError("malformed")
+                attributes = {}
+                for field in fields[1:]:
+                    if field[0] in attributes:
+                        raise ValueError("malformed")
+                    attributes[field[0]] = field[1:]
+                tags = {}
+                if attributes.get("T"):
+                    for tag in attributes["T"].split(","):
+                        key, separator, value = tag.partition("=")
+                        if not separator or not key:
+                            raise ValueError("malformed")
+                        tags[decode(key)] = decode(value)
+                if kind == "n" and tags.get("railway") in ("station", "halt"):
+                    stations[int(number)] = (point(attributes["x"], attributes["y"]), tags)
+                elif kind == "w" and tags.get("railway") in ("rail", "narrow_gauge"):
+                    refs = [node_ref(value) for value in attributes["N"].split(",")]
+                    # Validate the whole line before changing the graph.
+                    locations = {}
+                    for node, location in refs:
+                        if location is not None:
+                            if locations.get(node, points.get(node, location)) != location:
+                                raise ValueError("malformed")
+                            locations[node] = location
+                    points.update(locations)
+                    previous = None
+                    for node, location in refs:
+                        if location is None:
+                            if previous is not None:
+                                ends.add(previous)
+                            previous = None
+                            continue
+                        graph.setdefault(node, {})
+                        if previous is None:
+                            ends.add(node)
+                        elif previous != node:
+                            km = distance(points[previous], location)
+                            graph[previous][node] = km
+                            graph[node][previous] = km
+                        previous = node
+                    if previous is not None:
+                        ends.add(previous)
+            except (ValueError, KeyError) as error:
+                reason = str(error)
+                skipped[reason if reason in skipped else "malformed"] += 1
+    return points, graph, ends, stations, skipped
+
+
+def distance(a, b):
+    return haversine(a[1], a[0], b[1], b[0])
+
+
+def grid_index(points):
+    grid = defaultdict(list)
+    for node, (lon, lat) in points.items():
+        grid[math.floor(lon * 100), math.floor(lat * 100)].append(node)
+    return grid
+
+
+def nearby(grid, points, location, radius):
+    lon, lat = location
+    dy = radius / 111.195
+    dx = dy / math.cos(math.radians(lat))
+    for x in range(math.floor((lon - dx) * 100), math.floor((lon + dx) * 100) + 1):
+        for y in range(math.floor((lat - dy) * 100), math.floor((lat + dy) * 100) + 1):
+            for node in grid.get((x, y), ()):
+                km = distance(location, points[node])
+                if km <= radius:
+                    yield km, node
+
+
+def normalise(name):
+    return "".join(word for word in re.findall(r"[^\W\d_]+", name.lower())
+                   if word not in {"junction", "jn", "halt", "station"})
+
+
+def anchor_stations(stations, osm_stations, points):
+    station_points = {node: record[0] for node, record in osm_stations.items()}
+    names = {node: normalise(record[1].get("name", "")) for node, record in osm_stations.items()}
+    refs = defaultdict(list)
+    for node, (_, tags) in osm_stations.items():
+        for key in ("railway:ref", "ref"):
+            for code in tags.get(key, "").split(";"):
+                if code.strip():
+                    refs[code.strip().upper()].append(node)
+    station_grid, rail_grid = grid_index(station_points), grid_index(points)
+    counts = dict.fromkeys(("ref", "name", "coord", "no_anchor"), 0)
+    anchors = {}
+    for code, name, lat, lon in stations:
+        own = (lon, lat)
+        if not all(math.isfinite(value) for value in own):
+            counts["no_anchor"] += 1
+            continue
+        matches = [(distance(own, station_points[node]), node) for node in refs.get(code.upper(), ())]
+        matched = min((match for match in matches if match[0] <= 5), default=None)
+        tier = "ref"
+        if matched is None:
+            tier, name = "name", normalise(name)
+            matched = min((match for match in nearby(station_grid, station_points, own, 1.5)
+                           if name and names[match[1]] and difflib.SequenceMatcher(None, name, names[match[1]]).ratio() >= .8),
+                          default=None)
+        if matched is None:
+            tier, location = "coord", own
+        else:
+            location = station_points[matched[1]]
+        anchor = min(nearby(rail_grid, points, location, 1), default=None)
+        if anchor is None:
+            counts["no_anchor"] += 1
+        else:
+            counts[tier] += 1
+            anchors[code] = (anchor[1], {"ref": 1., "name": .5, "coord": .3}[tier], own)
+    return anchors, counts
+
+
+def contract(graph, points, keep):
+    keep = keep | {node for node, edges in graph.items() if len(edges) != 2}
+    contracted = {node: [] for node in keep}
+    # Consume raw edges so contraction doesn't need a second million-edge visited set.
+    for start in keep:
+        while graph[start]:
+            current, km = graph[start].popitem()
+            graph[current].pop(start)
+            curve = [points[start], points[current]]
+            while current not in keep:
+                neighbor, weight = graph[current].popitem()
+                graph[neighbor].pop(current)
+                km += weight
+                current = neighbor
+                curve.append(points[current])
+            contracted[start].append((current, km, curve, True))
+            contracted[current].append((start, km, curve, False))
+    return contracted
+
+
+def astar(graph, points, start, end, target):
+    limit = 1.3 * target
+    remaining = distance(points[start], points[end])
+    if remaining > limit:
+        return None
+    queue, costs, previous = [(remaining, 0., start)], {start: 0.}, {}
+    while queue:
+        _, km, node = heapq.heappop(queue)
+        if km != costs[node]:
+            continue
+        if node == end:
+            edges = []
+            while node != start:
+                parent, curve, forward = previous[node]
+                edges.append((curve, forward))
+                node = parent
+            path = [points[start]]
+            for curve, forward in reversed(edges):
+                path.extend(curve[1:] if forward else curve[-2::-1])
+            return path, km
+        for neighbor, weight, curve, forward in graph[node]:
+            candidate = km + weight
+            if candidate >= costs.get(neighbor, math.inf):
+                continue
+            heuristic = distance(points[neighbor], points[end])
+            if candidate + heuristic <= limit:
+                costs[neighbor] = candidate
+                previous[neighbor] = node, curve, forward
+                heapq.heappush(queue, (candidate + heuristic, candidate, neighbor))
+    return None
+
+
+def simplify(points):
+    # ponytail: one 75 m tolerance for all zooms; add a coarse low-zoom LOD if vertex counts hurt.
+    origin = points[0]
+    scale = math.cos(math.radians((origin[1] + points[-1][1]) / 2))
+    projected = [((lon - origin[0]) * 111195.08 * scale, (lat - origin[1]) * 111195.08)
+                 for lon, lat in points]
+    keep, pending = {0, len(points) - 1}, [(0, len(points) - 1)]
+    while pending:
+        first, last = pending.pop()
+        x, y = projected[first]
+        dx, dy = projected[last][0] - x, projected[last][1] - y
+        length2 = dx * dx + dy * dy
+        farthest, selected = 75 * 75, None
+        for i in range(first + 1, last):
+            px, py = projected[i][0] - x, projected[i][1] - y
+            fraction = min(1, max(0, (px * dx + py * dy) / length2)) if length2 else 0
+            deviation = (px - fraction * dx) ** 2 + (py - fraction * dy) ** 2
+            if deviation > farthest:
+                farthest, selected = deviation, i
+        if selected is not None:
+            keep.add(selected)
+            pending.extend(((first, selected), (selected, last)))
+    return [[round(points[i][0], 5), round(points[i][1], 5)] for i in sorted(keep)]
+
+
+def refresh(conn, opl):
+    started = time.monotonic()
+    points, graph, ends, osm_stations, skipped = parse_opl(opl)
+    stations = conn.execute("select code,name,lat,lon from ref.station where lat is not null and lon is not null").fetchall()
+    anchors, station_counts = anchor_stations(stations, osm_stations, points)
+    graph = contract(graph, points, ends | {value[0] for value in anchors.values()})
+    points = {node: points[node] for node in graph}
+    del osm_stations, ends
+    targets = conn.execute("""
+        select s.stn_lo,s.stn_hi,
+               percentile_cont(0.5) within group (order by abs(b.dist_km-a.dist_km))
+        from ref.segment s left join ref.route_segment rs on rs.segment_id=s.id
+        left join ref.route_stop a on a.route_version_id=rs.route_version_id and a.idx=rs.idx
+        left join ref.route_stop b on b.route_version_id=rs.route_version_id and b.idx=rs.idx+1
+        group by s.id order by s.stn_lo,s.stn_hi
+    """).fetchall()
+    failures = dict.fromkeys(("no_anchor", "no_path", "length"), 0)
+    confidence_counts = dict.fromkeys(("1.0", "0.5", "0.3"), 0)
+    rows, vertices = [], 0
+    for lo, hi, target in targets:
+        if lo not in anchors or hi not in anchors:
+            failures["no_anchor"] += 1
+            continue
+        if target is None or not math.isfinite(target) or target < 0:
+            failures["length"] += 1
+            continue
+        a, b = anchors[lo], anchors[hi]
+        result = astar(graph, points, a[0], b[0], target)
+        if result is None:
+            failures["no_path"] += 1
+            continue
+        path, km = result
+        km += distance(a[2], points[a[0]]) + distance(b[2], points[b[0]])
+        if not .9 * target <= km <= 1.1 * target:
+            failures["length"] += 1
+            continue
+        curve = simplify([a[2], *path, b[2]])
+        confidence = min(a[1], b[1])
+        rows.append((lo, hi, json.dumps(curve, separators=(",", ":"), allow_nan=False), confidence))
+        confidence_counts[str(confidence)] += 1
+        vertices += len(curve)
+    with conn.transaction():
+        conn.execute("lock table ref.segment_osm in exclusive mode")
+        conn.execute("delete from ref.segment_osm")
+        with conn.cursor() as cursor:
+            cursor.executemany("insert into ref.segment_osm(stn_lo,stn_hi,polyline,confidence) values (%s,%s,%s,%s)", rows)
+    return {"stations": station_counts, "segments": confidence_counts, "failures": failures,
+            "vertices": vertices, "runtime_s": time.monotonic() - started, "skipped": skipped}
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--opl", required=True, type=Path)
+    args = parser.parse_args()
+    with connect() as conn:
+        print(json.dumps(refresh(conn, args.opl), separators=(",", ":"), allow_nan=False))
+
+
+if __name__ == "__main__":
+    main()

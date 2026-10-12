@@ -78,3 +78,13 @@ Daemon logs rotate at 10 MB × 5; ops is one-shot and has no db startup dependen
 Enable the weekly line only when Task 38 supplies `msynd.ops.weekly`.
 Local backups retain evidence; off-site dumps exclude obs. No raw source export is approved.
 Never use `docker compose down -v`: it deletes the database volume.
+
+OSM refresh (monitor; use the verified local India extract):
+```sh
+docker run --rm -v /data/osm:/data/osm debian:bookworm-slim sh -ec 'apt-get update && apt-get install -y --no-install-recommends osmium-tool && osmium tags-filter /data/osm/src/india-latest.osm.pbf nw/railway=rail,narrow_gauge n/railway=station,halt -o /data/osm/filtered.osm.pbf --overwrite &&
+osmium add-locations-to-ways /data/osm/filtered.osm.pbf -o /data/osm/located.osm.pbf --overwrite &&
+osmium cat /data/osm/located.osm.pbf -f opl,add_metadata=false,locations_on_ways=true -o /data/osm/rail.opl --overwrite'
+docker compose --profile ops run --rm --no-deps -v "$PWD/data/static:/app/data/static" --entrypoint sh ops -ec 'printf "/app\n" > /app/.venv/lib/python3.12/site-packages/msynd.pth; python -I -m msynd.db.migrate
+python -I -m msynd.static.osm --opl /data/osm/rail.opl
+python -I -m msynd.static.export export'
+```

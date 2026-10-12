@@ -34,6 +34,10 @@ def build_segments(conn, overrides_file=OVERRIDES):
                 raise ValueError("override polyline must run from canonical stn_a <= stn_b")
             overrides.append((row["polyline"] or None, confidence, row["stn_a"], row["stn_b"]))
     conn.execute("update ref.segment set polyline=NULL,confidence=0")
+    conn.execute("""
+        update ref.segment s set polyline=o.polyline,confidence=o.confidence
+        from ref.segment_osm o where s.stn_lo=o.stn_lo and s.stn_hi=o.stn_hi
+    """)
     for override in overrides:
         if conn.execute("update ref.segment set polyline=%s,confidence=%s where stn_lo=%s and stn_hi=%s", override).rowcount != 1:
             raise ValueError(f"override references unknown segment: {override[2:]}")

@@ -21,6 +21,9 @@ def records(conn, query):
 def segment_geometry(network):
     stations = {s["code"]: s for s in network["stations"]
                 if s["lat"] is not None and s["lon"] is not None}
+    by_id = {s["id"]: s for s in network["segments"]}
+    polylines = {s["id"]: json.loads(s["polyline"]) for s in network["segments"]
+                 if s["polyline"] is not None}
     track_km = defaultdict(list)
     for route in network["routes"]:
         stops = {stop["idx"]: stop["dist_km"] for stop in route["stops"]}
@@ -50,11 +53,11 @@ def segment_geometry(network):
             if km <= 15:
                 adjacency[lo].append((hi, None, km))
                 adjacency[hi].append((lo, None, km))
-    # ponytail: station chains are straight between stations; Task 37's OSM geometry replaces them with track curves.
+    # ponytail: one search per long segment; precompute chains if export time matters.
     for segment in network["segments"]:
         segment["derived"] = False
         if segment["polyline"] is not None:
-            segment["polyline"] = json.loads(segment["polyline"])
+            segment["polyline"] = polylines[segment["id"]]
             continue
         chord = lengths.get(segment["id"], 0)
         if chord <= 20:
@@ -70,19 +73,28 @@ def segment_geometry(network):
             if distance != distances[station]:
                 continue
             if station == end:
-                path = [end]
-                while path[-1] != start:
-                    path.append(previous[path[-1]])
-                if len(path) >= 3:
-                    segment["polyline"] = [[stations[code]["lon"], stations[code]["lat"]]
-                                           for code in reversed(path)]
+                path, current = [], end
+                while current != start:
+                    parent, edge_id = previous[current]
+                    path.append((parent, current, edge_id))
+                    current = parent
+                if len(path) >= 2:
+                    points = []
+                    for a, b, edge_id in reversed(path):
+                        curve = polylines.get(edge_id)
+                        if curve is None:
+                            curve = [[stations[code]["lon"], stations[code]["lat"]] for code in (a, b)]
+                        elif by_id[edge_id]["stn_lo"] != a:
+                            curve = list(reversed(curve))
+                        points.extend(curve if not points else curve[1:])
+                    segment["polyline"] = points
                     segment["derived"] = True
                 break
             for neighbor, edge_id, km in adjacency[station]:
                 candidate = distance + km
                 if edge_id != segment["id"] and candidate < distances.get(neighbor, float("inf")):
                     distances[neighbor] = candidate
-                    previous[neighbor] = station
+                    previous[neighbor] = station, edge_id
                     heapq.heappush(queue, (candidate, neighbor))
 
 
