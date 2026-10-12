@@ -1119,6 +1119,8 @@ Contents (spec §11):
 
 ### Task 37: OSM geometry for drawing (spec §7.6; deliberately late)
 
+> Superseded by "Task 37 (amendment 2026-10-12)" before the spec coverage check.
+
 **Files:** create `msynd/static/osm.py`, `tests/static/test_osm.py`.
 
 **Interface:** `python -m msynd.static.osm --pbf india-latest.osm.pbf` uses osmium to extract `railway=rail`, then:
@@ -1984,6 +1986,85 @@ No new dependency: `pmtiles` and `maplibre-gl` are already installed. The UI fon
   - `npm --prefix web test`, `npm --prefix web run build` and `uv run pytest -q tests/api` pass.
 - [ ] Commit `task 65: lean, brighter train rendering`.
 - [ ] Monitor: deploy the image (api) and `web/dist`. Remeasure the renderer and GPU memory, the JS heap, rAF and long tasks against the numbers above, and take a Playwright screenshot zoomed into Bilaspur.
+
+---
+
+### Task 37 (amendment 2026-10-12): OSM rail geometry (user requests: "why tf is the thing a straight line and not following the rails?? there's no straight rail"; "yes do task 65, then task 37")
+
+**Why (monitor, 2026-10-12):**
+- The VM has 16,400 segments and none has a polyline, so every trail is a station-to-station chord or a Task 61 station chain. Image #11 shows a straight trail from Gatora to Champa.
+- `build_segments` resets every `polyline` and `confidence` before it applies the overrides, and `export` calls it on every run. Geometry written straight into `ref.segment` would therefore be wiped by the next export.
+- Size: the segments total 456,668 track-km, about 6.7× India's route-km, because halt-to-halt segments overlap; the median is 28 km and p90 is 62 km. Each run's trail also expands over its whole route, so polylines must be simplified.
+- All 10,741 route versions have `dist_src='gtfs'`, so segment km is real track km.
+
+**Files:**
+- create `msynd/db/migrations/0007_segment_osm.sql`, `msynd/static/osm.py` and `tests/static/test_osm.py`;
+- modify `msynd/static/segments.py`, `msynd/static/export.py`, `tests/static/test_segments.py` and `docs/deploy.md`.
+
+No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmium` binary runs only in a throwaway container that the monitor drives.
+
+- **Storage (0007):**
+  - `ref.segment_osm(stn_lo text, stn_hi text, polyline text not null, confidence real not null, primary key (stn_lo, stn_hi))` with `check (stn_lo <= stn_hi)` and `check (confidence > 0 and confidence <= 1)`.
+  - `build_segments` does its reset, then copies `ref.segment_osm` onto the matching `ref.segment` rows, then applies the overrides CSV as today. Overrides always win. Removing an override row brings back the OSM geometry.
+  - OSM rows with no matching segment are ignored, because the network can change.
+- **Input:** `python -m msynd.static.osm --opl PATH`.
+  - `PATH` is the output of `osmium cat -f opl,add_metadata=false` on a file filtered with `osmium tags-filter … nw/railway=rail,narrow_gauge n/railway=station,halt` and then `osmium add-locations-to-ways`. Way lines therefore carry `n<id>x<lon>y<lat>` node refs.
+  - The OPL is untrusted:
+    - parse it with the stdlib only and decode `%xxxx%` escapes;
+    - skip and count malformed lines, non-finite coordinates and points outside lon 68–98 / lat 6–37;
+    - never eval anything.
+  - Rail ways are those whose `railway` tag is `rail` or `narrow_gauge`; station points are nodes tagged `railway=station|halt`.
+- **Rail graph:**
+  - Nodes are the OSM node ids; an edge joins each pair of consecutive way nodes, weighted by haversine km.
+  - After anchoring, contract degree-2 chains. Keep junctions, way ends and anchor nodes; each contracted edge keeps its coordinate list and its km.
+  - Budget: under 30 min and 4 GB RSS on the VM for India.
+- **Station match:**
+  - Only stations with coordinates take part. Each one takes the first tier that applies:
+    - `ref`: an OSM station whose `railway:ref` or `ref` (split on `;`, case-insensitive) equals our code, within 5 km of our coordinate;
+    - `name`: otherwise, the nearest OSM station within 1.5 km whose normalised name has a `difflib` ratio ≥ 0.8 with ours;
+    - `coord`: otherwise, our own coordinate.
+  - Name normalisation: lowercase, letters only, with the words junction, jn, halt and station dropped.
+  - Anchor: the nearest rail node within 1 km of the matched point (the OSM station for `ref` and `name`, our coordinate for `coord`). Use a 0.01° grid index. No anchor means none of that station's segments are routed.
+- **Routing:**
+  - Run A* (haversine heuristic) between the two anchors of each segment. Prune any state whose g + h exceeds 1.3 × the target km.
+  - The target km is the median |Δ`dist_km`| over the segment's route stops, as in `segment_geometry`.
+  - Accept the path only if its km, including the station-to-anchor stubs, is within ±10 % of the target.
+- **Confidence:**
+  - 1.0 when both ends are `ref` matches;
+  - 0.5 when the worse end is a `name` match;
+  - 0.3 when either end is a `coord` match. The original rule's "0 = straight line" assumed no third tier; this one keeps rail geometry wherever the length check passes.
+  - Rejected segments get no row, so they keep today's chain or straight fallback.
+- **Geometry:**
+  - `[station lo, path…, station hi]` uses our station coordinates at both ends, so trails meet the station dots. It runs from `stn_lo` to `stn_hi`.
+  - Simplify with Douglas–Peucker at 75 m (local equirectangular metres), always keeping the endpoints. Round to 5 decimals and store as compact JSON.
+  - `# ponytail:` one simplification tolerance for all zooms; add a coarse low-zoom LOD if the network or trail vertex counts hurt.
+- **Write and report:**
+  - Replace all of `ref.segment_osm` in one transaction.
+  - Print JSON with:
+    - stations per tier (`ref`, `name`, `coord`, `no_anchor`);
+    - segments per confidence, and failures by reason (`no_anchor`, `no_path`, `length`);
+    - total polyline vertices;
+    - runtime.
+  - The monitor re-exports through the existing export command.
+- **Chains (`export.segment_geometry`):** when a Task 61 derived chain is rebuilt, each constituent segment contributes its own polyline, oriented along the chain, if it has one; otherwise its station chord. Proximity links (`edge_id` None) stay straight.
+- **`docs/deploy.md`:** add the OSM refresh: the three osmium steps in a throwaway container, `migrate`, `osm --opl` and the re-export command. Keep the file under 60 lines.
+- [ ] Tests (tiny synthetic OPL written in `tmp_path`, plus the test DB):
+  - `test_parse_opl` covers escaped tags, located way nodes, and skipped malformed or out-of-bbox lines;
+  - `test_path_follows_rails_not_chord`: on an L-shaped track, the polyline passes the corner vertex;
+  - `test_confidence_rules` covers ref+ref → 1.0, ref+name → 0.5, name+coord → 0.3, and a far `ref` (> 5 km) falling through to the next tier;
+  - `test_path_length_tolerance`: a path at 1.15 × target km gets no row, and one at 1.05 × gets a row;
+  - `test_geometry_endpoints_orientation_simplified`: the polyline starts at `stn_lo`'s coordinate and ends at `stn_hi`'s, and a dense straight run collapses to its endpoints;
+  - `test_override_wins` and `test_osm_survives_rebuild_and_unoverride` (in `test_segments.py`);
+  - `test_chain_reuses_constituent_polylines`;
+  - `uv run pytest -q tests/static tests/db` passes.
+- [ ] Commit `task 37: osm rail geometry`.
+- [ ] Monitor, on the VM:
+  1. Download `india-latest.osm.pbf` and its `.md5` from download.geofabrik.de into its own `/data/osm/src`, and verify the md5.
+  2. Run the three osmium steps in a throwaway `debian:bookworm-slim` container.
+  3. Rebuild the image; run `migrate`, then `python -I -m msynd.static.osm --opl /data/osm/rail.opl` in the ops container. Record the report, peak RSS and runtime.
+  4. Re-export the network, and record the gz size and polyline vertex total.
+  5. In the browser, remeasure memory against Task 65's numbers and screenshot Bilaspur–Champa (the trails must follow the rails).
+  6. OSM data stays under ODbL; the map already credits © OpenStreetMap. The derived table lives only in the VM DB and never in the public repo.
 
 ---
 
