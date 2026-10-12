@@ -126,7 +126,7 @@ it('decodes only on generations and reuses network and trips while animating hea
     expect(animated.props.currentTime).toBe(3601);
     expect(animated.props.updateTriggers.getTimestamps).toBe(layer.props.updateTriggers.getTimestamps);
   });
-  expect(rendered.layers.find(layer => layer.id === 'comet-2').props.trailLength).toBe(10800);
+  expect(rendered.layers.find(layer => layer.id === 'comets').props.trailLength).toBe(10800);
   expect(statusWrites).toBe(1);
   // An empty delta advances the generation while keeping the same RunFrame object.
   Socket.current.receive({ gen: 2, ts: 3601, is_full: false, versions: {}, base_ts: 1000,

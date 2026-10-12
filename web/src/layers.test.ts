@@ -164,40 +164,101 @@ it('hides derived segments and straight chords over 150 km while retaining store
   expect(networkLayer(drawing).props.data).toEqual([chain, [[70, 20], [70.1, 20]]]);
 });
 
-it('draws brighter fading comet tiers with additive blending and pickable heads', () => {
+it('draws one fading glow comet with additive blending and pickable heads', () => {
   const display = displayRun(runFixture(), network, 1300)!;
   const trails = trailData([display], 1300);
   let selected: unknown;
   const layers = trainLayers([display], trails, 1300, 4, run => { selected = run; });
   const trips = layers.filter(layer => layer instanceof TripsLayer);
-  const comets = trips.filter(layer => layer.id.startsWith('comet-'));
-  expect(comets).toHaveLength(3);
-  expect(comets.map(layer => layer.props.getWidth)).toEqual([8, 4, 2]);
-  expect(comets.map(layer => layer.props.trailLength)).toEqual([5400, 10800, 21600]);
-  const alphas = comets.map(layer => (layer.props.getColor as Function)(trails.comets[0])[3]);
-  expect(alphas).toEqual([64, 150, 255]);
-  expect(alphas[0]).toBeGreaterThan(0);
-  expect(alphas[1]).toBeGreaterThan(alphas[0]);
-  expect(alphas[2]).toBeGreaterThan(alphas[1]);
+  const comets = trips.filter(layer => layer.id === 'comets');
+  expect(trips.map(layer => layer.id)).toEqual(['comets', 'streaks', 'timetable']);
+  expect(comets).toHaveLength(1);
+  expect(comets[0].props.getWidth).toBe(7);
+  expect(comets[0].props.trailLength).toBe(21600);
+  expect((comets[0].props.getColor as Function)(trails.comets[0])).toEqual([...display.color, 255]);
   for (const layer of trips) {
     expect(layer.props.fadeTrail).toBe(true);
     expect(layer.props.widthUnits).toBe('pixels');
     expect(layer.props.parameters).toMatchObject({ blend: true,
       blendColorOperation: 'add', blendColorSrcFactor: 'src-alpha', blendColorDstFactor: 'one',
-      blendAlphaOperation: 'add', blendAlphaSrcFactor: 'one', blendAlphaDstFactor: 'one' });
+      blendAlphaOperation: 'add', blendAlphaSrcFactor: 'one', blendAlphaDstFactor: 'one',
+      depthWriteEnabled: false });
   }
   const streaks = trips.find(layer => layer.id === 'streaks')!;
   expect(streaks.props.getWidth).toBe(1.5);
   expect(streaks.props.trailLength).toBe(32400);
   expect((streaks.props.getColor as Function)(trails.streaks[0])[3]).toBe(24);
   const heads = layers.find(layer => layer instanceof ScatterplotLayer)!;
-  expect((heads.props.getRadius as Function)(display)).toBe(3);
+  expect((heads.props.getRadius as Function)(display)).toBe(5.5);
   expect(heads.props.radiusUnits).toBe('pixels');
   expect(heads.props.pickable).toBe(true);
-  const whiteMix = (heads.props.getFillColor as Function)(display);
-  display.color.forEach((channel, i) => expect(whiteMix[i]).toBeCloseTo(channel * 0.75 + 63.75));
+  expect((heads.props.getFillColor as Function)(display)).toEqual([...display.color, 230]);
+  expect(heads.props.parameters).toEqual(comets[0].props.parameters);
   (heads.props.onClick as Function)({ object: display });
   expect(selected).toBe(display.run);
+});
+
+it('appends glow after the TripsLayer fade and guards both glow snippets during picking', () => {
+  const display = displayRun(runFixture(), network, 1300)!;
+  const layers = trainLayers([display], trailData([display], 1300), 1300, 4, () => {});
+  const filter = 'fs:DECKGL_FILTER_COLOR';
+  const glow = `if (picking.isActive < 0.5) {
+  float age = clamp((trips.currentTime - vTime) / trips.trailLength, 0.0, 1.0);
+  float x = geometry.uv.x / mix(1.0, 0.35, age);
+  color.rgb = mix(color.rgb, vec3(1.0), 0.15 * exp(-14.0 * x * x));
+  color.a *= exp(-3.5 * x * x) * (1.0 - age);
+}`;
+  const blob = `if (picking.isActive < 0.5) {
+  float r2 = dot(geometry.uv, geometry.uv);
+  color.rgb = mix(color.rgb, vec3(1.0), 0.2 * exp(-12.0 * r2));
+  color.a *= exp(-3.5 * r2);
+}`;
+  for (const layer of layers.filter(l => l.id !== 'streaks')) {
+    Object.assign(layer, { context: { device: { type: 'webgl' }, defaultShaderModules: [] } });
+    const shaders = layer.getShaders();
+    if (layer instanceof TripsLayer) {
+      const original = TripsLayer.prototype.getShaders.call(layer);
+      expect(shaders.inject[filter]).toBe(original.inject[filter] + glow);
+      for (const key of Object.keys(original.inject).filter(key => key !== filter))
+        expect(shaders.inject[key]).toBe(original.inject[key]);
+    } else {
+      expect(shaders.inject[filter]).toBe(blob);
+    }
+    expect(shaders.inject[filter]).toContain('if (picking.isActive < 0.5) {');
+  }
+});
+
+it.each([[3, 0.5, 0.35, 0.6, 0.45], [4, 0.5, 0.35, 0.6, 0.45],
+  [8, 1, 1, 1, 1], [10, 1, 1, 1, 1]])(
+  'scales timetable glow and heads with clamped zoom %s', (zoom, widthScale, trailOpacity, radiusScale, headOpacity) => {
+    const live = displayRun({ ...runFixture(), state: 'observed' }, network, 1300)!;
+    const timetable = displayRun({ ...runFixture(), run_id: 10, state: 'schedule_only' }, network, 1300)!;
+    const layers = trainLayers([live, timetable], trailData([live, timetable], 1300), 1300, zoom, () => {});
+    const core = layers.filter(l => l instanceof TripsLayer).find(l => l.id === 'timetable')!;
+    expect(core.props.getWidth).toBe(6);
+    expect(core.props.widthScale).toBe(widthScale);
+    expect(core.props.opacity).toBe(trailOpacity);
+    const heads = layers.find(l => l instanceof ScatterplotLayer)!;
+    expect((heads.props.getRadius as Function)(timetable)).toBe(4.5);
+    expect((heads.props.getRadius as Function)(live)).toBe(5.5);
+    expect(heads.props.radiusScale).toBe(radiusScale);
+    expect(heads.props.opacity).toBe(headOpacity);
+  });
+
+it('omits only schedule-only expanded trips while preserving median fallback and trail data', () => {
+  const run = runFixture();
+  const live = displayRun({ ...run, state: 'observed' }, chained, 1300)!;
+  const timetable = displayRun({ ...run, state: 'schedule_only' }, chained, 1300)!;
+  expect(timetable.trips).toEqual([]);
+  expect(live.trips).toHaveLength(run.path_shape[0]);
+  expect(live.eventTimes).toEqual([1000, 1603]);
+  expect(timetable).toEqual({ ...live, run: timetable.run, trips: [] });
+  const core = { path: chain, runId: 9, color: live.color, timestamps: [1000, 1150.75, 1301.5, 1603] };
+  expect(trailData([live], 1300)).toEqual({ base: 0, comets: [core], timetable: [], streaks: [
+    { path: chain, runId: 9, color: live.color, timestamps: [1000, 1150, 1300, 1600] },
+    { path: chain, runId: 9, color: live.color, timestamps: [1000, 1151.5, 1303, 1606] },
+  ] });
+  expect(trailData([timetable], 1300)).toEqual({ base: 0, comets: [], timetable: [core], streaks: [] });
 });
 
 it('makes median comet timestamps monotone without accepting non-monotone particle paths', () => {
@@ -385,8 +446,8 @@ it('dims other trains to 30 percent and highlights the selected expanded path wi
     expect(color(data[otherIndex])[3]).toBeCloseTo(color(data[0])[3] * 0.3);
   }
   const heads = layers.find(l => l instanceof ScatterplotLayer)!;
-  expect((heads.props.getFillColor as Function)(other)[3]).toBeCloseTo(76.5);
-  expect((heads.props.getFillColor as Function)(selected)[3]).toBe(255);
+  expect((heads.props.getFillColor as Function)(other)[3]).toBeCloseTo(69);
+  expect((heads.props.getFillColor as Function)(selected)[3]).toBe(230);
 });
 
 it.each([
@@ -401,13 +462,13 @@ it.each([
   trips.forEach(layer => {
     const data = layer.props.data as any[];
     const color = layer.props.getColor as Function;
-    const alphas: Record<string, number> = { 'comet-8': 64, 'comet-4': 150, 'comet-2': 255, streaks: 24, timetable: 230 };
+    const alphas: Record<string, number> = { comets: 255, streaks: 24, timetable: 190 };
     const baseAlpha = alphas[layer.id];
     for (const trip of data) expect(color(trip)[3]).toBeCloseTo(baseAlpha! * (alpha as number));
     expect(layer.props.updateTriggers!.getColor).toBe(selected);
   });
   const heads = layers.find(l => l instanceof ScatterplotLayer)!;
-  expect((heads.props.getFillColor as Function)(display)[3]).toBeCloseTo(255 * (alpha as number));
+  expect((heads.props.getFillColor as Function)(display)).toEqual([...display.color, 230 * (alpha as number)]);
   expect(heads.props.updateTriggers!.getFillColor).toBe(selected);
 });
 
@@ -427,23 +488,25 @@ it.each(['observed', 'stale'])('keeps %s glow and eight streaks separate from th
   const layers = trainLayers([live, timetable], trails, 1300, 4, () => {});
   const core = layers.filter(l => l instanceof TripsLayer).find(l => l.id === 'timetable')!;
   expect(core.props.data).toBe(trails.timetable);
-  expect(core.props.getWidth).toBe(2);
+  expect(core.props.getWidth).toBe(6);
+  expect(core.props.widthScale).toBe(0.5);
+  expect(core.props.opacity).toBe(0.35);
   expect(core.props.trailLength).toBe(21600);
-  expect((core.props.getColor as Function)(trails.timetable[0])).toEqual([...timetable.color, 230]);
+  expect((core.props.getColor as Function)(trails.timetable[0])).toEqual([...timetable.color, 190]);
   const heads = layers.find(l => l instanceof ScatterplotLayer)!;
-  expect((heads.props.getRadius as Function)(timetable)).toBe(2.5);
-  const fill = (heads.props.getFillColor as Function)(timetable);
-  timetable.color.forEach((channel, i) => expect(fill[i]).toBeCloseTo(channel * 0.75 + 63.75));
-  expect(fill[3]).toBe(255);
+  expect((heads.props.getRadius as Function)(timetable)).toBe(4.5);
+  expect(heads.props.radiusScale).toBe(0.6);
+  expect(heads.props.opacity).toBe(0.45);
+  expect((heads.props.getFillColor as Function)(timetable)).toEqual([...timetable.color, 230]);
 });
 
-it.each(['schedule_only', 'observed', 'stale'])('lightens %s heads 25 percent toward white from the delay colour', state => {
+it.each(['schedule_only', 'observed', 'stale'])('keeps %s heads in their delay colour before shader glow', state => {
   const run = { ...runFixture(), state, halt_q: [[Array(7).fill(null), Array(7).fill(0)],
     [Array(7).fill(25), Array(7).fill(null)]] };
   const display = displayRun(run, network, 1300)!;
   const layers = trainLayers([display], trailData([display], 1300), 1300, 4, () => {});
   const heads = layers.find(l => l instanceof ScatterplotLayer)!;
-  expect((heads.props.getFillColor as Function)(display)).toEqual([252.75, 242.25, 71.25, 255]);
+  expect((heads.props.getFillColor as Function)(display)).toEqual([252, 238, 10, 230]);
 });
 
 it('reuses each unchanged display\'s trail objects within an hour and rebases them in a new hour', () => {
@@ -461,6 +524,72 @@ it('reuses each unchanged display\'s trail objects within an hour and rebases th
       expect(same[key][i]).toBe(trail);
       expect(nextHour[key][i]).not.toBe(trail);
       expect(nextHour[key][i].timestamps).toEqual(trail.timestamps.map(t => t - 3600));
+    });
+  }
+});
+
+const longTimes = [0, 1800, 3600, 3600, 7200, 10800, 32400, 39600, 39600, 43200, 72000];
+
+function windowDisplay(timestamps: number[], state = 'observed') {
+  const path: [number, number][] = timestamps.map((_, i) => [70 + i / 100, 20]);
+  return { ...displayRun({ ...runFixture(1), state }, network, 1300)!, points: path, times: timestamps,
+    trips: state === 'schedule_only' ? [] : [{ path, timestamps }] };
+}
+
+it.each(['schedule_only', 'observed', 'stale'])('windows long %s trails on aligned bracketing vertices', state => {
+  const display = windowDisplay(longTimes, state);
+  // Core bracketing must use the running max, including repeated times at both bounds.
+  display.times = [0, 1800, 3600, 3000, 7200, 10800, 32400, 39600, 39000, 43200, 72000];
+  const trails = trailData([display], 36123);
+  expect(trails.base).toBe(36000);
+  const kept = [...trails.comets, ...trails.streaks, ...trails.timetable];
+  expect(kept).toHaveLength(state === 'schedule_only' ? 1 : 2);
+  for (const trail of kept) {
+    expect(trail.path).toEqual(display.points.slice(3, 8));
+    expect(trail.timestamps).toEqual([-32400, -28800, -25200, -3600, 3600]);
+    expect(trail.timestamps[0] + trails.base).toBeLessThanOrEqual(3600);
+    expect(trail.timestamps.at(-1)! + trails.base).toBeGreaterThanOrEqual(39600);
+    expect(trail.path).toHaveLength(trail.timestamps.length);
+  }
+  expect(display.points).toHaveLength(11);
+  expect(display.trips[0]?.timestamps ?? longTimes).toEqual(longTimes);
+});
+
+it('starts each window at the last vertex at or before the longest trail', () => {
+  const trails = trailData([windowDisplay([0, 3000, 3600, 4000, 36000, 40000])], 36123);
+  for (const trail of [...trails.comets, ...trails.streaks])
+    expect(trail.timestamps).toEqual([-32400, -32000, 0, 4000]);
+});
+
+it.each([
+  ['before', [0, 600, 1200, 1800], [2, 3], [-34800, -34200]],
+  ['after', [43200, 46800, 50400, 54000], [0, 1], [7200, 10800]],
+] as const)('keeps the nearest two vertices for a trail wholly %s the span', (_, times, indices, expected) => {
+  const display = windowDisplay([...times]);
+  const trails = trailData([display], 36123);
+  expect(trails.comets).toHaveLength(1);
+  expect(trails.streaks).toHaveLength(1);
+  for (const trail of [...trails.comets, ...trails.streaks]) {
+    expect(trail.path).toEqual(indices.map(i => display.points[i]));
+    expect(trail.timestamps).toEqual(expected);
+    expect(trail.path).toHaveLength(2);
+  }
+});
+
+it.each(['schedule_only', 'observed', 'stale'])('reuses %s windows within an hour and moves them at the next base', state => {
+  const display = windowDisplay(longTimes, state);
+  const first = trailData([display], 36123);
+  const same = trailData([display], 39599);
+  const next = trailData([display], 39600);
+  expect(next.base).toBe(39600);
+  for (const key of ['comets', 'streaks', 'timetable'] as const) {
+    expect(next[key]).toHaveLength(first[key].length);
+    first[key].forEach((trail, i) => {
+      expect(same[key][i]).toBe(trail);
+      expect(next[key][i]).not.toBe(trail);
+      expect(trail.path).toEqual(display.points.slice(3, 8));
+      expect(next[key][i].path).toEqual(display.points.slice(4, 10));
+      expect(next[key][i].timestamps).toEqual([-32400, -28800, -7200, 0, 0, 3600]);
     });
   }
 });

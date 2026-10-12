@@ -34,6 +34,33 @@ const indices = new WeakMap<Network, NetworkIndex>();
 const ADDITIVE = { blend: true, blendColorOperation: 'add', blendColorSrcFactor: 'src-alpha',
   blendColorDstFactor: 'one', blendAlphaOperation: 'add', blendAlphaSrcFactor: 'one',
   blendAlphaDstFactor: 'one', depthWriteEnabled: false } as const;
+// Gaussian cross-section: thin white-hot core, soft hue halo; the halo narrows down the tail.
+const GLOW = `if (picking.isActive < 0.5) {
+  float age = clamp((trips.currentTime - vTime) / trips.trailLength, 0.0, 1.0);
+  float x = geometry.uv.x / mix(1.0, 0.35, age);
+  color.rgb = mix(color.rgb, vec3(1.0), 0.15 * exp(-14.0 * x * x));
+  color.a *= exp(-3.5 * x * x) * (1.0 - age);
+}`;
+const BLOB = `if (picking.isActive < 0.5) {
+  float r2 = dot(geometry.uv, geometry.uv);
+  color.rgb = mix(color.rgb, vec3(1.0), 0.2 * exp(-12.0 * r2));
+  color.a *= exp(-3.5 * r2);
+}`;
+class GlowTrips<D> extends TripsLayer<D> {
+  static layerName = 'GlowTrips';
+  getShaders() {
+    const shaders = super.getShaders();
+    const filter = 'fs:DECKGL_FILTER_COLOR';
+    return { ...shaders, inject: { ...shaders.inject, [filter]: shaders.inject[filter] + GLOW } };
+  }
+}
+class GlowDots<D> extends ScatterplotLayer<D> {
+  static layerName = 'GlowDots';
+  getShaders() {
+    const shaders = super.getShaders();
+    return { ...shaders, inject: { ...shaders.inject, 'fs:DECKGL_FILTER_COLOR': BLOB } };
+  }
+}
 const networkLayers = new WeakMap<Network, PathLayer<Point[]>>();
 const trailCache = new WeakMap<Display, { base: number; core: Trail; streaks: Trail[] }>();
 
@@ -147,7 +174,8 @@ export function displayRun(run: RunFrame, network: Network, simTime: number): Di
     && typeof scheduled === 'number' && Number.isFinite(scheduled)
     ? (eventTimes[e] - run.origin_ts) / 60 - scheduled : 0;
   const expanded = [points[0], ...gaps.flatMap(g => g.path.slice(1))];
-  const expandedTrips = trips.map(t => ({ path: expanded, timestamps: expandTimes(t.timestamps, gaps) }));
+  const expandedTrips = run.state === 'schedule_only' ? []
+    : trips.map(t => ({ path: expanded, timestamps: expandTimes(t.timestamps, gaps) }));
   const times = expandTimes(eventTimes, gaps);
   return { run, trips: expandedTrips, stops, points: expanded, times, eventTimes, gaps, delay, color: delayColor(delay),
     head: headAt({ stops, points: expanded, eventTimes, gaps }, simTime) };
@@ -169,8 +197,10 @@ export function delayColor(delay: number): NeonColor {
   return a.map((c, i) => c + (b[i] - c) * f) as NeonColor;
 }
 
+const MAX_TRAIL_LENGTH = 32400;
+
 export function trailLength(zoom: number): number {
-  return Math.max(2700, Math.min(32400, 32400 * 2 ** (4 - zoom)));
+  return Math.max(2700, Math.min(MAX_TRAIL_LENGTH, MAX_TRAIL_LENGTH * 2 ** (4 - zoom)));
 }
 
 /** Returns `target` itself once within `eps` degrees, so callers can tell when a head has settled. */
@@ -185,20 +215,30 @@ export function trailData(displays: Display[], simTime: number): Trails {
   // Rebase only on generations to retain float32 precision without rebuilding animation attributes.
   const base = Math.floor(simTime / 3600) * 3600;
   const comets: Trail[] = [], streaks: Trail[] = [], timetable: Trail[] = [];
-  // ponytail: no viewport culling or LOD; add culling above ~1 M timetable vertices.
+  function windowTrail(path: Point[], timestamps: number[], d: Display): Trail {
+    let start = 0;
+    while (start + 1 < timestamps.length && timestamps[start + 1] <= base - MAX_TRAIL_LENGTH) start++;
+    let end = start + 1;
+    while (end < timestamps.length && timestamps[end - 1] < base + 3600) end++;
+    if (end - start < 2) {
+      start = Math.max(0, Math.min(start, timestamps.length - 2));
+      end = Math.min(timestamps.length, start + 2);
+    }
+    return { path: start === 0 && end === path.length ? path : path.slice(start, end),
+      timestamps: timestamps.slice(start, end).map(ts => ts - base), runId: d.run.run_id, color: d.color };
+  }
+  // ponytail: drawable time is windowed; add viewport culling or coarse low-zoom LOD above ~1 M windowed vertices.
   for (const d of displays) {
     const scheduled = d.run.state === 'schedule_only';
     let cached = trailCache.get(d);
     if (!cached || cached.base !== base) {
       let latest = -Infinity;
-      const core = { path: d.points, runId: d.run.run_id, color: d.color,
-        timestamps: d.times.map(ts => { latest = Math.max(latest, ts); return latest - base; }) };
+      const core = windowTrail(d.points, d.times.map(ts => { latest = Math.max(latest, ts); return latest; }), d);
       // ponytail: draw eight of K streaks; raise the subset when rebuilds become incremental.
       const count = scheduled ? 0 : Math.min(8, d.trips.length);
       cached = { base, core, streaks: Array.from({ length: count }, (_, j) => {
         const trip = d.trips[Math.floor(j * d.trips.length / count)];
-        return { path: trip.path, runId: d.run.run_id, color: d.color,
-          timestamps: trip.timestamps.map(ts => ts - base) };
+        return windowTrail(trip.path, trip.timestamps, d);
       }) };
       trailCache.set(d, cached);
     }
@@ -326,28 +366,29 @@ export function trainLayers(displays: Display[], trails: Trails, simTime: number
                             hover?: (run: RunFrame | null, x: number, y: number) => void,
                             heads?: ReadonlyMap<number, Point>, redraw?: number) {
   const length = trailLength(zoom);
-  return [...[8, 4, 2].map((width, i) => new TripsLayer<Trail>({ id: `comet-${width}`,
-    data: trails.comets, dataComparator, getPath: t => t.path, getTimestamps: t => t.timestamps,
-    currentTime: simTime - trails.base, trailLength: length / [6, 3, 1.5][i], fadeTrail: true,
-    getWidth: width, widthUnits: 'pixels', getColor: t => [...t.color, [64, 150, 255][i] * trainAlpha(t.runId, selected)],
-    updateTriggers: { getColor: selected },
-    parameters: ADDITIVE })),
+  // Dense India-wide views stay thin and dim; zoomed-in trails widen and brighten.
+  const k = Math.min(1, Math.max(0, (zoom - 4) / 4));
+  return [new GlowTrips<Trail>({ id: 'comets', data: trails.comets, dataComparator,
+    getPath: t => t.path, getTimestamps: t => t.timestamps,
+    currentTime: simTime - trails.base, trailLength: length / 1.5, fadeTrail: true,
+    getWidth: 7, widthUnits: 'pixels', getColor: t => [...t.color, 255 * trainAlpha(t.runId, selected)],
+    updateTriggers: { getColor: selected }, parameters: ADDITIVE }),
   new TripsLayer<Trail>({ id: 'streaks', data: trails.streaks, dataComparator,
     getPath: t => t.path, getTimestamps: t => t.timestamps,
     currentTime: simTime - trails.base, trailLength: length, fadeTrail: true,
     getWidth: 1.5, widthUnits: 'pixels', getColor: t => [...t.color, 24 * trainAlpha(t.runId, selected)],
     updateTriggers: { getColor: selected }, parameters: ADDITIVE }),
-  new TripsLayer<Trail>({ id: 'timetable', data: trails.timetable, dataComparator,
+  new GlowTrips<Trail>({ id: 'timetable', data: trails.timetable, dataComparator,
     getPath: t => t.path, getTimestamps: t => t.timestamps,
     currentTime: simTime - trails.base, trailLength: length / 1.5, fadeTrail: true,
-    getWidth: 2, widthUnits: 'pixels', getColor: t => [...t.color, 230 * trainAlpha(t.runId, selected)],
-    updateTriggers: { getColor: selected }, parameters: ADDITIVE }),
-  new ScatterplotLayer<Display>({ id: 'heads', data: displays, dataComparator,
+    getWidth: 6, widthScale: 0.5 + 0.5 * k, opacity: 0.35 + 0.65 * k, widthUnits: 'pixels',
+    getColor: t => [...t.color, 190 * trainAlpha(t.runId, selected)], updateTriggers: { getColor: selected }, parameters: ADDITIVE }),
+  new GlowDots<Display>({ id: 'heads', data: displays, dataComparator,
     getPosition: d => heads?.get(d.run.run_id) ?? d.head,
-    getRadius: d => d.run.state === 'schedule_only' ? 2.5 : 3, radiusUnits: 'pixels',
-    getFillColor: d => [...d.color.map(c => c + (255 - c) * 0.25),
-      255 * trainAlpha(d.run.run_id, selected)] as [number, number, number, number],
-    updateTriggers: { getPosition: redraw, getFillColor: selected },
+    getRadius: d => d.run.state === 'schedule_only' ? 4.5 : 5.5, radiusScale: 0.6 + 0.4 * k,
+    opacity: 0.45 + 0.55 * k, radiusUnits: 'pixels',
+    getFillColor: d => [...d.color, 230 * trainAlpha(d.run.run_id, selected)] as [number, number, number, number],
+    updateTriggers: { getPosition: redraw, getFillColor: selected }, parameters: ADDITIVE,
     pickable: true, onClick: info => { if (info.object) select(info.object.run); },
     onHover: info => hover?.(info.object?.run ?? null, info.x, info.y) })];
 }
