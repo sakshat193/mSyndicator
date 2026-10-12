@@ -445,18 +445,31 @@ it('uses half-zoom buckets for label selection', () => {
   expect(labelStations(bucketed, 8).map(s => s.code)).toEqual(['A', 'B']);
 });
 
-it('labels title case station names in a small deck font atlas', () => {
-  const layer = stationLabelLayer(labelStations(labelNetwork, 4), 4);
-  expect(layer).toBeInstanceOf(TextLayer);
-  expect((layer.props.getText as Function)(labelNetwork.stations[0])).toBe('Alpha Central');
-  expect(layer.props.getSize).toBe(11);
-  expect(layer.props.getColor).toEqual([150, 168, 190, 210]);
-  expect(layer.props.characterSet).toBe('auto');
-  expect(layer.props.fontSettings.sdf).toBe(true);
-  expect(layer.props.outlineWidth).toBeGreaterThan(0);
-  expect(layer.props.outlineColor).toEqual([5, 7, 13, 230]);
-  expect(stationLabelLayer(labelStations(labelNetwork, 7), 7).props.getSize).toBe(12);
-});
+it.each([[0.25, ['A']], [0.27, ['A', 'B']]])(
+  'declutters wider station labels separated by %s degrees', (distance, codes) => {
+    const nearby: Network = { ...labelNetwork, stations: [
+      { code: 'B', name: 'BETA', lon: 78.5 + (distance as number), lat: 17.5 },
+      { code: 'A', name: 'ALPHA CENTRAL', lon: 78.5, lat: 17.5 },
+    ] };
+    expect(labelStations(nearby, 7.5).map(s => s.code)).toEqual(codes);
+  });
+
+it.each([[4, 12], [6.99, 12], [7, 13], [8, 13]])(
+  'labels title case station names with a legible halo at zoom %s', (zoom, size) => {
+    const layer = stationLabelLayer(labelStations(labelNetwork, zoom), zoom);
+    expect(layer).toBeInstanceOf(TextLayer);
+    expect((layer.props.getText as Function)(labelNetwork.stations[0])).toBe('Alpha Central');
+    const halo = 0.75 * layer.props.outlineWidth;
+    expect(halo * (layer.props.getSize as number) / 64).toBeGreaterThanOrEqual(1.5);
+    expect(halo).toBeLessThanOrEqual(layer.props.fontSettings.buffer!);
+    expect(layer.props.outlineWidth).toBeLessThan(layer.props.fontSettings.radius!);
+    expect(layer.props.getSize).toBe(size);
+    expect(layer.props.getColor).toEqual([214, 224, 238, 255]);
+    expect(layer.props.characterSet).toBe('auto');
+    expect(layer.props.fontSettings).toEqual({ sdf: true, buffer: 10, radius: 16 });
+    expect(layer.props.fontWeight).toBe(600);
+    expect(layer.props.outlineColor).toEqual([5, 7, 13, 255]);
+  });
 
 it('dims other trains to 30 percent and highlights the selected expanded path without copying it', () => {
   const selected = displayRun(runFixture(), chained, 1300)!;

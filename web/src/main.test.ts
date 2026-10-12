@@ -248,7 +248,7 @@ it('decodes only on generations and reuses network and trips while animating hea
   rendered.zoom = 7.1;
   draw!(1500);
   const atSeven = labels();
-  expect(atSeven.props.getSize).toBe(12);
+  expect(atSeven.props.getSize).toBe(13);
   rendered.zoom = 7.49;
   rendered.listeners['map:move']();
   draw!(1512);

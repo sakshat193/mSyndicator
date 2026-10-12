@@ -326,7 +326,7 @@ export function labelStations(network: Network, zoom: number) {
     const lat = Math.max(-85.051129, Math.min(85.051129, s.lat!)) * Math.PI / 180;
     const y = (1 - Math.log(Math.tan(Math.PI / 4 + lat / 2)) / Math.PI) / 2 * world;
     // ponytail: fixed label estimates; use measured glyph bounds if fonts or label layout change.
-    const halfWidth = titleCase(s.name || s.code).length * 6.5 / 2 + 4;
+    const halfWidth = titleCase(s.name || s.code).length * 7 / 2 + 4;
     const box: [number, number, number, number] = [x - halfWidth, y + 6, x + halfWidth, y + 28];
     if (boxes.some(b => box[0] <= b[2] && box[2] >= b[0] && box[1] <= b[3] && box[3] >= b[1]))
       return false;
@@ -346,9 +346,11 @@ export function stationName(network: Network, code: string): string {
 export function stationLabelLayer(stations: Network['stations'], zoom: number) {
   return new TextLayer<Network['stations'][number]>({ id: 'station-labels', data: stations,
     getPosition: s => [s.lon!, s.lat!], getText: s => titleCase(s.name || s.code),
-    getSize: zoom < 7 ? 11 : 12, sizeUnits: 'pixels', getColor: [150, 168, 190, 210], characterSet: 'auto',
+    getSize: zoom < 7 ? 12 : 13, sizeUnits: 'pixels', getColor: [214, 224, 238, 255], characterSet: 'auto',
     // SDF preserves glyph bearings so letters such as j are not clipped by the atlas.
-    fontSettings: { sdf: true }, outlineWidth: 0.18, outlineColor: [5, 7, 13, 230],
+    // Halo is 0.75 * outlineWidth atlas px; it must be <= buffer and < radius.
+    fontSettings: { sdf: true, buffer: 10, radius: 16 }, outlineWidth: 12, outlineColor: [5, 7, 13, 255],
+    fontWeight: 600,
     fontFamily: "Inter, 'Segoe UI Variable', system-ui, sans-serif", getPixelOffset: [0, 10],
     getTextAnchor: 'middle', getAlignmentBaseline: 'top', pickable: false });
 }
