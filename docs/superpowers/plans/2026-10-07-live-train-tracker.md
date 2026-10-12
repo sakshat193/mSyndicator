@@ -2101,7 +2101,7 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   - `layers.ts` reads the P50 with `DataView.getFloat32(((h·2 + kind)·7 + 3)·4, true)` over the run's bytes. Subarrays may be unaligned, as with `paths`. A NaN keeps today's display-median fallback.
 - `bench.py` encodes the same way, so its frame size matches production.
 - There is no shim for list-form quantiles. Frames are pruned after 15 min, and the monitor deploys engine + api together, waits for the first new full frame, then deploys `web/dist`.
-- [ ] Tests:
+- [x] Tests:
   - `encode_run`'s `halt_q` bytes decode to the replay array as float32, with NaN where the replay had NaN;
   - `next_q` is 28 bytes;
   - a fractional-second `origin_ts`/`base_ts` survives msgpack exactly;
@@ -2110,8 +2110,9 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   - web: `validate` rejects a wrong `halt_q` byteLength or shape and a non-`Uint8Array`;
   - web: the delay uses the P50 from an unaligned `halt_q` subarray, and a NaN P50 falls back to display medians;
   - `uv run pytest -q tests/engine tests/api` and the web checks pass.
-- [ ] Commit `task 66: float32 frame quantiles`.
-- [ ] Monitor: rebuild the image and restart engine + api. After the new full frame, deploy dist and record the frame's raw and deflated size, the client heap and the fps.
+- [x] Commit `task 66: float32 frame quantiles` (109d2a3; engine/api 114, offline 371 + 1 skipped; web 137).
+- [x] Monitor: rebuild the image and restart engine + api. After the new full frame, deploy dist and record the frame's raw and deflated size, the client heap and the fps.
+  - Results: full frame gen 5636 is 10.26 MB raw (was 15.86 MB) and ~7.2 MB deflated.
 
 ### Task 67 (amendment 2026-10-12): clean basemap tiles (user request: "these weird small dots feel like geometric artifact... and maybe also consume rendering memory for such a small overlooked but messy detail so fix that")
 
@@ -2146,7 +2147,7 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   - print JSON: tiles in and out, bytes per layer in and out, water rings and vertices in and out, runtime.
 - The monitor converts the file with the existing go-pmtiles binary (`pmtiles convert`), verifies it, keeps `india.pmtiles.orig` for rollback, and swaps it in.
 - **`docs/deploy.md`:** add the tile clean-up steps, keeping the file ≤ 60 lines.
-- [ ] Tests (synthetic, built inside the test):
+- [x] Tests (synthetic, built inside the test):
   - Hilbert tile id ↔ z/x/y for z0–z2 against the spec values, and a roundtrip on random z10 ids;
   - a root → leaf directory with run length 2 and a 0 offset decodes to the right entries;
   - bad magic, an out-of-range offset, a truncated varint and an over-cap gunzip each raise a clear error;
@@ -2154,8 +2155,9 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   - a water LineString is dropped; `earth` and `roads` bytes pass through verbatim; `landuse` and `places` are dropped;
   - end to end: a tiny pmtiles written in the test becomes mbtiles rows with TMS y, gzip bodies and filtered `vector_layers`;
   - `uv run pytest -q tests/static` passes.
-- [ ] Commit `task 67: clean basemap tiles`.
-- [ ] Monitor: run the tool on the VM, convert and swap. Record the archive size, the water rings left in 6/45/27, and the browser's renderer and GPU memory, and screenshot Jaipur–Jhansi at the zoom of image #14.
+- [x] Commit `task 67: clean basemap tiles` (5be6927; static 98, offline 412 + 1 skipped).
+- [x] Monitor: run the tool on the VM, convert and swap. Record the archive size, the water rings left in 6/45/27, and the browser's renderer and GPU memory, and screenshot Jaipur–Jhansi at the zoom of image #14.
+  - Results: archive ~208 MB → 70,482,146 B, `/data/tiles/india.pmtiles.orig` kept; vector layers now boundaries, earth, roads, water. No specks at ~z8 (`reports/t68-zoom-specks.png`).
 
 ### Task 68 (amendment 2026-10-12): glass dashboard (user request: "let's just always displlay the total train count, available, always ... Choose a glass morphism UI for all the elements that's supposed to be on screen other than the map, with better fonts, alignment and sizing... AND allowing the option to hide and unhide them")
 
@@ -2190,14 +2192,44 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   - The panel is inset by the gutter at top, right and bottom.
   - Zoom buttons are 36 px.
   - The mobile layout keeps working.
-- [ ] Tests:
+- [x] Tests:
   - `trainCount` for 0, 1 and 3,171 trains, plus the breakdown title;
   - `initHud`: the initial state comes from storage; a click and `H` both toggle, persist the state and flip `aria-pressed`;
   - `initHud`: `H` is ignored in the search input and with Ctrl, Meta or Alt held; storage that throws on read and on write still toggles;
   - main: the count element shows the total;
   - web test, build and `tsc` pass.
-- [ ] Commit `task 68: glass dashboard`.
-- [ ] Monitor: deploy the dist. Take screenshots in both states, at desktop width and at 390 px. Measure fps with the panel open against 65c's 107; if the blur costs more than 15 %, lower `#panel`'s blur.
+- [x] Commit `task 68: glass dashboard` (e7fbbbe; web 152, tsc and build pass).
+- [x] Monitor: deploy the dist. Take screenshots in both states, at desktop width and at 390 px. Measure fps with the panel open against 65c's 107; if the blur costs more than 15 %, lower `#panel`'s blur.
+  - Results: two monitor fixes. Lightning CSS kept only the hand-written `-webkit-backdrop-filter` and dropped the unprefixed one, so there was no blur; the `-webkit-` line was deleted (never hand-write it), and the build now emits both. Autofill keydowns can lack `key`, so the check uses `key.key?.`. At 1440×900: heap 129 MB (was 146), fps 97 with the panel closed and 105 with it open (65c: 107), so the blur is free. Screenshots `reports/t68-*.png`.
+
+### Task 69 (amendment 2026-10-12): HUD polish (user request: "/loop until the UI looks production grade")
+
+**Why (monitor, 2026-10-12, screenshots `reports/t68-*.png`):**
+- At 390 × 844 the expanded attribution covers the legend's "60+ min late" label.
+- Before the first frame the bar reads "0 trains" next to a red "Waiting for live frames", so a normal load looks broken.
+- The eye toggle shows the same open eye in both states.
+- `index.html` has an empty favicon and no theme colour.
+- The `rail` basemap layer reads source-layer `transit`, which the cleaned tiles no longer contain (their vector layers are boundaries, earth, roads and water).
+
+**Files:** `web/index.html`, `web/src/style.css`, `web/src/main.ts`, `web/src/main.test.ts`, `web/src/hud.ts`, `web/src/hud.test.ts`, `web/src/basemap.ts`, `web/src/basemap.test.ts`, `msynd/static/tiles.py`.
+
+- **Mobile stack (≤ 639 px):** while `#legend` is visible, the bottom-right control stack (zoom and attribution) sits above the legend with a `--space-2` gap, so nothing overlaps. When the legend is hidden (hidden mode, or the panel open), the stack keeps its current placement. Desktop is unchanged. CSS only.
+- **Loading state:**
+  - `liveStatus(age: number | null) → { text, freshness }` in `hud.ts` owns the status text. `null` gives `Connecting…` with freshness `pending`; otherwise `updated N s ago` with fresh < 60 ≤ aging < 180 ≤ old, as today.
+  - `#connection[data-freshness="pending"]` is muted (`#8fa3b8`), never the red `old` colour.
+  - Until the store holds a frame, `#train-count` reads `Loading…` with no title; this is also the initial HTML text. After the first frame it shows `trainCount` as today.
+  - The `Network unavailable: …` path is unchanged.
+- **Eye toggle:** the button holds an eye icon and an eye-off (slashed) icon, and CSS shows only the eye-off one when `aria-pressed="true"`. The fixed `aria-label` and the `title` stay.
+- **Head:** an inline SVG data-URI favicon (a cyan train-head dot on `#05070d`), `<meta name="theme-color" content="#05070d">`, `<meta name="color-scheme" content="dark">` and a one-line `<meta name="description">`.
+- **Dead layer:** delete the `rail` layer from `basemap.ts`, and drop `'transit'` from `STYLE_LAYERS` in `msynd/static/tiles.py`, so the mirror comment stays true.
+- [ ] Tests:
+  - `liveStatus`: null → `Connecting…`/`pending`; 0 and 59 → fresh; 60 → aging; 180 → old;
+  - main: before any frame the count reads `Loading…` and `#connection` has freshness `pending`; after a frame the count shows the total;
+  - basemap: the layer ids no longer include `rail`, and no layer uses source-layer `transit`;
+  - web test, build and `tsc` pass; `uv run pytest -q tests/static` passes.
+- [ ] Commit `task 69: hud polish`.
+- [ ] Monitor: deploy the dist, then screenshot 390 × 844 (legend fully visible, no overlap; hidden mode with the eye-off icon), the loading state and the desktop.
+
 
 ---
 
