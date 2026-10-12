@@ -2304,12 +2304,12 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
 - `# ponytail:` comment: timetable-only runs ship one median path; ship K once the UI draws timetable streaks.
 - Per-run `versions` in `encode_run` becomes `{'route': evidence.versions['route']}`. That is the only field the web reads (`displayRun`, `hoverText`).
   - Unchanged: the frame-level `versions` in `write_frame` (spec §10: "Frames carry gen and versions"), the error payload in `worker.py` (keeps the full versions for diagnosis; `tests/engine/test_errors.py` pins it), and every key that is derived from `ev.versions` (the RNG `v_hash`, the CDF cache, `sim.forecast_issue.versions`).
-- [ ] Tests (in `tests/engine/test_loop.py`):
+- [x] Tests (in `tests/engine/test_loop.py`):
   - Replace the `test_encode_run_strides_only_schedule_paths` cases. A `schedule_only` run with K = 1, 8, 10 or 32 (paths `[j, j+1]`, plus one case whose rows are unsorted per event) ships `path_shape == (1, 2, 2)`, route indices `[3, 9]`, and ticks equal to `rint` of the per-event median. `observed` and `stale` still ship all K rows unchanged.
   - Encoded per-run `versions` is exactly `{'route': <route id>}`.
   - `test_model_change_and_bias_generation_dirty_all_active` no longer reads per-run `versions['models']`. Keep its intent by asserting that every active run was replayed with the new model: wrap `fake_replay` to record `ev.versions['models']['run']` per run id, and assert the recorded value for each of `runs[1:]` once the frame-level versions show the new model and bias generation.
   - `uv run pytest -q tests/engine` passes.
-- [ ] Commit `task 72: slimmer engine frames`.
+- [x] Commit `task 72: slimmer engine frames`.
 
 ### Task 73 (amendment 2026-10-12): live frames carry halt P50 only (user request: "Do the smaller Live updates…")
 
@@ -2333,14 +2333,15 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   - `RunFrame` gains `halt_p50?: Uint8Array`, and `halt_q`/`halt_shape` are removed from the type and the validator.
   - `validate` accepts `halt_p50` only as a `Uint8Array` whose byte length is a multiple of 8, and rejects anything else.
 - `layers.ts` `eventTimes` reads P50 as `getFloat32((h*2+kind)*4)` from `halt_p50` when `h < byteLength/8`. Otherwise it falls back to the path median as now; that fallback also covers a frame from an API that hasn't been redeployed yet. Update the existing `ponytail:` comment.
-- [ ] Tests:
+- [x] Tests:
   - API: a full frame whose run has a known `halt_q` reaches the socket with `halt_p50` equal to `halt_q[:, :, 3]`, as float32 bytes with NaN kept, and with no `halt_q`/`halt_shape`. The same holds on the delta, resync and slow-client full paths.
   - An error run passes through unchanged.
   - `/api/run` still returns all 7 quantiles. Adjust any existing test that compared forwarded bytes with the stored payload.
   - Web: `frames.test.ts` validator cases for `halt_p50` (valid `[2,2]`, empty, length 12, non-`Uint8Array`); `layers.test.ts` `eventTimes` uses `halt_p50` P50 when finite and the path median when NaN or absent.
   - `uv run pytest -q tests/api` and the web test, build and `tsc` pass.
-- [ ] Commit `task 73: live frames carry halt p50 only`.
-- [ ] Monitor (after Tasks 72 and 73): rebuild the image and restart the engine and the API. Then measure the WebSocket full frame on the VM, raw and deflated. Expect about 1.8 MB raw / 1.0 MB deflated. Check that the map shows trains after a hard refresh, a train panel shows its P10/P50/P90 rows, and fps with the panel closed is ≥ 60.
+- [x] Commit `task 73: live frames carry halt p50 only`.
+- [x] Monitor (after Tasks 72 and 73): rebuild the image and restart the engine and the API. Then measure the WebSocket full frame on the VM, raw and deflated. Expect about 1.8 MB raw / 1.0 MB deflated. Check that the map shows trains after a hard refresh, a train panel shows its P10/P50/P90 rows, and fps with the panel closed is ≥ 60.
+  - Done 2026-10-12 (VM at 763a6cf, API 172.18.0.3): DB full frame 4.70 MB raw / 3.46 MB deflated; WS full frame 1.67 MB raw / 0.95 MB deflated (2,426 runs; 2,420 schedule_only with K = 1, 6 observed with K = 32; per-run versions route only). The browser received a 1,668,018-byte first frame and drew 2,420 trains; panel P10–P90 rows present; fps 104.2 with the panel closed.
 
 ### Task 74 (amendment 2026-10-12): calmer glass with refraction (user request: "the glass blur is too crazy, go a little less crazy, and add refractions/wavy curving")
 
@@ -2359,9 +2360,10 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   - `main.ts` sets `document.body.dataset.refract = ''` only when `'userAgentData' in navigator`. That covers Chromium, the only engine that renders SVG filters in `backdrop-filter`. Firefox and Safari keep the plain blur, because an unsupported `url()` there would void the whole declaration.
   - Comment `ponytail:` naming that UA-capability gate, with the upgrade path: drop it once `@supports` can detect SVG backdrop filters.
 - Never hand-write `-webkit-backdrop-filter` (Lightning CSS then drops the unprefixed line).
-- [ ] Tests (in `main.test.ts`, with the existing stubs): `refract` is set when the navigator stub has `userAgentData` and absent without it. Web test, build and `tsc` pass. The built CSS keeps `url(#glass-refract)` verbatim.
-- [ ] Commit `task 74: calmer glass with refraction`.
-- [ ] Monitor: deploy the dist. Compare screenshots of the HUD and the open panel against `reports/` from Task 69. The map must show through the glass with visible gentle waves, with no dark fringe wider than about 2 px at the edges. Text contrast is unchanged. fps with the panel closed must be ≥ 60 and within 15 % of Task 71's 102.5. If the refraction costs more than that, cut `numOctaves` to 1 and then `scale`; drop the `url()` before accepting a slower map.
+- [x] Tests (in `main.test.ts`, with the existing stubs): `refract` is set when the navigator stub has `userAgentData` and absent without it. Web test, build and `tsc` pass. The built CSS keeps `url(#glass-refract)` verbatim.
+- [x] Commit `task 74: calmer glass with refraction`.
+- [x] Monitor: deploy the dist. Compare screenshots of the HUD and the open panel against `reports/` from Task 69. The map must show through the glass with visible gentle waves, with no dark fringe wider than about 2 px at the edges. Text contrast is unchanged. fps with the panel closed must be ≥ 60 and within 15 % of Task 71's 102.5. If the refraction costs more than that, cut `numOctaves` to 1 and then `scale`; drop the `url()` before accepting a slower map.
+  - Done 2026-10-12: Chromium computes `url("#glass-refract") blur(7px) saturate(1.35)`; map lines bend gently through the HUD and panel, with no edge fringe (reports/t74-panel.png, t74-panel-crop.png vs t74-panel-crop-norefract.png); fps 104.2 (Task 71: 102.5). No tuning needed.
 
 ---
 
