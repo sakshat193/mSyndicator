@@ -1943,6 +1943,50 @@ No new dependency: `pmtiles` and `maplibre-gl` are already installed. The UI fon
 
 ---
 
+### Task 65 (amendment 2026-10-12): lean, brighter train rendering (user requests: "the deployed page is consuming about 1 GB of memory"; "these lines and their trails are very faint! increase the luminosity and the trail size"; "yes do task 65")
+
+**Why (monitor, 2026-10-12, measured on the deployed data with 3,261 drawn runs, 3,260 of them `schedule_only`):**
+- Playwright Chrome used 761 MB private in the renderer and 593 MB in the GPU process. The JS heap after GC was only 184 MB, so the rest is deck.gl attribute buffers and allocator churn. rAF ran at 19 fps.
+- Each run draws 8 streaks, giving 26,088 streak paths and 1.61 M streak vertices. On top of that, 3 comet layers of 202 k vertices each.
+- Every delta frame (every 3–15 s) rebuilds `trailData` for all runs. The new arrays force deck.gl to regenerate every trail attribute, which shows up as ~300 ms long tasks.
+- Every redraw (10–70 Hz) spreads all 3,261 displays into new head objects, so the heads layer recomputes all of its attributes.
+- The API forwards the engine's 5-minute full frame (16.05 MB raw, at the Task 64 STOP threshold) to every connected client. On a client that is already in sync this is 16 MB of mostly unchanged runs, and `displayRun` re-runs for all of them (478 ms).
+- Schedule-only trails draw at 0.45 alpha with zoomed-in trails of only 10 min, so they read as faint.
+
+**Files:** `web/src/layers.ts`, `web/src/layers.test.ts`, `web/src/main.ts`, `web/src/main.test.ts`, `msynd/api/app.py`, `tests/api/test_api.py`.
+
+- **Timetable style:**
+  - A `schedule_only` run draws only a head plus one core trail, both in a neutral colour `TIMETABLE = [200, 214, 235]`. It has no glow comets and no streaks.
+  - Observed and stale runs keep their delay colours, glow comets and 8 streaks.
+  - `trainAlpha` drops the 0.45 schedule factor and keeps only the selection rule: selected or nothing selected → 1, another run selected → 0.3.
+  - The hover and panel delay text stays as is.
+- **Brightness and length:**
+  - `trailLength(zoom) = max(2700, min(32400, 32400·2^(4−zoom)))`.
+  - Live comets: widths [8, 4, 2] with alphas [64, 150, 255]; each layer's trail length is the length divided by its width ÷ 1.5 (core = length/1.5). Live streaks: width 1.5, alpha 24.
+  - Timetable core: width 2, alpha 230, trail length/1.5.
+  - Heads: radius 3 for live runs and 2.5 for timetable runs; fill = the trail colour lightened 60 % toward white.
+- **Render budget:**
+  - Live and timetable trails go in separate layers, so a live-run delta never rebuilds the timetable layer.
+  - `trailData` returns the identical trail objects for an unchanged `Display` and the same hour `base`, cached in a WeakMap.
+  - Every trail layer sets `dataComparator`, a shallow element-identity comparison. A delta that leaves a layer's runs unchanged therefore regenerates none of its attributes.
+  - The heads layer keeps `data` = the displays array (replaced only per generation) and reads positions from the eased-head map, with `updateTriggers.getPosition` bumped per redraw. A redraw recomputes only positions and allocates no per-display objects.
+  - `# ponytail:` there is no viewport culling or LOD; add culling if the timetable layer's vertex count passes ~1 M.
+- **API:** when `Frames.ingest` receives an engine full frame whose gen is `self.gen + 1`, each connected client instead gets a delta with the same gen, ts and versions. It holds only the runs whose decoded payload differs from `self.runs`, plus tombstones for runs that are gone. History still keeps the full frame as the resync baseline, so new or gapped clients get full state exactly as today.
+- [ ] Tests:
+  - a `schedule_only` display yields no glow or streak data and one timetable core with the neutral colour; an observed display keeps 3 comet layers and 8 streaks;
+  - `trailLength` at zooms 4, 6, 7 and 10 → 32400, 8100, 4050 and 2700;
+  - the comet, core and head widths, alphas and radii above;
+  - `trainAlpha` for every state: nothing selected → 1, selected → 1, another selected → 0.3;
+  - `trailData` called twice on the same displays and hour returns identical (`toBe`) trail objects; a new `base` hour gives new ones;
+  - `dataComparator` is true for arrays with identical elements and false when any element differs;
+  - main: a delta that changes only the observed run leaves the timetable layer's `data` elements identical; a redraw without a new generation does not change the heads layer's `data` reference;
+  - API: a client in sync receives an engine full frame as a delta with only the changed run and a tombstone for a removed run, while a fresh subscriber at gen 0 receives the full frame;
+  - `npm --prefix web test`, `npm --prefix web run build` and `uv run pytest -q tests/api` pass.
+- [ ] Commit `task 65: lean, brighter train rendering`.
+- [ ] Monitor: deploy the image (api) and `web/dist`. Remeasure the renderer and GPU memory, the JS heap, rAF and long tasks against the numbers above, and take a Playwright screenshot zoomed into Bilaspur.
+
+---
+
 ## Spec coverage check
 
 | Spec section | Task(s) |
