@@ -2276,14 +2276,14 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
 - **Compensation:** every glyph's ink sits `2·buffer` atlas px right of its true position, so `getPixelOffset` becomes `[−2·buffer·size/64, 10]` (about −4 px at 13 px).
 - **Comment `ponytail:`** deck's atlas cache key ignores `_getFontRenderer`, so another TextLayer with identical font settings would share this atlas. Upgrade path: drop the renderer once deck.gl measures the ink width and honours `glyphLeft`.
 - `package.json`: add `"@mapbox/tiny-sdf": "^2.2.0"` to `dependencies`. In `package-lock.json`, add the same entry to the root `packages[""].dependencies`. The `node_modules/@mapbox/tiny-sdf` entry already exists, so nothing else changes and no install is needed.
-- [ ] Tests (in `layers.test.ts`, no DOM):
+- [x] Tests (in `layers.test.ts`, no DOM):
   - with a synthetic glyph (buffer 10, `glyphLeft` −6, `glyphWidth` 20, image width 40), `shift` is 4, the measured width is 24, and the cell `24 + 2·10` equals the padded image width 44; the same holds for `glyphLeft` 0 and 3, and for −12 (shift clamps to 0);
   - `padGlyphAlpha` puts source column 0 at padded column `shift`, alpha only, with RGB 0;
   - the ink offset from the pen (`shift + buffer`) equals `2·buffer + glyphLeft` for each `glyphLeft ≥ −buffer`;
   - `stationLabelLayer` passes the same `_getFontRenderer` function on two calls, and the pixel offset x is `−2·buffer·size/64` at both sizes;
   - web test, build and `tsc` pass.
-- [ ] Commit `task 71: correct glyph placement in station labels`.
-- [ ] Monitor: deploy the dist. At India zoom, crop "Prayagraj Jn" and "Vijayawada Jn" against `reports/t70-j-*.png`: `j` must be whole and in place. Labels must stay centred under their station dot. fps with the panel closed must be ≥ 60.
+- [x] Commit `task 71: correct glyph placement in station labels`. (5d331d8; 178 web tests, `tsc` and build pass; monitor mutations `shift = buffer` and pixel offset `[0, 10]` fail 6 and 4 tests.)
+- [x] Monitor: deploy the dist. At India zoom, crop "Prayagraj Jn" and "Vijayawada Jn" against `reports/t70-j-*.png`: `j` must be whole and in place. Labels must stay centred under their station dot. fps with the panel closed must be ≥ 60. Done 2026-10-12: VM at 5d331d8 (web only); `reports/t71-j-{prayag,vijay}{,-dot}.png` read "Prayagraj Jn" and "Vijayawada Jn" with whole, correctly placed `j`; fps 102.5 with the panel closed (2,755 trains).
 
 ---
 
