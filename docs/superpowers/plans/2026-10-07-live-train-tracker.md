@@ -2076,6 +2076,129 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   6. OSM data stays under ODbL; the map already credits © OpenStreetMap. The derived table lives only in the VM DB and never in the public repo.
   - Results: stations ref 7681 / name 103 / coord 691 / no_anchor 75; segments 1.0: 8679, 0.5: 97, 0.3: 655; failures no_anchor 502, no_path 2069, length 4409; 158,567 vertices; 28.9 s, peak RSS 587 MB. Export `network-af87af0ce6e9` 4.27 MB gz (was 3.13 MB), 178,283 network vertices. Bilaspur–Champa trails follow the rails (`reports/t37-osm-bilaspur.png`). Browser with the old dist: heap 148 → 211 MB, 131 → 75 fps; follow-up 65c windows trail vertices to recover it.
 
+### Task 66 (amendment 2026-10-12): float32 frame quantiles (user request: "always use float32 for shrkingking the frame size further... if its viable")
+
+**Why (monitor, 2026-10-12, latest VM full frame, gen 5470):**
+- The frame is 15,859,848 bytes for 3,171 runs, 3,165 of them `schedule_only`.
+- By field: `halt_q` 9.68 MB (1,088,570 msgpack float64 values, 45,136 of them None); `paths` 4.81 MB (already uint16); `versions` 0.47 MB; `next_q` 0.20 MB; `headline` 0.08 MB.
+- As raw little-endian float32 bytes, `halt_q` would be ~4.35 MB, so a full frame drops to ~10.5 MB.
+- Quantiles are run-clock minutes below 10,000, where float32 resolves better than 0.06 s.
+- Epoch fields (`ts`, `base_ts`, `origin_ts`, `headline.last_received`) stay float64, because float32 resolves only 128 s at epoch magnitude.
+
+**Files:** `msynd/engine/frames.py`, `msynd/engine/bench.py`, `msynd/api/app.py`, `tests/engine/test_loop.py`, `tests/api/test_api.py`, `web/src/frames.ts`, `web/src/frames.test.ts`, `web/src/layers.ts`, `web/src/layers.test.ts`, `web/src/timeline.test.ts`.
+
+- **Format:**
+  - `halt_q` = `np.asarray(out.halt_q, '<f4').tobytes()` plus `halt_shape = [n_halt, 2, 7]`.
+  - `next_q` = 28 bytes of `<f4`.
+  - NaN means absent and replaces None. Delete `_quantiles`.
+  - This mirrors `paths`/`path_shape`. Never use msgpack's global `use_single_float`.
+- **API `/api/run/{id}`:**
+  - Decode with `np.frombuffer(…, '<f4').reshape(halt_shape)`.
+  - The JSON response keeps its shape: lists of floats (float32-rounded) with None for NaN, and the same `any(q is not None …)` halt filter.
+  - `Frames.ingest` and resync pass the bytes through unchanged.
+- **Web:**
+  - `validate` checks, when present, that `halt_q` is a `Uint8Array` with `halt_shape` = 3 ids `[n, 2, 7]` and `byteLength = n·2·7·4`, and that `next_q` is a 28-byte `Uint8Array`.
+  - `layers.ts` reads the P50 with `DataView.getFloat32(((h·2 + kind)·7 + 3)·4, true)` over the run's bytes. Subarrays may be unaligned, as with `paths`. A NaN keeps today's display-median fallback.
+- `bench.py` encodes the same way, so its frame size matches production.
+- There is no shim for list-form quantiles. Frames are pruned after 15 min, and the monitor deploys engine + api together, waits for the first new full frame, then deploys `web/dist`.
+- [ ] Tests:
+  - `encode_run`'s `halt_q` bytes decode to the replay array as float32, with NaN where the replay had NaN;
+  - `next_q` is 28 bytes;
+  - a fractional-second `origin_ts`/`base_ts` survives msgpack exactly;
+  - the loop tests compare decoded arrays instead of `[None]*7` lists;
+  - the API run endpoint returns the same halts JSON from a bytes frame (None for NaN, past halts omitted);
+  - web: `validate` rejects a wrong `halt_q` byteLength or shape and a non-`Uint8Array`;
+  - web: the delay uses the P50 from an unaligned `halt_q` subarray, and a NaN P50 falls back to display medians;
+  - `uv run pytest -q tests/engine tests/api` and the web checks pass.
+- [ ] Commit `task 66: float32 frame quantiles`.
+- [ ] Monitor: rebuild the image and restart engine + api. After the new full frame, deploy dist and record the frame's raw and deflated size, the client heap and the fps.
+
+### Task 67 (amendment 2026-10-12): clean basemap tiles (user request: "these weird small dots feel like geometric artifact... and maybe also consume rendering memory for such a small overlooked but messy detail so fix that")
+
+**Why (monitor, decoded VM tiles 5/22/13, 6/45/27, 7/90/54, 7/91/54, 8/181/109, 9/365/219 and 10/727/438):**
+- **The specks are water rings.** Protomaps merges each water `kind` into one multipolygon per tile, broken into tiny rings.
+  - Tile 6/45/27 has ~200 inland water rings, ~150 of them under 4 px² (256-px tile basis). `water/river` alone has 93 rings, 76 of them under 4 px².
+  - Earth there is one 5-vertex square, so these are not earth holes.
+  - Water features carry only `kind`, `kind_detail` and `sort_rank` (no `min_zoom`), so no style filter can drop small rings.
+- **Most of each tile is never drawn.**
+  - The style draws only `earth`, `water` polygons, `boundaries`, `roads` and `transit` (`web/src/basemap.ts`); station labels come from the network.
+  - Yet `landuse` (13–58 KB raw per tile), `places` (2–25 KB), `landcover` (≤ 18 KB) and `pois` make up 55–75 % of each tile. For example, 7/91/54 is 109 KB raw, of which landuse is 58 KB and places 21 KB.
+  - The archive is ~208 MB.
+
+**Files:** create `msynd/static/tiles.py` and `tests/static/test_tiles.py`; modify `docs/deploy.md`.
+
+**Command:** `python -I -m msynd.static.tiles IN.pmtiles OUT.mbtiles`. Stdlib only (`mmap`, `gzip`, `sqlite3`, `json`).
+
+- **Read (untrusted input), PMTiles v3:**
+  - Require the `PMTiles` magic, version 3, gzip internal and tile compression, and the MVT tile type; otherwise exit with a clear error.
+  - Directories are varints: `n`, delta tile ids, run lengths, lengths, then offsets, where 0 means previous offset + length. Run length 0 marks a leaf directory; depth ≤ 4.
+  - Check that every offset and length lies inside its section. Cap every gunzip at 16 MB and reject malformed varints.
+  - Tile ids map to z/x/y by the PMTiles Hilbert scheme.
+- **Rewrite** each distinct tile body once (cache by offset), then write it for every tile id in its run:
+  - **Layers:** keep only `STYLE_LAYERS = ('earth', 'water', 'boundaries', 'roads', 'transit')`, with a comment that it mirrors `web/src/basemap.ts`. Copy kept layers' bytes verbatim, except `water`.
+  - **Water features:** in `water`, keep only polygon features. Decode their geometry (MoveTo, LineTo and ClosePath, zigzag deltas) into rings. A ring with positive surveyor area (tile coordinates, y down) starts a polygon; the negative rings after it are its holes.
+  - **Ring threshold:** drop every ring whose |area| < `MIN_RING_PX2 = 16` px² of a 256-px tile, i.e. `16·(extent/256)²` extent units. A dropped exterior takes its holes.
+  - **Re-encode:** write the surviving rings with fresh cursor deltas, and drop features with no rings left. Keep each feature's id, tags and type unchanged.
+  - **Ceiling:** add the comment `# ponytail: one area threshold at every zoom; z10 also feeds overzoom to z13, where a dropped pond is ~32 px wide; add a per-zoom threshold if missed`.
+- **Write** an mbtiles file:
+  - tables `metadata` and `tiles`, TMS y = 2^z − 1 − y, gzip bodies;
+  - metadata `name`, `format=pbf`, `minzoom`, `maxzoom`, `bounds`, `center`, `attribution`, and `json` holding the source's `vector_layers` filtered to `STYLE_LAYERS`;
+  - print JSON: tiles in and out, bytes per layer in and out, water rings and vertices in and out, runtime.
+- The monitor converts the file with the existing go-pmtiles binary (`pmtiles convert`), verifies it, keeps `india.pmtiles.orig` for rollback, and swaps it in.
+- **`docs/deploy.md`:** add the tile clean-up steps, keeping the file ≤ 60 lines.
+- [ ] Tests (synthetic, built inside the test):
+  - Hilbert tile id ↔ z/x/y for z0–z2 against the spec values, and a roundtrip on random z10 ids;
+  - a root → leaf directory with run length 2 and a 0 offset decodes to the right entries;
+  - bad magic, an out-of-range offset, a truncated varint and an over-cap gunzip each raise a clear error;
+  - water filter: given a big square, a tiny square and a big square with a tiny hole, the tiny square and the tiny hole go, and both big rings stay with identical coordinates;
+  - a water LineString is dropped; `earth` and `roads` bytes pass through verbatim; `landuse` and `places` are dropped;
+  - end to end: a tiny pmtiles written in the test becomes mbtiles rows with TMS y, gzip bodies and filtered `vector_layers`;
+  - `uv run pytest -q tests/static` passes.
+- [ ] Commit `task 67: clean basemap tiles`.
+- [ ] Monitor: run the tool on the VM, convert and swap. Record the archive size, the water rings left in 6/45/27, and the browser's renderer and GPU memory, and screenshot Jaipur–Jhansi at the zoom of image #14.
+
+### Task 68 (amendment 2026-10-12): glass dashboard (user request: "let's just always displlay the total train count, available, always ... Choose a glass morphism UI for all the elements that's supposed to be on screen other than the map, with better fonts, alignment and sizing... AND allowing the option to hide and unhide them")
+
+**Files:** modify `web/index.html`, `web/src/style.css`, `web/src/main.ts`, `web/src/main.test.ts`, `web/package.json` and `web/package-lock.json`; create `web/src/hud.ts` and `web/src/hud.test.ts`.
+
+- **Count:**
+  - `#train-count` always shows the total of drawn trains: `3,171 trains`, or `1 train`, grouped in `en-IN`.
+  - The live/timetable breakdown appears only in its `title`.
+  - Logic: `trainCount(displays) → { text, title }` in `hud.ts`.
+- **Hide and unhide:**
+  - **Always visible:** a compact top-left bar holding the LIVE dot, the total count and a glass toggle `#hud-toggle`. The toggle has an eye icon, `aria-pressed`, the fixed `aria-label="Hide overlays"` and a `title` that names the `H` shortcut.
+  - **Hidden mode** hides the clock, freshness, search, `#legend`, `#panel`, `#hover` and the zoom control.
+  - The selection and its map highlight stay. Unhiding shows the panel again if a train is selected.
+  - The compact attribution stays visible in both states (OSM ODbL and Protomaps credit).
+  - `H` toggles, except while focus is in an input or textarea or a modifier key is held.
+  - **State** lives in `document.body.dataset.hud` (`shown` or `hidden`), and CSS does the hiding. It persists in `localStorage['msynd.hud']` inside try/catch; if storage is blocked, the default is shown. `initHud(doc, storage)` in `hud.ts` owns all of this.
+- **Glass:** one set of tokens on `:root`, used by every overlay: `#live`, `#legend`, `#panel`, `#hover`, `#hud-toggle`, the MapLibre control group and the attribution.
+  - Background: a translucent gradient, alpha ~0.42–0.55.
+  - Blur: `backdrop-filter: blur(18px) saturate(160%)`.
+  - Edges: a 1 px rgba(255,255,255,~.1) border, an inset top highlight and a soft shadow.
+  - Radius tokens: 16, 10 and 8.
+  - Fallback: under `@supports not (backdrop-filter: blur(1px))`, alpha ~0.85.
+  - Keep the delay colours, the freshness colours and the reduced-motion rule.
+- **Type:**
+  - Self-host Inter Variable: `npm install --save-exact @fontsource-variable/inter` (OFL-1.1, no CDN). Vite bundles the woff2, and unicode-range limits downloads to the latin subset. This amendment admits that one web dependency.
+  - Stack: `'Inter Variable', 'Segoe UI Variable', system-ui, sans-serif`, with `tnum` and `cv11`.
+  - One type scale (11/12/13/15/22/28 px), weights 450/500/600, and tracking .08em on small uppercase labels.
+- **Alignment and sizing:**
+  - One spacing scale: 4/8/12/16/24.
+  - Every overlay uses the same outer gutter: 16 px, or 12 px under 640 px.
+  - `#live` and `#legend` share a width and form the left column.
+  - The panel is inset by the gutter at top, right and bottom.
+  - Zoom buttons are 36 px.
+  - The mobile layout keeps working.
+- [ ] Tests:
+  - `trainCount` for 0, 1 and 3,171 trains, plus the breakdown title;
+  - `initHud`: the initial state comes from storage; a click and `H` both toggle, persist the state and flip `aria-pressed`;
+  - `initHud`: `H` is ignored in the search input and with Ctrl, Meta or Alt held; storage that throws on read and on write still toggles;
+  - main: the count element shows the total;
+  - web test, build and `tsc` pass.
+- [ ] Commit `task 68: glass dashboard`.
+- [ ] Monitor: deploy the dist. Take screenshots in both states, at desktop width and at 390 px. Measure fps with the panel open against 65c's 107; if the blur costs more than 15 %, lower `#panel`'s blur.
+
 ---
 
 ## Spec coverage check
