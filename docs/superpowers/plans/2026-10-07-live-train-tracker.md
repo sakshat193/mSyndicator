@@ -1995,6 +1995,9 @@ No new dependency: `pmtiles` and `maplibre-gl` are already installed. The UI fon
 - [x] Monitor: deploy `web/dist`, screenshot.
 - **Monitor result (2026-10-12):** 5c8ca2c deployed (dist). Mutants caught: head lightening 0.25→0.6 and a flat core colour. `reports/t65b-colours*.png` show teal, amber and red trails and heads again.
 
+**Follow-up 65c (2026-10-12, user: "lines a bit too thick... aesthetically pleasing while maintaining the visibility"; "i lwk liked the aesthetics where the blobs' colours were merging"; "the memory usage is up again"):** thin additive glow instead of thick opaque strokes. `GlowTrips` appends a Gaussian cross-section (white core 0.15·e^(−14x²), alpha ·e^(−3.5x²)·(1−age), halo narrowing down the tail) to TripsLayer's own fade inject; `GlowDots` heads use a soft blob. Both are skipped while picking. Low zoom dims via k = clamp((zoom−4)/4): timetable width 6·(0.5+0.5k), opacity 0.35+0.65k, alpha 190; heads radius 4.5/5.5·(0.6+0.4k), opacity 0.45+0.55k, alpha 230; the three comet tiers become one `comets` layer (7 px, alpha 255). Memory: `schedule_only` displays return `trips: []`; trails keep only the vertices bracketing [base − 32400, base + 3600]. Commit `task 65: glow trails`.
+- **Monitor result (2026-10-12):** 50dc0de deployed (dist). 7/7 mutants caught after the monitor added one tight-bracket test. Same API, OSM network: JS heap after GC 207.5 → 146 MB, 80 → 107 fps, renderer 469 → 301 MB, GPU 434 → 373 MB (pre-OSM 148 / 285 / 352). `reports/t65c-final-{wide,mid}.png`.
+
 ### Task 37 (amendment 2026-10-12): OSM rail geometry (user requests: "why tf is the thing a straight line and not following the rails?? there's no straight rail"; "yes do task 65, then task 37")
 
 **Why (monitor, 2026-10-12):**
