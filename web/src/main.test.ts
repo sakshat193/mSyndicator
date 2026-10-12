@@ -95,9 +95,12 @@ it('decodes only on generations and reuses network and trips while animating hea
   const arrays = trails.map(layer => layer.props.data);
   const timestamps = trails.map(layer => layer.props.getTimestamps(layer.props.data[0]));
   const heads = () => rendered.layers.find(layer => layer.id === 'heads');
+  const head = () => heads().props.getPosition(heads().props.data[0]);
+  const headData = heads().props.data;
+  const positionTrigger = heads().props.updateTriggers.getPosition;
   const decodedReads = reads.mock.calls.length;
   expect(decodedReads).toBeGreaterThan(0);
-  expect(heads().props.data[0].head).toEqual([71, 21]);
+  expect(head()).toEqual([71, 21]);
   expect(rendered.options.pickingRadius).toBe(10);
   expect(statusWrites).toBe(1);
   expect(elements.get('#train-count').textContent).toBe('1 live');
@@ -108,8 +111,10 @@ it('decodes only on generations and reuses network and trips while animating hea
   expect(rendered.draws).toBe(2);
   expect(reads.mock.calls.length).toBe(decodedReads);
   expect(rendered.layers[0]).toBe(network);
-  expect(heads().props.data[0].head[0]).toBeCloseTo(71 + 0.5 * (1 - Math.exp(-100 / 250)));
-  expect(heads().props.data[0].head[1]).toBeCloseTo(21 + 0.5 * (1 - Math.exp(-100 / 250)));
+  expect(head()[0]).toBeCloseTo(71 + 0.5 * (1 - Math.exp(-100 / 250)));
+  expect(head()[1]).toBeCloseTo(21 + 0.5 * (1 - Math.exp(-100 / 250)));
+  expect(heads().props.data).toBe(headData);
+  expect(heads().props.updateTriggers.getPosition).not.toBe(positionTrigger);
   simTime = 3601;
   rendered.zoom = 5;
   draw!(212); // A visibly easing head redraws at frame rate.
@@ -121,28 +126,28 @@ it('decodes only on generations and reuses network and trips while animating hea
     expect(animated.props.currentTime).toBe(3601);
     expect(animated.props.updateTriggers.getTimestamps).toBe(layer.props.updateTriggers.getTimestamps);
   });
-  expect(rendered.layers.find(layer => layer.id === 'comet-1.5').props.trailLength).toBe(7200);
+  expect(rendered.layers.find(layer => layer.id === 'comet-2').props.trailLength).toBe(10800);
   expect(statusWrites).toBe(1);
   // An empty delta advances the generation while keeping the same RunFrame object.
   Socket.current.receive({ gen: 2, ts: 3601, is_full: false, versions: {}, base_ts: 1000,
     runs: {}, tombstones: [] });
   reads.mockClear(); // Exclude MessagePack's DataView reads when receiving the frame.
-  const previousHead = heads().props.data[0].head;
+  const previousHead = head();
   draw!(300);
   expect(reads.mock.calls.length).toBe(0);
   expect(rendered.layers[0]).toBe(network);
   trails.forEach((layer, i) => {
     expect(rendered.layers.find(current => current.id === layer.id).props.data).not.toBe(arrays[i]);
   });
-  expect(heads().props.data[0].head[0]).toBeGreaterThan(previousHead[0]);
-  expect(heads().props.data[0].head[0]).toBeLessThan(72);
+  expect(head()[0]).toBeGreaterThan(previousHead[0]);
+  expect(head()[0]).toBeLessThan(72);
   // Replacing this run must decode it, retaining the eased head by run_id.
   Socket.current.receive({ gen: 3, ts: 3601, is_full: false, versions: {}, base_ts: null,
     runs: { 9: run }, tombstones: [] });
   reads.mockClear();
   draw!(400);
   expect(reads.mock.calls.length).toBe(decodedReads);
-  expect(heads().props.data[0].head[0]).toBeLessThan(72);
+  expect(head()[0]).toBeLessThan(72);
   heads().props.onClick({ object: heads().props.data[0] });
   expect(panel.hidden).toBe(false);
   expect(fetch).toHaveBeenCalledWith('/api/run/9', expect.any(Object));
@@ -160,7 +165,7 @@ it('decodes only on generations and reuses network and trips while animating hea
     runs: { 9: run }, tombstones: [] });
   simTime = 1600;
   draw!(1166);
-  expect(heads().props.data[0].head).toEqual([71, 21]);
+  expect(head()).toEqual([71, 21]);
   const draws = rendered.draws;
   draw!(1180);
   expect(rendered.draws).toBe(draws);
@@ -223,4 +228,29 @@ it('decodes only on generations and reuses network and trips while animating hea
     runs: { 9: { ...run, state: 'schedule_only' }, 42: pending }, tombstones: [] });
   draw!(3150);
   expect(elements.get('#train-count').textContent).toBe('0 live · 1 by timetable');
+  Socket.current.receive({ gen: 10, ts: 3601, is_full: true, versions: {}, base_ts: 1000,
+    runs: { 9: { ...run, state: 'observed' }, 10: { ...run, run_id: 10, state: 'schedule_only' } }, tombstones: [] });
+  draw!(3250);
+  const timetable = rendered.layers.find(l => l.id === 'timetable');
+  expect(timetable.props.data).toHaveLength(1);
+  const timetableHead = heads().props.data.find((d: any) => d.run.run_id === 10);
+  const liveTrails = rendered.layers.filter(l => l.id.startsWith('comet-') || l.id === 'streaks');
+  Socket.current.receive({ gen: 11, ts: 3601, is_full: false, versions: {}, base_ts: 1000,
+    runs: { 9: { ...run, state: 'stale' } }, tombstones: [] });
+  draw!(3350);
+  const nextTimetable = rendered.layers.find(l => l.id === 'timetable');
+  expect(nextTimetable.props.data[0]).toBe(timetable.props.data[0]);
+  expect(nextTimetable.props.dataComparator(nextTimetable.props.data, timetable.props.data)).toBe(true);
+  expect(heads().props.data.find((d: any) => d.run.run_id === 10)).toBe(timetableHead);
+  for (const layer of liveTrails) {
+    const changed = rendered.layers.find(l => l.id === layer.id);
+    expect(changed.props.dataComparator(changed.props.data, layer.props.data)).toBe(false);
+  }
+  const sameHeads = heads().props.data;
+  const sameHeadColors = heads().props.updateTriggers.getFillColor;
+  const beforeRedraw = heads().props.updateTriggers.getPosition;
+  draw!(3450);
+  expect(heads().props.data).toBe(sameHeads);
+  expect(heads().props.updateTriggers.getFillColor).toBe(sameHeadColors);
+  expect(heads().props.updateTriggers.getPosition).not.toBe(beforeRedraw);
 });

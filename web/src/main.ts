@@ -48,7 +48,7 @@ let hovered: { id: number; x: number; y: number } | undefined;
 let displays: NonNullable<ReturnType<typeof displayRun>>[] = [];
 const decoded = new WeakMap<RunFrame, ReturnType<typeof displayRun>>();
 const drawnHeads = new Map<number, ReturnType<typeof headAt>>();
-let trails: ReturnType<typeof trailData> = { base: 0, comets: [], streaks: [] };
+let trails: ReturnType<typeof trailData> = { base: 0, comets: [], streaks: [], timetable: [] };
 let generation = -1;
 let lastDraw = -Infinity;
 let settling = false;
@@ -162,15 +162,15 @@ function draw(tick: number) {
       }
       const eps = 0.05 * 360 / (512 * 2 ** zoom); // 0.05 px in degrees
       settling = false;
-      const heads = displays.map(d => {
+      for (const d of displays) {
         const target = headAt(d, simTime);
         const head = easeHead(drawnHeads.get(d.run.run_id), target, dt, eps);
         if (head !== target) settling = true;
         drawnHeads.set(d.run.run_id, head);
-        return { ...d, head };
-      });
+      }
       overlay.setProps({ layers: [background, ...(highlight ? [highlight] : []),
-        ...trainLayers(heads, trails, simTime, zoom, selectRun, selected, hoverRun), ...(labels ? [labels] : [])] });
+        ...trainLayers(displays, trails, simTime, zoom, selectRun, selected, hoverRun, drawnHeads, tick),
+        ...(labels ? [labels] : [])] });
     }
   }
   if (tick - lastStatus >= 1000) {

@@ -15,8 +15,8 @@ export interface Network {
 type Trip = { path: Point[]; timestamps: number[] };
 type Gap = { path: Point[]; lengths: number[] };
 type NeonColor = [number, number, number];
-type Trail = Trip & { runId: number; state: unknown; color: NeonColor };
-type Trails = { base: number; comets: Trail[]; streaks: Trail[] };
+type Trail = Trip & { runId: number; color: NeonColor };
+type Trails = { base: number; comets: Trail[]; streaks: Trail[]; timetable: Trail[] };
 type Display = { run: RunFrame; head: Point; trips: Trip[];
   stops: Stop[]; points: Point[]; times: number[]; eventTimes: number[]; gaps: Gap[];
   delay: number; color: NeonColor };
@@ -35,6 +35,8 @@ const ADDITIVE = { blend: true, blendColorOperation: 'add', blendColorSrcFactor:
   blendColorDstFactor: 'one', blendAlphaOperation: 'add', blendAlphaSrcFactor: 'one',
   blendAlphaDstFactor: 'one', depthWriteEnabled: false } as const;
 const networkLayers = new WeakMap<Network, PathLayer<Point[]>>();
+const TIMETABLE: NeonColor = [200, 214, 235];
+const trailCache = new WeakMap<Display, { base: number; core: Trail; streaks: Trail[] }>();
 
 export function indexNetwork(network: Network): NetworkIndex {
   const existing = indices.get(network);
@@ -169,7 +171,7 @@ export function delayColor(delay: number): NeonColor {
 }
 
 export function trailLength(zoom: number): number {
-  return Math.max(900, Math.min(32400, 21600 * 2 ** (4 - zoom)));
+  return Math.max(2700, Math.min(32400, 32400 * 2 ** (4 - zoom)));
 }
 
 /** Returns `target` itself once within `eps` degrees, so callers can tell when a head has settled. */
@@ -183,20 +185,33 @@ export function easeHead(head: Point | undefined, target: Point, dt: number, eps
 export function trailData(displays: Display[], simTime: number): Trails {
   // Rebase only on generations to retain float32 precision without rebuilding animation attributes.
   const base = Math.floor(simTime / 3600) * 3600;
-  const comets = displays.map(d => {
-    let latest = -Infinity;
-    return { path: d.points, runId: d.run.run_id, state: d.run.state, color: d.color,
-      timestamps: d.times.map(ts => { latest = Math.max(latest, ts); return latest - base; }) };
-  });
-  // ponytail: all K = 32 streaks cost about 4× in attribute rebuilds; raise the subset when rebuilds become incremental.
-  const streaks = displays.flatMap(d => {
-    const count = Math.min(8, d.trips.length);
-    return Array.from({ length: count }, (_, j) => {
-      const trip = d.trips[Math.floor(j * d.trips.length / count)];
-      return { path: trip.path, runId: d.run.run_id, state: d.run.state, color: d.color, timestamps: trip.timestamps.map(ts => ts - base) };
-    });
-  });
-  return { base, comets, streaks };
+  const comets: Trail[] = [], streaks: Trail[] = [], timetable: Trail[] = [];
+  // ponytail: no viewport culling or LOD; add culling above ~1 M timetable vertices.
+  for (const d of displays) {
+    const scheduled = d.run.state === 'schedule_only';
+    let cached = trailCache.get(d);
+    if (!cached || cached.base !== base) {
+      let latest = -Infinity;
+      const core = { path: d.points, runId: d.run.run_id, color: scheduled ? TIMETABLE : d.color,
+        timestamps: d.times.map(ts => { latest = Math.max(latest, ts); return latest - base; }) };
+      // ponytail: draw eight of K streaks; raise the subset when rebuilds become incremental.
+      const count = scheduled ? 0 : Math.min(8, d.trips.length);
+      cached = { base, core, streaks: Array.from({ length: count }, (_, j) => {
+        const trip = d.trips[Math.floor(j * d.trips.length / count)];
+        return { path: trip.path, runId: d.run.run_id, color: d.color,
+          timestamps: trip.timestamps.map(ts => ts - base) };
+      }) };
+      trailCache.set(d, cached);
+    }
+    (scheduled ? timetable : comets).push(cached.core);
+    streaks.push(...cached.streaks);
+  }
+  return { base, comets, streaks, timetable };
+}
+
+export function dataComparator(newData: unknown, oldData?: unknown): boolean {
+  return Array.isArray(newData) && Array.isArray(oldData)
+    && newData.length === oldData.length && newData.every((item, i) => item === oldData[i]);
 }
 
 export function headAt({ stops, points, eventTimes: times, gaps }: Pick<Display, 'stops' | 'points' | 'eventTimes' | 'gaps'>,
@@ -298,8 +313,8 @@ export function stationLabelLayer(stations: Network['stations'], zoom: number) {
     getTextAnchor: 'middle', getAlignmentBaseline: 'top', pickable: false });
 }
 
-export function trainAlpha(runId: number, selected: number | null, state: unknown): number {
-  return selected === runId ? 1 : (selected === null ? 1 : 0.3) * (state === 'schedule_only' ? 0.45 : 1);
+export function trainAlpha(runId: number, selected: number | null): number {
+  return selected === null || selected === runId ? 1 : 0.3;
 }
 
 export function selectionLayer(display: Display) {
@@ -309,23 +324,31 @@ export function selectionLayer(display: Display) {
 
 export function trainLayers(displays: Display[], trails: Trails, simTime: number,
                             zoom: number, select: (run: RunFrame) => void, selected: number | null = null,
-                            hover?: (run: RunFrame | null, x: number, y: number) => void) {
+                            hover?: (run: RunFrame | null, x: number, y: number) => void,
+                            heads?: ReadonlyMap<number, Point>, redraw?: number) {
   const length = trailLength(zoom);
-  return [...[6, 3, 1.5].map((width, i) => new TripsLayer<Trail>({ id: `comet-${width}`,
-    data: trails.comets, getPath: t => t.path, getTimestamps: t => t.timestamps,
-    currentTime: simTime - trails.base, trailLength: length / width, fadeTrail: true,
-    getWidth: width, widthUnits: 'pixels', getColor: t => [...t.color, [48, 112, 224][i] * trainAlpha(t.runId, selected, t.state)],
+  return [...[8, 4, 2].map((width, i) => new TripsLayer<Trail>({ id: `comet-${width}`,
+    data: trails.comets, dataComparator, getPath: t => t.path, getTimestamps: t => t.timestamps,
+    currentTime: simTime - trails.base, trailLength: length / [6, 3, 1.5][i], fadeTrail: true,
+    getWidth: width, widthUnits: 'pixels', getColor: t => [...t.color, [64, 150, 255][i] * trainAlpha(t.runId, selected)],
     updateTriggers: { getColor: selected },
     parameters: ADDITIVE })),
-  new TripsLayer<Trail>({ id: 'streaks', data: trails.streaks,
+  new TripsLayer<Trail>({ id: 'streaks', data: trails.streaks, dataComparator,
     getPath: t => t.path, getTimestamps: t => t.timestamps,
     currentTime: simTime - trails.base, trailLength: length, fadeTrail: true,
-    getWidth: 1.5, widthUnits: 'pixels', getColor: t => [...t.color, 16 * trainAlpha(t.runId, selected, t.state)],
+    getWidth: 1.5, widthUnits: 'pixels', getColor: t => [...t.color, 24 * trainAlpha(t.runId, selected)],
     updateTriggers: { getColor: selected }, parameters: ADDITIVE }),
-  new ScatterplotLayer<Display>({ id: 'heads', data: displays, getPosition: d => d.head,
-    getRadius: 2, radiusUnits: 'pixels',
-    getFillColor: d => [...d.color.map(c => c + (255 - c) * 0.6), 255 * trainAlpha(d.run.run_id, selected, d.run.state)] as [number, number, number, number],
-    updateTriggers: { getFillColor: selected },
+  new TripsLayer<Trail>({ id: 'timetable', data: trails.timetable, dataComparator,
+    getPath: t => t.path, getTimestamps: t => t.timestamps,
+    currentTime: simTime - trails.base, trailLength: length / 1.5, fadeTrail: true,
+    getWidth: 2, widthUnits: 'pixels', getColor: t => [...t.color, 230 * trainAlpha(t.runId, selected)],
+    updateTriggers: { getColor: selected }, parameters: ADDITIVE }),
+  new ScatterplotLayer<Display>({ id: 'heads', data: displays, dataComparator,
+    getPosition: d => heads?.get(d.run.run_id) ?? d.head,
+    getRadius: d => d.run.state === 'schedule_only' ? 2.5 : 3, radiusUnits: 'pixels',
+    getFillColor: d => [...(d.run.state === 'schedule_only' ? TIMETABLE : d.color).map(c => c + (255 - c) * 0.6),
+      255 * trainAlpha(d.run.run_id, selected)] as [number, number, number, number],
+    updateTriggers: { getPosition: redraw, getFillColor: selected },
     pickable: true, onClick: info => { if (info.object) select(info.object.run); },
     onHover: info => hover?.(info.object?.run ?? null, info.x, info.y) })];
 }

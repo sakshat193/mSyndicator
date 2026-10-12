@@ -52,6 +52,13 @@ class Frames:
             frame = unpack(payload)
             if frame['gen'] <= self.gen:
                 continue
+            outgoing = bytes(payload)
+            if self.clients and frame['is_full'] and frame['gen'] == self.gen + 1:
+                outgoing = msgpack.packb(frame | {'is_full': False,
+                    'runs': {key: value for key, value in frame['runs'].items()
+                             if self.runs.get(key) != value},
+                    'tombstones': sorted((self.runs.keys() - frame['runs'].keys())
+                                         | set(frame['tombstones']))}, use_bin_type=True)
             if frame['is_full']:
                 self.history.clear()
                 self.runs.clear()
@@ -61,7 +68,7 @@ class Frames:
                 self.runs.pop(key, None)
             self.gen = frame['gen']  # A10 endpoint: read/decoded before any send.
             for queue in self.clients:
-                self.enqueue(queue, bytes(payload))
+                self.enqueue(queue, outgoing)
 
     async def subscribe(self, gen):
         queue = asyncio.Queue(maxsize=2)

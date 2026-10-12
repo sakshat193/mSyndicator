@@ -119,6 +119,65 @@ def test_tombstone_forwarded(api):
         assert result['gen'] == delta and result['tombstones'] == [run]
 
 
+def test_contiguous_full_is_delta_for_connected_client_and_full_for_resync(api):
+    conn, client, app, run, other, *_ = api
+    unchanged = {'state': 'schedule_only', 'base_ts': 1000,
+                 'paths': b'\x00\x00\x00\x00', 'path_shape': [1, 1, 2],
+                 'versions': {'route': 7}, 'halt_q': [[[None, 1.5]]],
+                 'headline': {'last_received': None}}
+    full = frame(conn, True, {run: unchanged, other: unchanged | {'state': 'observed'},
+                             999: {'state': 'expired'}})
+    wait_read(app, full)
+    queue = client.portal.call(app.state.frames.subscribe, full)
+    try:
+        # Reordering a decoded dictionary is not a payload change.
+        same = dict(reversed(list(unchanged.items())))
+        changed = unchanged | {'state': 'observed', 'paths': b'\x00\x00\x01\x00'}
+        updated = {run: same, other: changed, 1000: {'state': 'observed'}}
+        last = write_frame(conn, True, {'static': 'network-v2', 'model': 5}, updated, ())
+        conn.execute('NOTIFY sim_frame')
+        conn.commit()
+        wait_read(app, last)
+        result = msgpack.unpackb(client.portal.call(queue.get), raw=False, strict_map_key=False)
+        baseline = app.state.frames.history[-1]
+        assert result == baseline | {'is_full': False,
+                                     'runs': {other: changed, 1000: {'state': 'observed'}},
+                                     'tombstones': [999]}
+        assert baseline['is_full'] and baseline['runs'] == updated
+        assert app.state.frames.runs == updated
+        with client.websocket_connect('/api/live') as ws:
+            ws.send_json({'gen': 0})
+            assert receive(ws) == baseline
+        with client.websocket_connect('/api/live') as ws:
+            ws.send_json({'gen': last + 100})
+            assert receive(ws) == baseline
+        # A full frame with no changed runs must still advance connected clients.
+        last = frame(conn, True, updated)
+        wait_read(app, last)
+        empty = msgpack.unpackb(client.portal.call(queue.get), raw=False, strict_map_key=False)
+        assert empty['gen'] == last and not empty['is_full']
+        assert empty['runs'] == {} and empty['tombstones'] == []
+    finally:
+        client.portal.call(app.state.frames.unsubscribe, queue)
+
+
+def test_noncontiguous_full_stays_full_for_connected_client(api):
+    conn, client, app, run, *_ = api
+    full = frame(conn, True, {run: {'state': 'observed'}})
+    wait_read(app, full)
+    queue = client.portal.call(app.state.frames.subscribe, full)
+    try:
+        conn.execute("SELECT nextval(pg_get_serial_sequence('sim.frame','gen'))")
+        conn.rollback()
+        last = frame(conn, True, {run: {'state': 'stale'}})
+        wait_read(app, last)
+        result = msgpack.unpackb(client.portal.call(queue.get), raw=False, strict_map_key=False)
+        assert result['is_full'] and result['gen'] == last
+        assert result['runs'] == {run: {'state': 'stale'}}
+    finally:
+        client.portal.call(app.state.frames.unsubscribe, queue)
+
+
 def test_train_number_ambiguous_lists_runs(api):
     _, client, _, run, other, train, _ = api
     assert [r['id'] for r in client.get(f'/api/train/{train}').json()['runs']] == [run, other]
