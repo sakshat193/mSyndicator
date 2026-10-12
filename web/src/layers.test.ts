@@ -3,7 +3,7 @@ import { TripsLayer } from '@deck.gl/geo-layers';
 import { ScatterplotLayer, TextLayer } from '@deck.gl/layers';
 import { indexNetwork, networkLayer, displayRun, trailData, trainLayers,
   delayColor, trailLength, easeHead, headAt, labelBucket, labelStations, stationLabelLayer, selectionLayer,
-  trainAlpha, dataComparator, type Network } from './layers';
+  trainAlpha, dataComparator, glyphShift, glyphMetrics, padGlyphAlpha, type Network } from './layers';
 
 function packQuantiles(quantiles: (number | null)[][][]): Uint8Array {
   const values = quantiles.flat(2), packed = new Uint8Array(values.length * 4);
@@ -452,6 +452,43 @@ it.each([[0.25, ['A']], [0.27, ['A', 'B']]])(
       { code: 'A', name: 'ALPHA CENTRAL', lon: 78.5, lat: 17.5 },
     ] };
     expect(labelStations(nearby, 7.5).map(s => s.code)).toEqual(codes);
+  });
+
+it.each([[-6, 4, 24, 44], [0, 10, 30, 50], [3, 13, 33, 53], [-12, 0, 20, 40]])(
+  'fits the padded glyph image into its atlas cell with left bearing %s', (glyphLeft, shift, width, imageWidth) => {
+    const glyph = { data: new Uint8ClampedArray(40 * 50), width: 40, height: 50,
+      glyphLeft, glyphWidth: 20, glyphHeight: 30, glyphTop: 22, glyphAdvance: 18.25 };
+    expect(glyphShift(glyphLeft, 10)).toBe(shift);
+    const metrics = glyphMetrics(glyph, 10);
+    expect(metrics).toEqual({ advance: 18.25, width, ascent: 22, descent: 8 });
+    expect(metrics.width + 2 * 10).toBe(imageWidth);
+    expect(padGlyphAlpha(glyph.data, glyph.width, glyph.height, shift)).toHaveLength(imageWidth * 50 * 4);
+  });
+
+it.each([0, 2])('pads each glyph row by %s columns with alpha only', shift => {
+  const alpha = new Uint8ClampedArray([17, 64, 128, 255]);
+  const empty = [0, 0, 0, 0, 0, 0, 0, 0];
+  const expected = shift === 0 ? [0, 0, 0, 17, 0, 0, 0, 64, 0, 0, 0, 128, 0, 0, 0, 255]
+    : [...empty, 0, 0, 0, 17, 0, 0, 0, 64, ...empty, 0, 0, 0, 128, 0, 0, 0, 255];
+  expect(padGlyphAlpha(alpha, 2, 2, shift)).toEqual(new Uint8ClampedArray(expected));
+});
+
+it.each([-10, -6, 0, 3])('keeps ink at the same compensated pen position for left bearing %s', glyphLeft => {
+  expect(glyphShift(glyphLeft, 10) + 10).toBe(2 * 10 + glyphLeft);
+});
+
+it('reuses the station font renderer across label layers', () => {
+  const first = stationLabelLayer([], 4), second = stationLabelLayer([], 7);
+  expect(first.props._getFontRenderer).toBeTypeOf('function');
+  expect(second.props._getFontRenderer).toBe(first.props._getFontRenderer);
+});
+
+it.each([[4, 12], [6.99, 12], [7, 13], [8, 13]])(
+  'compensates the station glyph padding in screen pixels at zoom %s', (zoom, size) => {
+    const layer = stationLabelLayer([], zoom);
+    expect(layer.props.getPixelOffset).toEqual([-2 * layer.props.fontSettings.buffer! * size / 64, 10]);
+    expect(layer.props.getTextAnchor).toBe('middle');
+    expect(layer.props.getAlignmentBaseline).toBe('top');
   });
 
 it.each([[4, 12], [6.99, 12], [7, 13], [8, 13]])(

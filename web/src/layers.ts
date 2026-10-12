@@ -1,5 +1,7 @@
 import { PathLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers';
+import type { TextLayerProps } from '@deck.gl/layers';
 import { TripsLayer } from '@deck.gl/geo-layers';
+import TinySDF from '@mapbox/tiny-sdf';
 import type { RunFrame } from './frames';
 import { pos } from './position';
 
@@ -343,15 +345,65 @@ export function stationName(network: Network, code: string): string {
   return indexNetwork(network).names.get(code) ?? code;
 }
 
+type Glyph = ReturnType<TinySDF['draw']>;
+
+export function glyphShift(glyphLeft: number, buffer: number): number {
+  return Math.max(0, buffer + glyphLeft);
+}
+
+export function glyphMetrics(t: Glyph, buffer: number) {
+  return { advance: t.glyphAdvance, width: t.glyphWidth + glyphShift(t.glyphLeft, buffer),
+    ascent: t.glyphTop, descent: t.glyphHeight - t.glyphTop };
+}
+
+export function padGlyphAlpha(alpha: Uint8ClampedArray, width: number, height: number, shift: number) {
+  const paddedWidth = width + shift, rgba = new Uint8ClampedArray(paddedWidth * height * 4);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++)
+    rgba[(y * paddedWidth + x + shift) * 4 + 3] = alpha[y * width + x];
+  return rgba;
+}
+
+// ponytail: deck shares this atlas with identical font settings, ignoring the renderer;
+// drop this renderer when deck measures ink width and honours glyphLeft.
+function stationFontRenderer(settings: Parameters<NonNullable<TextLayerProps['_getFontRenderer']>>[0]) {
+  const { fontSize, buffer, radius, cutoff, fontFamily, fontWeight } = settings;
+  const sdf = new TinySDF({ fontSize, buffer, radius, cutoff, fontFamily, fontWeight: String(fontWeight) });
+  // TinySDF exposes ctx at runtime but omits it from its types.
+  const ctx = (sdf as TinySDF & { ctx: CanvasRenderingContext2D }).ctx;
+  const glyphs = new Map<string, Glyph>();
+  function glyph(ch: string): Glyph {
+    let t = glyphs.get(ch);
+    if (!t) {
+      t = sdf.draw(ch);
+      glyphs.set(ch, t);
+    }
+    return t;
+  }
+  return {
+    measure(ch?: string) {
+      if (ch !== undefined) return glyphMetrics(glyph(ch), buffer);
+      const metrics = ctx.measureText('A');
+      return { advance: 0, width: 0, ascent: Math.ceil(metrics.fontBoundingBoxAscent),
+        descent: Math.ceil(metrics.fontBoundingBoxDescent) };
+    },
+    draw(ch: string) {
+      const t = glyph(ch), shift = glyphShift(t.glyphLeft, buffer);
+      const data = new ImageData(padGlyphAlpha(t.data, t.width, t.height, shift), t.width + shift, t.height);
+      return { data, left: buffer, top: buffer };
+    }
+  };
+}
+
 export function stationLabelLayer(stations: Network['stations'], zoom: number) {
+  const size = zoom < 7 ? 12 : 13, buffer = 10;
   return new TextLayer<Network['stations'][number]>({ id: 'station-labels', data: stations,
     getPosition: s => [s.lon!, s.lat!], getText: s => titleCase(s.name || s.code),
-    getSize: zoom < 7 ? 12 : 13, sizeUnits: 'pixels', getColor: [214, 224, 238, 255], characterSet: 'auto',
-    // SDF preserves glyph bearings so letters such as j are not clipped by the atlas.
+    getSize: size, sizeUnits: 'pixels', getColor: [214, 224, 238, 255], characterSet: 'auto',
+    _getFontRenderer: stationFontRenderer,
     // Halo is 0.75 * outlineWidth atlas px; it must be <= buffer and < radius.
-    fontSettings: { sdf: true, buffer: 10, radius: 16 }, outlineWidth: 12, outlineColor: [5, 7, 13, 255],
+    fontSettings: { sdf: true, buffer, radius: 16 }, outlineWidth: 12, outlineColor: [5, 7, 13, 255],
     fontWeight: 600,
-    fontFamily: "Inter, 'Segoe UI Variable', system-ui, sans-serif", getPixelOffset: [0, 10],
+    fontFamily: "Inter, 'Segoe UI Variable', system-ui, sans-serif", getPixelOffset: [-2 * buffer * size / 64, 10],
     getTextAnchor: 'middle', getAlignmentBaseline: 'top', pickable: false });
 }
 
