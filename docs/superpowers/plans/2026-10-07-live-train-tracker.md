@@ -1989,6 +1989,10 @@ No new dependency: `pmtiles` and `maplibre-gl` are already installed. The UI fon
 
 ---
 
+**Follow-up 65b (2026-10-12, user: "the colours disappeared"):** timetable trails and heads keep the run's delay colour (`d.color`) instead of the flat `TIMETABLE` grey-blue; delete `TIMETABLE`. Heads lighten 25 % toward white (not 60 %). Keep the timetable layer's width 2, alpha 230, no comets or streaks. Commit `task 65: restore delay colours`.
+- [ ] Tests updated (timetable trail colour == `delayColor(delay)`; head fill is the 25 % lightened delay colour).
+- [ ] Monitor: deploy `web/dist`, screenshot.
+
 ### Task 37 (amendment 2026-10-12): OSM rail geometry (user requests: "why tf is the thing a straight line and not following the rails?? there's no straight rail"; "yes do task 65, then task 37")
 
 **Why (monitor, 2026-10-12):**
