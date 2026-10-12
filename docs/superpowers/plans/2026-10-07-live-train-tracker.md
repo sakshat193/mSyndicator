@@ -2008,7 +2008,7 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   - `build_segments` does its reset, then copies `ref.segment_osm` onto the matching `ref.segment` rows, then applies the overrides CSV as today. Overrides always win. Removing an override row brings back the OSM geometry.
   - OSM rows with no matching segment are ignored, because the network can change.
 - **Input:** `python -m msynd.static.osm --opl PATH`.
-  - `PATH` is the output of `osmium cat -f opl,add_metadata=false` on a file filtered with `osmium tags-filter … nw/railway=rail,narrow_gauge n/railway=station,halt` and then `osmium add-locations-to-ways`. Way lines therefore carry `n<id>x<lon>y<lat>` node refs.
+  - `PATH` is the output of `osmium cat -f opl,add_metadata=false,locations_on_ways=true` on a file filtered with `osmium tags-filter … nw/railway=rail,narrow_gauge n/railway=station,halt` and then `osmium add-locations-to-ways`. Way lines therefore carry `n<id>x<lon>y<lat>` node refs.
   - The OPL is untrusted:
     - parse it with the stdlib only and decode `%xxxx%` escapes;
     - skip and count malformed lines, non-finite coordinates and points outside lon 68–98 / lat 6–37;
