@@ -1974,7 +1974,7 @@ No new dependency: `pmtiles` and `maplibre-gl` are already installed. The UI fon
   - The heads layer keeps `data` = the displays array (replaced only per generation) and reads positions from the eased-head map, with `updateTriggers.getPosition` bumped per redraw. A redraw recomputes only positions and allocates no per-display objects.
   - `# ponytail:` there is no viewport culling or LOD; add culling if the timetable layer's vertex count passes ~1 M.
 - **API:** when `Frames.ingest` receives an engine full frame whose gen is `self.gen + 1`, each connected client instead gets a delta with the same gen, ts and versions. It holds only the runs whose decoded payload differs from `self.runs`, plus tombstones for runs that are gone. History still keeps the full frame as the resync baseline, so new or gapped clients get full state exactly as today.
-- [ ] Tests:
+- [x] Tests:
   - a `schedule_only` display yields no glow or streak data and one timetable core with the neutral colour; an observed display keeps 3 comet layers and 8 streaks;
   - `trailLength` at zooms 4, 6, 7 and 10 → 32400, 8100, 4050 and 2700;
   - the comet, core and head widths, alphas and radii above;
@@ -1984,8 +1984,9 @@ No new dependency: `pmtiles` and `maplibre-gl` are already installed. The UI fon
   - main: a delta that changes only the observed run leaves the timetable layer's `data` elements identical; a redraw without a new generation does not change the heads layer's `data` reference;
   - API: a client in sync receives an engine full frame as a delta with only the changed run and a tombstone for a removed run, while a fresh subscriber at gen 0 receives the full frame;
   - `npm --prefix web test`, `npm --prefix web run build` and `uv run pytest -q tests/api` pass.
-- [ ] Commit `task 65: lean, brighter train rendering`.
-- [ ] Monitor: deploy the image (api) and `web/dist`. Remeasure the renderer and GPU memory, the JS heap, rAF and long tasks against the numbers above, and take a Playwright screenshot zoomed into Bilaspur.
+- [x] Commit `task 65: lean, brighter train rendering`.
+- [x] Monitor: deploy the image (api) and `web/dist`. Remeasure the renderer and GPU memory, the JS heap, rAF and long tasks against the numbers above, and take a Playwright screenshot zoomed into Bilaspur.
+- **Monitor result (2026-10-12 09:40 IST):** 3e6b66c deployed (api + dist). 10 of 11 mutants caught; the survivor (tombstone union in the full→delta pack) is equivalent because a client at gen-1 holds exactly `self.runs`. Playwright Chrome, 3,195 displays (3,194 `schedule_only`): renderer 761 → 456 MB, GPU process 593 → 366 MB, rAF 19 → 112 fps, long tasks 302/277 ms → max 122 ms. JS heap after GC 184 → 267 MB; the sampled live heap is ~132 MB, of which ~59 MB is `displayRun` expanded arrays (8 unused expanded trips per timetable run ≈ 30 MB), ~24 MB decoded frames, ~21 MB network index. Open: the user reported "the colours disappeared" (flat TIMETABLE colour) → follow-up 65b.
 
 ---
 
