@@ -1962,7 +1962,7 @@ No new dependency: `pmtiles` and `maplibre-gl` are already installed. The UI fon
   - The hover and panel delay text stays as is.
 - **Brightness and length:**
   - `trailLength(zoom) = max(2700, min(32400, 32400·2^(4−zoom)))`.
-  - Live comets: widths [8, 4, 2] with alphas [64, 150, 255]; each layer's trail length is the length divided by its width ÷ 1.5 (core = length/1.5). Live streaks: width 1.5, alpha 24.
+  - Live comets: widths [8, 4, 2] with alphas [64, 150, 255]; trail lengths keep today's divisors: length/6, length/3 and length/1.5. Live streaks: width 1.5, alpha 24.
   - Timetable core: width 2, alpha 230, trail length/1.5.
   - Heads: radius 3 for live runs and 2.5 for timetable runs; fill = the trail colour lightened 60 % toward white.
 - **Render budget:**
