@@ -2245,14 +2245,45 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   - `getSize`: 12 below zoom 7, otherwise 13.
 - Add a comment stating the halo relation (`0.75 × outlineWidth` atlas px, which must be ≤ `buffer` and < `radius`).
 - In `labelStations`, the collision box estimate scales with the new size: use 7 px per character instead of 6.5 and keep the `ponytail:` comment. Nothing else changes.
-- [ ] Tests (replace the label-style assertions in `layers.test.ts`):
+- [x] Tests (replace the label-style assertions in `layers.test.ts`):
   - halo in screen px, `0.75 × outlineWidth × size / 64`, is ≥ 1.5 at both sizes;
   - `0.75 × outlineWidth ≤ fontSettings.buffer` and `outlineWidth < fontSettings.radius`;
   - outline alpha is 255; `fontWeight` is 600; sizes are 12 below zoom 7 and 13 at zoom 7 and above;
   - the existing collision tests still pass after the width change (update their expectations only if the 7 px estimate changes which labels are kept, and say so).
   - Web test, build and `tsc` pass.
-- [ ] Commit `task 70: legible station labels`.
-- [ ] Monitor: deploy the dist; crop the label region at 1440 × 900 (India zoom and the Bihar zoom used for `t69-label-crop.png`); check that labels are readable over trunk trails and that fps with the panel closed is ≥ 60.
+- [x] Commit `task 70: legible station labels`. (8fbb491; 163 web tests, `tsc` and build pass; `main.test.ts` size expectation 12 → 13 at zoom ≥ 7.)
+- [x] Monitor: deploy the dist; crop the label region at 1440 × 900 (India zoom and the Bihar zoom used for `t69-label-crop.png`); check that labels are readable over trunk trails and that fps with the panel closed is ≥ 60. Done 2026-10-12: VM at 8fbb491 (web only); `reports/t70-india{,-crop}.png` and `t70-label-crop.png` show crisp labels with a dark halo; fps 114.6 with 2,807 trains. Found a pre-existing defect: lowercase `j` is misplaced ("Prayagra; Jn", "Vi ayawada Jn" in `reports/t70-j-{prayag,vijay}.png`), fixed by Task 71.
+
+### Task 71 (amendment 2026-10-12): correct glyph placement in station labels (user request: "/loop until the UI looks production grade")
+
+**Why (monitor, 2026-10-12; debug-page comparisons in `reports/t70-jfix-{13,26}-cmp.png`):** deck.gl 9.4's SDF atlas misplaces glyphs that have a negative left bearing. In `font-atlas-manager.js`:
+- `measureText` sets the cell width to `actualBoundingBoxRight − actualBoundingBoxLeft`, but the ink width is right + left. For Inter 600 at 64 px, `j` has left 6 and right 14, so the cell is 8 + 2b wide while TinySDF's image is 20 + 2b. The next glyph's image (often the space) then overwrites j's right columns.
+- The SDF draw ignores TinySDF's `glyphLeft`, and layout puts the image's left edge on the pen position, so the ink always starts at pen + buffer. A glyph with a negative bearing (`j`: −6) shifts right into the previous letter. `y` (left 1) also overlaps by 2 px.
+
+**Plan change (dependencies):** `@mapbox/tiny-sdf` becomes a direct dependency of `web/` (`^2.2.0`). It is the library deck.gl already uses for this atlas (`@deck.gl/layers` requires `^2.0.5`; 2.2.0 is installed and already bundled), so no new code ships.
+
+**Files:** `web/src/layers.ts`, `web/src/layers.test.ts`, `web/package.json`, `web/package-lock.json`.
+
+- In `layers.ts`, a module-level `stationFontRenderer(settings)` passed as the TextLayer prop `_getFontRenderer`:
+  - It must be a single module-level function: TextLayer compares the prop by identity and rebuilds the atlas when it changes.
+  - Build `new TinySDF({ fontSize, buffer, radius, cutoff, fontFamily, fontWeight: String(fontWeight) })` from the settings.
+  - Per glyph, `t = sdf.draw(ch)` is cached in a `Map`, because deck calls `measure(ch)` and then `draw(ch)` for each new character.
+  - `shift = max(0, buffer + t.glyphLeft)`.
+  - `measure(ch)` returns `{ advance: t.glyphAdvance, width: t.glyphWidth + shift, ascent: t.glyphTop, descent: t.glyphHeight − t.glyphTop }`.
+  - `draw(ch)` returns `{ data, left: buffer, top: buffer }`, where `data` is an ImageData `(t.width + shift) × t.height` holding TinySDF's alpha in the A channel at column offset `shift`, with RGB at 0. So the image exactly fills its cell (`width + 2·buffer`), and the ink starts at pen + `2·buffer + glyphLeft`, a uniform shift for every glyph with `glyphLeft ≥ −buffer`.
+  - `measure()` with no character returns `{ advance: 0, width: 0, ascent, descent }`, with `ceil(fontBoundingBoxAscent/Descent)` of `measureText('A')` in the same font. This is deck's own rule.
+  - Put the arithmetic in pure exported helpers (`glyphShift`, `padGlyphAlpha(alpha, width, height, shift) → Uint8ClampedArray` RGBA, `glyphMetrics(t, buffer)`), so vitest can test it without a DOM.
+- **Compensation:** every glyph's ink sits `2·buffer` atlas px right of its true position, so `getPixelOffset` becomes `[−2·buffer·size/64, 10]` (about −4 px at 13 px).
+- **Comment `ponytail:`** deck's atlas cache key ignores `_getFontRenderer`, so another TextLayer with identical font settings would share this atlas. Upgrade path: drop the renderer once deck.gl measures the ink width and honours `glyphLeft`.
+- `package.json`: add `"@mapbox/tiny-sdf": "^2.2.0"` to `dependencies`. In `package-lock.json`, add the same entry to the root `packages[""].dependencies`. The `node_modules/@mapbox/tiny-sdf` entry already exists, so nothing else changes and no install is needed.
+- [ ] Tests (in `layers.test.ts`, no DOM):
+  - with a synthetic glyph (buffer 10, `glyphLeft` −6, `glyphWidth` 20, image width 40), `shift` is 4, the measured width is 24, and the cell `24 + 2·10` equals the padded image width 44; the same holds for `glyphLeft` 0 and 3, and for −12 (shift clamps to 0);
+  - `padGlyphAlpha` puts source column 0 at padded column `shift`, alpha only, with RGB 0;
+  - the ink offset from the pen (`shift + buffer`) equals `2·buffer + glyphLeft` for each `glyphLeft ≥ −buffer`;
+  - `stationLabelLayer` passes the same `_getFontRenderer` function on two calls, and the pixel offset x is `−2·buffer·size/64` at both sizes;
+  - web test, build and `tsc` pass.
+- [ ] Commit `task 71: correct glyph placement in station labels`.
+- [ ] Monitor: deploy the dist. At India zoom, crop "Prayagraj Jn" and "Vijayawada Jn" against `reports/t70-j-*.png`: `j` must be whole and in place. Labels must stay centred under their station dot. fps with the panel closed must be ≥ 60.
 
 ---
 
