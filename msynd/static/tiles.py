@@ -14,7 +14,7 @@ import zlib
 
 
 # Mirrors the source layers drawn by web/src/basemap.ts.
-STYLE_LAYERS = ("earth", "water", "boundaries", "roads", "transit")
+STYLE_LAYERS = ("earth", "water", "boundaries", "roads")
 # ponytail: one area threshold at every zoom; z10 also feeds overzoom to z13, where a dropped pond is ~32 px wide; add a per-zoom threshold if missed
 MIN_RING_PX2 = 16
 MAX_GUNZIP = 16 * 1024 * 1024

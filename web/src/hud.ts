@@ -1,3 +1,10 @@
+export function liveStatus(age: number | null) {
+  return {
+    text: age === null ? 'Connecting…' : `updated ${age} s ago`,
+    freshness: age === null ? 'pending' : age < 60 ? 'fresh' : age < 180 ? 'aging' : 'old',
+  };
+}
+
 export function trainCount(displays: readonly { run: Record<string, unknown> }[]) {
   const total = displays.length;
   const timetable = displays.filter(d => d.run.state === 'schedule_only').length;

@@ -1,5 +1,16 @@
 import { expect, it } from 'vitest';
-import { initHud, trainCount } from './hud';
+import { initHud, liveStatus, trainCount } from './hud';
+
+it.each([
+  [null, 'Connecting…', 'pending'],
+  [0, 'updated 0 s ago', 'fresh'],
+  [59, 'updated 59 s ago', 'fresh'],
+  [60, 'updated 60 s ago', 'aging'],
+  [179, 'updated 179 s ago', 'aging'],
+  [180, 'updated 180 s ago', 'old'],
+])('shows age %s as %s with freshness %s', (age, text, freshness) => {
+  expect(liveStatus(age as number | null)).toEqual({ text, freshness });
+});
 
 it('counts drawn trains with singular/plural text and a live/timetable title', () => {
   expect(trainCount([])).toEqual({ text: '0 trains', title: '0 live · 0 by timetable' });

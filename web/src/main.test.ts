@@ -55,12 +55,15 @@ it('decodes only on generations and reuses network and trips while animating hea
     style: { setProperty() {} }, dataset: {},
     attributes: {}, listeners: {}, children: {},
     setAttribute(name: string, value: string) { this.attributes[name] = value; },
-    removeAttribute() {}, contains() { return false; }, scrollIntoView() {},
+    removeAttribute(name: string) { delete this.attributes[name]; if (name === 'title') delete this.title; },
+    contains() { return false; }, scrollIntoView() {},
     addEventListener(name: string, callback: Function) { this.listeners[name] = callback; },
     removeEventListener(name: string) { delete this.listeners[name]; },
     replaceChildren() {}, append() {}, focus() {},
     querySelector(selector: string) { return this.children[selector] ??= element(); } });
-  const status = { ...element(), set textContent(_text: string) { statusWrites++; } };
+  let statusText = '';
+  const status = { ...element(), get textContent() { return statusText; },
+    set textContent(text: string) { statusText = text; statusWrites++; } };
   const panel = element();
   const elements = new Map<string, any>([['#connection', status], ['#panel', panel]]);
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { draw = callback; return 1; });
@@ -99,6 +102,13 @@ it('decodes only on generations and reuses network and trips while animating hea
   expect(rendered.mapOptions.bounds).toEqual([[68, 6.5], [97.5, 36]]);
   // Let loadNetwork finish both awaits before driving requestAnimationFrame.
   await Promise.resolve();
+  const count = elements.get('#train-count');
+  count.title = 'Previous count';
+  draw!(-1000);
+  expect(count.textContent).toBe('Loading…');
+  expect(count.title).toBeUndefined();
+  expect(status.textContent).toBe('Connecting…');
+  expect(status.dataset.freshness).toBe('pending');
   Socket.current.receive({ gen: 1, ts: 1600, is_full: true, versions: {}, base_ts: 1000,
     runs: { 9: run }, tombstones: [] });
   const reads = vi.spyOn(DataView.prototype, 'getUint16');
@@ -115,14 +125,16 @@ it('decodes only on generations and reuses network and trips while animating hea
   expect(decodedReads).toBeGreaterThan(0);
   expect(head()).toEqual([71, 21]);
   expect(rendered.options.pickingRadius).toBe(10);
-  expect(statusWrites).toBe(1);
+  expect(statusWrites).toBe(2);
   expect(elements.get('#train-count').textContent).toBe('1 train');
   expect(elements.get('#train-count').title).toBe('1 live · 0 by timetable');
+  expect(status.textContent).toBe('updated 15 s ago');
+  expect(status.dataset.freshness).toBe('fresh');
   simTime = 1900;
   draw!(116); // Settled heads redraw at 10 Hz only.
-  expect(rendered.draws).toBe(1);
-  draw!(200);
   expect(rendered.draws).toBe(2);
+  draw!(200);
+  expect(rendered.draws).toBe(3);
   expect(reads.mock.calls.length).toBe(decodedReads);
   expect(rendered.layers[0]).toBe(network);
   expect(head()[0]).toBeCloseTo(71 + 0.5 * (1 - Math.exp(-100 / 250)));
@@ -132,7 +144,7 @@ it('decodes only on generations and reuses network and trips while animating hea
   simTime = 3601;
   rendered.zoom = 5;
   draw!(212); // A visibly easing head redraws at frame rate.
-  expect(rendered.draws).toBe(3);
+  expect(rendered.draws).toBe(4);
   trails.forEach((layer, i) => {
     const animated = rendered.layers.find(current => current.id === layer.id);
     expect(animated.props.data).toBe(arrays[i]);
@@ -141,7 +153,7 @@ it('decodes only on generations and reuses network and trips while animating hea
     expect(animated.props.updateTriggers.getTimestamps).toBe(layer.props.updateTriggers.getTimestamps);
   });
   expect(rendered.layers.find(layer => layer.id === 'comets').props.trailLength).toBe(10800);
-  expect(statusWrites).toBe(1);
+  expect(statusWrites).toBe(2);
   // An empty delta advances the generation while keeping the same RunFrame object.
   Socket.current.receive({ gen: 2, ts: 3601, is_full: false, versions: {}, base_ts: 1000,
     runs: {}, tombstones: [] });
@@ -171,9 +183,9 @@ it('decodes only on generations and reuses network and trips while animating hea
   draw!(500);
   expect(rendered.layers[0]).toBe(network);
   expect(rendered.layers.slice(1).every(layer => layer.props.data.length === 0)).toBe(true);
-  expect(statusWrites).toBe(1);
-  draw!(1150);
   expect(statusWrites).toBe(2);
+  draw!(1150);
+  expect(statusWrites).toBe(3);
   expect(elements.get('#train-count').textContent).toBe('0 trains');
   expect(elements.get('#train-count').title).toBe('0 live · 0 by timetable');
   Socket.current.receive({ gen: 5, ts: 3601, is_full: false, versions: {}, base_ts: null,

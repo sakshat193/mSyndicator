@@ -17,8 +17,6 @@ export const basemapStyle: StyleSpecification = {
     { id: 'roads', type: 'line', source: 'india', 'source-layer': 'roads', minzoom: 6,
       filter: ['in', ['get', 'kind'], ['literal', ['highway', 'major_road']]],
       paint: { 'line-color': '#111923' } },
-    { id: 'rail', type: 'line', source: 'india', 'source-layer': 'transit', minzoom: 8,
-      filter: ['==', ['get', 'kind'], 'rail'], paint: { 'line-color': '#0e2630' } },
   ],
 };
 

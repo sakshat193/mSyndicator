@@ -7,8 +7,10 @@ it('uses the local PMTiles extract, overzooms it and needs no glyph server', () 
   expect(basemapStyle.layers.some(layer => layer.type === 'symbol')).toBe(false);
   expect(basemapStyle.glyphs).toBeUndefined();
   expect(basemapStyle.layers.map(layer => layer.id)).toEqual([
-    'background', 'earth', 'water', 'country', 'region', 'roads', 'rail',
+    'background', 'earth', 'water', 'country', 'region', 'roads',
   ]);
+  expect(basemapStyle.layers.some(layer => 'source-layer' in layer && layer['source-layer'] === 'transit'))
+    .toBe(false);
 });
 
 it('filters every fill layer to polygons, excluding river and canal lines', () => {

@@ -13,7 +13,7 @@ import { liveTime } from './timeline';
 import { hoverText, runPanel } from './panel';
 import { mapOptions } from './basemap';
 import { initSearch } from './search';
-import { initHud, trainCount } from './hud';
+import { initHud, liveStatus, trainCount } from './hud';
 
 const disposeHud = initHud(document, {
   getItem: key => localStorage.getItem(key),
@@ -185,13 +185,19 @@ function draw(tick: number) {
     lastStatus = tick;
     const now = Date.now();
     clockElement.textContent = istClock.format(now);
-    const total = trainCount(displays);
-    count.textContent = total.text;
-    count.title = total.title;
+    if (store.latest) {
+      const total = trainCount(displays);
+      count.textContent = total.text;
+      count.title = total.title;
+    } else {
+      count.textContent = 'Loading…';
+      count.removeAttribute('title');
+    }
     if (network) {
       const age = store.latest ? Math.max(0, Math.floor(now / 1000 - store.latest.ts)) : null;
-      status.textContent = age === null ? 'Waiting for live frames' : `updated ${age} s ago`;
-      status.dataset.freshness = age === null ? 'old' : age < 60 ? 'fresh' : age < 180 ? 'aging' : 'old';
+      const live = liveStatus(age);
+      status.textContent = live.text;
+      status.dataset.freshness = live.freshness;
     }
     if (panelRun) panel.update(panelRun, simTime);
     renderHover();
