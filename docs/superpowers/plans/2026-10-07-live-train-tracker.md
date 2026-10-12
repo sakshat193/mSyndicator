@@ -2054,7 +2054,7 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   - The monitor re-exports through the existing export command.
 - **Chains (`export.segment_geometry`):** when a Task 61 derived chain is rebuilt, each constituent segment contributes its own polyline, oriented along the chain, if it has one; otherwise its station chord. Proximity links (`edge_id` None) stay straight.
 - **`docs/deploy.md`:** add the OSM refresh: the three osmium steps in a throwaway container, `migrate`, `osm --opl` and the re-export command. Keep the file under 60 lines.
-- [ ] Tests (tiny synthetic OPL written in `tmp_path`, plus the test DB):
+- [x] Tests (tiny synthetic OPL written in `tmp_path`, plus the test DB):
   - `test_parse_opl` covers escaped tags, located way nodes, and skipped malformed or out-of-bbox lines;
   - `test_path_follows_rails_not_chord`: on an L-shaped track, the polyline passes the corner vertex;
   - `test_confidence_rules` covers ref+ref → 1.0, ref+name → 0.5, name+coord → 0.3, and a far `ref` (> 5 km) falling through to the next tier;
@@ -2063,14 +2063,15 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   - `test_override_wins` and `test_osm_survives_rebuild_and_unoverride` (in `test_segments.py`);
   - `test_chain_reuses_constituent_polylines`;
   - `uv run pytest -q tests/static tests/db` passes.
-- [ ] Commit `task 37: osm rail geometry`.
-- [ ] Monitor, on the VM:
+- [x] Commit `task 37: osm rail geometry` (5fa612e; 170+583 passed, 1 skipped; web 118; 16/16 mutations caught).
+- [x] Monitor, on the VM (2026-10-12):
   1. Download `india-latest.osm.pbf` and its `.md5` from download.geofabrik.de into its own `/data/osm/src`, and verify the md5.
   2. Run the three osmium steps in a throwaway `debian:bookworm-slim` container.
   3. Rebuild the image; run `migrate`, then `python -I -m msynd.static.osm --opl /data/osm/rail.opl` in the ops container. Record the report, peak RSS and runtime.
   4. Re-export the network, and record the gz size and polyline vertex total.
   5. In the browser, remeasure memory against Task 65's numbers and screenshot Bilaspur–Champa (the trails must follow the rails).
   6. OSM data stays under ODbL; the map already credits © OpenStreetMap. The derived table lives only in the VM DB and never in the public repo.
+  - Results: stations ref 7681 / name 103 / coord 691 / no_anchor 75; segments 1.0: 8679, 0.5: 97, 0.3: 655; failures no_anchor 502, no_path 2069, length 4409; 158,567 vertices; 28.9 s, peak RSS 587 MB. Export `network-af87af0ce6e9` 4.27 MB gz (was 3.13 MB), 178,283 network vertices. Bilaspur–Champa trails follow the rails (`reports/t37-osm-bilaspur.png`). Browser with the old dist: heap 148 → 211 MB, 131 → 75 fps; follow-up 65c windows trail vertices to recover it.
 
 ---
 
