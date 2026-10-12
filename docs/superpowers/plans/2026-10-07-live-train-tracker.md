@@ -2287,6 +2287,84 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
 
 ---
 
+### Task 72 (amendment 2026-10-12): slimmer engine frames (user request: "Do the smaller Live updates, but critically analyse the blast radius first")
+
+**Why (monitor, 2026-10-12; measured read-only on the VM's latest full frame):**
+- The frame holds 2,711 runs. 2,705 of them are `schedule_only` and ship 8 of K = 32 paths; 6 are `observed` and ship all 32.
+- Size is 9.11 MB raw and 6.49 MB deflated. `paths` is 4.26 MB raw / 3.26 MB deflated; `halt_q` is 3.85 MB raw / 3.41 MB deflated.
+- Per-run `versions` is 428 KB raw but only about 20 KB deflated, so slimming it is housekeeping, not the win.
+- A `schedule_only` run never draws streaks (`displayRun` returns `trips = []` for it). Its paths only place the head and fill past or pass anchors, and for that the web already takes the per-event median of the shipped paths.
+- So one median path per `schedule_only` run carries the same display information. Measured on the real frame: 5.10 MB raw / 3.73 MB deflated (−43 %).
+
+**Plan change (spec §10 size estimate):** the frame carries K paths only for runs with evidence; a timetable-only run carries one per-event median path. This replaces the 8-path subsample.
+
+**Files:** `msynd/engine/frames.py`, `tests/engine/test_loop.py`.
+
+- In `encode_run`, settle `state` before packing. For a `schedule_only` run, replace `paths` with `np.median(paths, axis=0, keepdims=True)` before the tick conversion, so the uint16 range check covers the shipped row. The per-event median of paths that are each non-decreasing is itself non-decreasing (order statistics are monotone, and so is the mean of the two middle ones), so the web's monotonic check still holds. `path_shape` becomes `(1, E, 2)`.
+- `# ponytail:` comment: timetable-only runs ship one median path; ship K once the UI draws timetable streaks.
+- Per-run `versions` in `encode_run` becomes `{'route': evidence.versions['route']}`. That is the only field the web reads (`displayRun`, `hoverText`).
+  - Unchanged: the frame-level `versions` in `write_frame` (spec §10: "Frames carry gen and versions"), the error payload in `worker.py` (keeps the full versions for diagnosis; `tests/engine/test_errors.py` pins it), and every key that is derived from `ev.versions` (the RNG `v_hash`, the CDF cache, `sim.forecast_issue.versions`).
+- [ ] Tests (in `tests/engine/test_loop.py`):
+  - Replace the `test_encode_run_strides_only_schedule_paths` cases. A `schedule_only` run with K = 1, 8, 10 or 32 (paths `[j, j+1]`, plus one case whose rows are unsorted per event) ships `path_shape == (1, 2, 2)`, route indices `[3, 9]`, and ticks equal to `rint` of the per-event median. `observed` and `stale` still ship all K rows unchanged.
+  - Encoded per-run `versions` is exactly `{'route': <route id>}`.
+  - `test_model_change_and_bias_generation_dirty_all_active` no longer reads per-run `versions['models']`. Keep its intent by asserting that every active run was replayed with the new model: wrap `fake_replay` to record `ev.versions['models']['run']` per run id, and assert the recorded value for each of `runs[1:]` once the frame-level versions show the new model and bias generation.
+  - `uv run pytest -q tests/engine` passes.
+- [ ] Commit `task 72: slimmer engine frames`.
+
+### Task 73 (amendment 2026-10-12): live frames carry halt P50 only (user request: "Do the smaller Live updates…")
+
+**Why (monitor, 2026-10-12):**
+- After Task 72, `halt_q` (all 7 quantiles per halt) is most of what remains: 3.41 MB of the 3.73 MB deflated.
+- The map reads only P50 from it (`displayRun` `eventTimes`, index `((h*2+kind)*7+3)`).
+- The train panel's P10/P50/P90 rows come from `/api/run/{id}`, which decodes the full `halt_q` from `sim.frame` in the DB, not from the live socket.
+- With the WebSocket carrying P50 only, the full frame measures 1.82 MB raw and 1.02 MB deflated: −84 % against today's 6.49 MB.
+- Rejected: `uint16` quantiles. The observed range reaches 6,139.6 run-clock minutes against a 6,553.4-minute ceiling at 0.1-min ticks, so delays over a day would overflow.
+
+**Plan change (spec §10 `WS /api/live`):** `sim.frame` stays the durable record with all quantiles. The API projects each frame once, as it ingests it, to the wire form: per run, `halt_q` + `halt_shape` become `halt_p50`, a little-endian float32 `[H, 2]` (arr, dep) byte string with NaN kept. Every WebSocket send (live, resync, full and slow-client fallback) carries the projected form.
+
+**Files:** `msynd/api/app.py`, `tests/api/test_api.py`, `web/src/frames.ts`, `web/src/frames.test.ts`, `web/src/layers.ts`, `web/src/layers.test.ts`.
+
+- `app.py`:
+  - Add a small module-level `wire(frame)` that returns the frame with each run projected. A run without `halt_q` (error states, tombstones) passes through unchanged.
+  - `Frames.ingest` projects right after `unpack`. `history` and `runs` hold projected frames, so `full()`, `resync()` and the full→delta diff all work on the wire form.
+  - `outgoing` is always the msgpack of the projected frame (or of the delta built from it). It is never the original payload bytes.
+  - `/api/run/{id}` is unchanged: it still reads and decodes the full `halt_q` from `sim.frame`.
+- `frames.ts`:
+  - `RunFrame` gains `halt_p50?: Uint8Array`, and `halt_q`/`halt_shape` are removed from the type and the validator.
+  - `validate` accepts `halt_p50` only as a `Uint8Array` whose byte length is a multiple of 8, and rejects anything else.
+- `layers.ts` `eventTimes` reads P50 as `getFloat32((h*2+kind)*4)` from `halt_p50` when `h < byteLength/8`. Otherwise it falls back to the path median as now; that fallback also covers a frame from an API that hasn't been redeployed yet. Update the existing `ponytail:` comment.
+- [ ] Tests:
+  - API: a full frame whose run has a known `halt_q` reaches the socket with `halt_p50` equal to `halt_q[:, :, 3]`, as float32 bytes with NaN kept, and with no `halt_q`/`halt_shape`. The same holds on the delta, resync and slow-client full paths.
+  - An error run passes through unchanged.
+  - `/api/run` still returns all 7 quantiles. Adjust any existing test that compared forwarded bytes with the stored payload.
+  - Web: `frames.test.ts` validator cases for `halt_p50` (valid `[2,2]`, empty, length 12, non-`Uint8Array`); `layers.test.ts` `eventTimes` uses `halt_p50` P50 when finite and the path median when NaN or absent.
+  - `uv run pytest -q tests/api` and the web test, build and `tsc` pass.
+- [ ] Commit `task 73: live frames carry halt p50 only`.
+- [ ] Monitor (after Tasks 72 and 73): rebuild the image and restart the engine and the API. Then measure the WebSocket full frame on the VM, raw and deflated. Expect about 1.8 MB raw / 1.0 MB deflated. Check that the map shows trains after a hard refresh, a train panel shows its P10/P50/P90 rows, and fps with the panel closed is ≥ 60.
+
+### Task 74 (amendment 2026-10-12): calmer glass with refraction (user request: "the glass blur is too crazy, go a little less crazy, and add refractions/wavy curving")
+
+**Why:** `blur(18px) saturate(160%)` turns the map behind every HUD surface into flat haze. A lighter blur keeps the map readable through the glass. A gentle displacement adds the refraction the user asked for, and a curved specular sheen reads as a glass edge.
+
+**Files:** `web/index.html`, `web/src/style.css`, `web/src/main.ts`, `web/src/main.test.ts`.
+
+- `style.css` tokens:
+  - `--glass-filter: blur(9px) saturate(135%)`.
+  - `--glass-background` adds a curved top sheen over the existing tint: `radial-gradient(140% 70% at 20% -20%, rgba(255,255,255,.10), transparent 55%)`, then the current linear gradient.
+  - `--glass-shadow`, curved edge highlights: `inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(255,255,255,.05), inset 1px 0 0 rgba(255,255,255,.06), inset -1px 0 0 rgba(255,255,255,.03), inset 0 0 18px rgba(140,200,255,.05), 0 8px 24px rgba(0,0,0,.28)`.
+  - Keep the `@supports not (backdrop-filter: blur(1px))` fallback.
+- Refraction, as progressive enhancement:
+  - Add a hidden inline SVG at the top of `<body>` (`width="0" height="0"`, `aria-hidden="true"`, absolutely positioned) with `<filter id="glass-refract" color-interpolation-filters="sRGB">`. The filter is `feTurbulence type="fractalNoise" baseFrequency="0.006 0.009" numOctaves="2" seed="3"`, then `feGaussianBlur stdDeviation="3"`, then `feDisplacementMap in="SourceGraphic" scale="12" xChannelSelector="R" yChannelSelector="G"`.
+  - `body[data-refract]` sets `--glass-filter: url(#glass-refract) blur(7px) saturate(135%)`.
+  - `main.ts` sets `document.body.dataset.refract = ''` only when `'userAgentData' in navigator`. That covers Chromium, the only engine that renders SVG filters in `backdrop-filter`. Firefox and Safari keep the plain blur, because an unsupported `url()` there would void the whole declaration.
+  - Comment `ponytail:` naming that UA-capability gate, with the upgrade path: drop it once `@supports` can detect SVG backdrop filters.
+- Never hand-write `-webkit-backdrop-filter` (Lightning CSS then drops the unprefixed line).
+- [ ] Tests (in `main.test.ts`, with the existing stubs): `refract` is set when the navigator stub has `userAgentData` and absent without it. Web test, build and `tsc` pass. The built CSS keeps `url(#glass-refract)` verbatim.
+- [ ] Commit `task 74: calmer glass with refraction`.
+- [ ] Monitor: deploy the dist. Compare screenshots of the HUD and the open panel against `reports/` from Task 69. The map must show through the glass with visible gentle waves, with no dark fringe wider than about 2 px at the edges. Text contrast is unchanged. fps with the panel closed must be ≥ 60 and within 15 % of Task 71's 102.5. If the refraction costs more than that, cut `numOctaves` to 1 and then `scale`; drop the `url()` before accepting a slower map.
+
+---
+
 ## Spec coverage check
 
 | Spec section | Task(s) |
