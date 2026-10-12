@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import msgpack
+import numpy as np
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
@@ -123,7 +124,9 @@ def test_contiguous_full_is_delta_for_connected_client_and_full_for_resync(api):
     conn, client, app, run, other, *_ = api
     unchanged = {'state': 'schedule_only', 'base_ts': 1000,
                  'paths': b'\x00\x00\x00\x00', 'path_shape': [1, 1, 2],
-                 'versions': {'route': 7}, 'halt_q': [[[None, 1.5]]],
+                 'versions': {'route': 7}, 'halt_shape': [1, 2, 7],
+                 'halt_q': np.asarray([[[np.nan] * 7, [1.5] * 7]], '<f4').tobytes(),
+                 'next_q': np.full(7, np.nan, '<f4').tobytes(),
                  'headline': {'last_received': None}}
     full = frame(conn, True, {run: unchanged, other: unchanged | {'state': 'observed'},
                              999: {'state': 'expired'}})
@@ -186,18 +189,25 @@ def test_train_number_ambiguous_lists_runs(api):
 
 
 def test_run_endpoint_all_remaining_halts_and_eta_age(api):
-    conn, client, app, run, *_ = api
-    qs = [[None] * 7, [None] * 7], [[310.] * 7, [315.] * 7], [[950.] * 7, [None] * 7]
-    insert_event(conn, run, 'MMCT', 1, 'dep', NOW, NOW - timedelta(minutes=2))
-    insert_event(conn, run, 'MMCT', 1, 'dep', NOW + timedelta(minutes=1), NOW - timedelta(minutes=1))
+    conn, client, app, run, other, *_ = api
+    now = conn.execute('SELECT clock_timestamp()').fetchone()[0]
+    qs = [[None] * 7, [None] * 7], [[310.123456] * 7, [315.] * 7], [[950.] * 6 + [None], [None] * 7]
+    insert_event(conn, run, 'MMCT', 1, 'dep', now, now - timedelta(minutes=2))
+    insert_event(conn, run, 'MMCT', 1, 'dep', now + timedelta(minutes=1), now - timedelta(minutes=1))
     for age in (20, 10):
-        conn.execute("INSERT INTO obs.ntes_eta_rev VALUES (%s,'BRC',1,'arr',%s,NULL,%s)", (run, NOW + timedelta(hours=1), NOW - timedelta(minutes=age)))
-    gen = frame(conn, True, {run: {'state': 'observed', 'halt_q': qs}})
+        conn.execute("INSERT INTO obs.ntes_eta_rev VALUES (%s,'BRC',1,'arr',%s,NULL,%s)", (run, now + timedelta(hours=1), now - timedelta(minutes=age)))
+    gen = frame(conn, True, {run: {'state': 'observed', 'halt_shape': [3, 2, 7],
+                                 'halt_q': np.asarray(qs, '<f4').tobytes()}})
     wait_read(app, gen)
     result = client.get(f'/api/run/{run}').json()
     assert [s['idx'] for s in result['schedule']] == [0, 1, 2]
     assert [s['idx'] for s in result['halts']] == [1, 2]
-    assert result['halts'][1]['arr'] == [950.] * 7
+    assert result['halts'] == [
+        {'idx': 1, 'station': 'BRC', 'occ': 1,
+         'arr': [float(np.float32(310.123456))] * 7, 'dep': [315.] * 7},
+        {'idx': 2, 'station': 'NDLS', 'occ': 1, 'arr': [950.] * 6 + [None], 'dep': [None] * 7},
+    ]
+    assert client.get(f'/api/run/{other}').json()['halts'] == []
     assert len(result['eta']) == 1 and 600 <= result['eta'][0]['age'] < 620
     assert len(result['revisions']) == 2
     assert result['lifecycle'] == 'scheduled' and result['evidence_state'] == 'observed'

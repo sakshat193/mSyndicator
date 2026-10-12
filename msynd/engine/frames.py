@@ -6,13 +6,6 @@ from psycopg.types.json import Jsonb
 from msynd.config import settings
 
 
-def _quantiles(values):
-    values = np.asarray(values)
-    if values.ndim == 0:
-        return float(values) if np.isfinite(values) else None
-    return [_quantiles(value) for value in values]
-
-
 def encode_run(run_id, out, ev, base_ts):
     """ev is DB run metadata plus its RunEvidence; base_ts is a UTC datetime."""
     evidence = ev['evidence']
@@ -40,7 +33,8 @@ def encode_run(run_id, out, ev, base_ts):
             # Age is frame.ts - last_received, so restarts don't change evidence payloads.
             'headline': {'last_received': last.timestamp() if last else None,
                          'surprise': bool(out.surprise)},
-            'next_q': _quantiles(out.next_q), 'halt_q': _quantiles(out.halt_q),
+            'next_q': np.asarray(out.next_q, '<f4').tobytes(),
+            'halt_q': np.asarray(out.halt_q, '<f4').tobytes(), 'halt_shape': out.halt_q.shape,
             'min_ess': float(out.min_ess), 'flags': out.flags,
             'diverted_from': ev['diverted_from'], 'part_cancelled': ev['part_cancelled'],
             'path_shape': packed.shape, 'paths': packed.tobytes()}

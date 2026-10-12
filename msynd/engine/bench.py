@@ -78,8 +78,9 @@ def build_frame(results, events):
         paths = np.empty((*out.paths.shape, 2), dtype="<u2")
         paths[:, :, 0] = [event.route_idx for event in events]
         paths[:, :, 1] = ticks
-        runs.append({"run_id": run_id, "next_q": out.next_q.tolist(),
-                     "halt_q": out.halt_q.tolist(), "min_ess": out.min_ess,
+        runs.append({"run_id": run_id, "next_q": np.asarray(out.next_q, '<f4').tobytes(),
+                     "halt_q": np.asarray(out.halt_q, '<f4').tobytes(), "halt_shape": out.halt_q.shape,
+                     "min_ess": out.min_ess,
                      "surprise": out.surprise, "flags": out.flags,
                      "path_shape": paths.shape, "paths": paths.tobytes()})
     return msgpack.packb({"is_full": True, "base_min": base, "runs": runs}, use_bin_type=True)

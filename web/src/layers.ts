@@ -156,12 +156,13 @@ export function displayRun(run: RunFrame, network: Network, simTime: number): Di
     gaps.push({ path, lengths });
   }
   const halts = index.halts.get(route.id)!;
-  const qs = run.halt_q as (number | null)[][][] | undefined;
+  const qs = run.halt_q && new DataView(run.halt_q.buffer, run.halt_q.byteOffset, run.halt_q.byteLength);
   const eventTimes = stops.map((s, e) => {
     const h = halts.get(s.idx) ?? -1;
     // Arrival then departure at intermediate halts; origin has departure only.
     const kind = h === 0 || (e > 0 && stops[e - 1].idx === s.idx) ? 1 : 0;
-    const q = h >= 0 ? qs?.[h]?.[kind]?.[3] : null;
+    const q = h >= 0 && h < (run.halt_shape?.[0] ?? 0)
+      ? qs?.getFloat32(((h * 2 + kind) * 7 + 3) * 4, true) : NaN;
     if (typeof q === 'number' && Number.isFinite(q) && typeof run.origin_ts === 'number')
       return run.origin_ts + q * 60;
     // ponytail: past/pass anchors use display medians; upgrade when frames expose their full P50.

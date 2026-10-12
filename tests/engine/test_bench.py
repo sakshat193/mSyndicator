@@ -52,9 +52,13 @@ def test_bench_frame_encodes_uint16_route_and_tenths():
               RouteEvent(1, "B", 1, "arr", 1, 1, 101, 1, 0))
     out = ReplayOut(np.zeros((2, 2, 7)), np.arange(7.), np.array([[100., 100.2]]),
                     .8, False, (), ())
+    out.halt_q[0, 0] = np.nan
     frame = msgpack.unpackb(build_frame([(7, .01, out)], events), raw=False)
     assert frame["base_min"] == 100
     run = frame["runs"][0]
     assert run["run_id"] == 7 and run["path_shape"] == [1, 2, 2]
     assert run["paths"] == struct.pack("<HHHH", 0, 0, 1, 2)
-    assert run["next_q"] == list(range(7)) and run["min_ess"] == .8
+    assert run["next_q"] == struct.pack("<7f", *range(7)) and run["min_ess"] == .8
+    assert run["halt_shape"] == [2, 2, 7] and len(run["halt_q"]) == 2 * 2 * 7 * 4
+    np.testing.assert_array_equal(np.frombuffer(run["halt_q"], '<f4').reshape(run["halt_shape"]),
+                                  out.halt_q.astype('<f4'))

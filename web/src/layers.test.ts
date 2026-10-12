@@ -5,6 +5,13 @@ import { indexNetwork, networkLayer, displayRun, trailData, trainLayers,
   delayColor, trailLength, easeHead, headAt, labelBucket, labelStations, stationLabelLayer, selectionLayer,
   trainAlpha, dataComparator, type Network } from './layers';
 
+function packQuantiles(quantiles: (number | null)[][][]): Uint8Array {
+  const values = quantiles.flat(2), packed = new Uint8Array(values.length * 4);
+  const bytes = new DataView(packed.buffer);
+  values.forEach((q, i) => bytes.setFloat32(i * 4, q ?? NaN, true));
+  return packed;
+}
+
 const network: Network = {
   stations: [{ code: 'A', lon: 70, lat: 20 }, { code: 'B', lon: 72, lat: 22 },
     { code: 'missing', lon: null, lat: null }, { code: 'invalid', lon: 181, lat: 20 }],
@@ -48,8 +55,9 @@ it('uses indexed geometry when decoding the existing P50 fixture', () => {
   const run = { run_id: 9, versions: { route: 7 }, origin_ts: 1000, base_ts: 1000,
     path_shape: [2, 2, 2] as [number, number, number],
     paths: new Uint8Array([0, 0, 0, 0, 1, 0, 100, 0, 0, 0, 0, 0, 1, 0, 200, 0]),
-    halt_q: [[Array(7).fill(null), Array(7).fill(0)],
-      [Array(7).fill(20), Array(7).fill(null)]] };
+    halt_shape: [2, 2, 7] as [number, number, number],
+    halt_q: packQuantiles([[Array(7).fill(null), Array(7).fill(0)],
+      [Array(7).fill(20), Array(7).fill(null)]]) };
   const result = displayRun(run, network, 1600);
   expect(result?.head).toEqual([71, 21]);
   expect(result?.trips).toEqual([
@@ -262,8 +270,9 @@ it('omits only schedule-only expanded trips while preserving median fallback and
 });
 
 it('makes median comet timestamps monotone without accepting non-monotone particle paths', () => {
-  const run = { ...runFixture(), halt_q: [[Array(7).fill(null), Array(7).fill(20)],
-    [Array(7).fill(10), Array(7).fill(null)]] };
+  const run = { ...runFixture(), halt_shape: [2, 2, 7] as [number, number, number],
+    halt_q: packQuantiles([[Array(7).fill(null), Array(7).fill(20)],
+      [Array(7).fill(10), Array(7).fill(null)]]) };
   const display = displayRun(run, network, 1300)!;
   const trails = trailData([display], 1300);
   expect(trails.comets[0].path).toBe(display.points);
@@ -283,14 +292,38 @@ it.each([
 });
 
 it('uses next-stop delay at decode time, falling back to cyan when unknown', () => {
-  const run = { ...runFixture(), halt_q: [[Array(7).fill(null), Array(7).fill(0)],
-    [Array(7).fill(25), Array(7).fill(null)]] };
+  const run = { ...runFixture(), halt_shape: [2, 2, 7] as [number, number, number],
+    halt_q: packQuantiles([[Array(7).fill(null), Array(7).fill(0)],
+      [Array(7).fill(25), Array(7).fill(null)]]) };
   expect(displayRun(run, network, 1300)?.color).toEqual([252, 238, 10]);
   expect(displayRun(run, network, 2600)?.color).toEqual([0, 240, 255]);
   expect(displayRun({ ...run, origin_ts: undefined }, network, 1300)?.color).toEqual([0, 240, 255]);
   const unknownSchedule = { ...network, routes: [{ ...network.routes[0],
     stops: network.routes[0].stops.map(s => ({ ...s, sched_off: null })) }] };
   expect(displayRun(run, unknownSchedule, 1300)?.color).toEqual([0, 240, 255]);
+});
+
+it('reads little-endian P50s from unaligned quantile subarrays', () => {
+  const packed = packQuantiles([[Array(7).fill(null), [0, 0, 0, .25, 0, 0, 0]],
+    [[10, 10, 10, 25.125, 10, 10, 10], Array(7).fill(null)]]);
+  const buffer = new Uint8Array(packed.byteLength + 2).fill(255);
+  buffer.set(packed, 1);
+  const run = { ...runFixture(), halt_shape: [2, 2, 7] as [number, number, number],
+    halt_q: buffer.subarray(1, -1) };
+  const display = displayRun(run, network, 1300)!;
+  expect(display.eventTimes).toEqual([1015, 2507.5]);
+  expect(display.delay).toBe(15.125);
+});
+
+it('falls back to display medians for NaN P50s', () => {
+  const run = { ...runFixture(), halt_shape: [2, 2, 7] as [number, number, number],
+    halt_q: packQuantiles([[Array(7).fill(null), Array(7).fill(null)],
+      [[20, 20, 20, null, 20, 20, 20], Array(7).fill(null)]]) };
+  const display = displayRun(run, network, 1300)!;
+  expect(display.eventTimes).toEqual([1000, 1603]);
+  expect(display.delay).toBeCloseTo(.05);
+  const short = { ...run, halt_shape: [1, 2, 7] as [number, number, number], halt_q: run.halt_q.subarray(0, 56) };
+  expect(displayRun(short, network, 1300)!.eventTimes).toEqual([1000, 1603]);
 });
 
 it.each([[-10, 32400], [3, 32400], [4, 32400], [6, 8100], [7, 4050], [10, 2700], [20, 2700]])(
@@ -501,8 +534,9 @@ it.each(['observed', 'stale'])('keeps %s glow and eight streaks separate from th
 });
 
 it.each(['schedule_only', 'observed', 'stale'])('keeps %s heads in their delay colour before shader glow', state => {
-  const run = { ...runFixture(), state, halt_q: [[Array(7).fill(null), Array(7).fill(0)],
-    [Array(7).fill(25), Array(7).fill(null)]] };
+  const run = { ...runFixture(), state, halt_shape: [2, 2, 7] as [number, number, number],
+    halt_q: packQuantiles([[Array(7).fill(null), Array(7).fill(0)],
+      [Array(7).fill(25), Array(7).fill(null)]]) };
   const display = displayRun(run, network, 1300)!;
   const layers = trainLayers([display], trailData([display], 1300), 1300, 4, () => {});
   const heads = layers.find(l => l instanceof ScatterplotLayer)!;

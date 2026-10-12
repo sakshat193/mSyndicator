@@ -142,7 +142,7 @@ def test_dirty_race_never_loses_rows(db_url, runs):
             timestamp = value['base_ts'] + float(packed[0, 1, 1]) * 6
             assert abs(timestamp - actual.timestamp()) <= 3
             count = conn.execute('SELECT count(*) FROM obs.event_rev WHERE run_id=%s', (run,)).fetchone()[0]
-            assert value['next_q'] == [float(count)] * 7
+            np.testing.assert_array_equal(np.frombuffer(value['next_q'], '<f4'), [float(count)] * 7)
 
 
 @pytest.mark.db
@@ -158,7 +158,7 @@ def test_matching_ver_update_during_replay_survives(db_url, runs):
         conn.commit()
         consume(conn)
         assert conn.execute('SELECT count(*) FROM obs.dirty_run').fetchone()[0] == 0
-        assert payload(conn)['runs'][runs[0]]['next_q'] == [1.] * 7
+        np.testing.assert_array_equal(np.frombuffer(payload(conn)['runs'][runs[0]]['next_q'], '<f4'), [1.] * 7)
 
 
 @pytest.mark.db
@@ -221,7 +221,7 @@ def _assert_frame_latency(db_url, runs, notifications):
             while time.monotonic() < deadline:
                 row = api.execute('SELECT gen FROM sim.frame WHERE gen>%s AND NOT is_full', (start_gen,)).fetchone()
                 if row:
-                    assert payload(api, row[0])['runs'][runs[0]]['next_q'] == [1.] * 7
+                    np.testing.assert_array_equal(np.frombuffer(payload(api, row[0])['runs'][runs[0]]['next_q'], '<f4'), [1.] * 7)
                     break
                 time.sleep(.01)
             else:
@@ -322,7 +322,7 @@ def test_late_event_frame_equals_fresh_replay(db_url, runs):
         rebuild(conn, fake_replay, tables, PARAMS)
         # Full and delta frames must preserve the same absolute paths.
         assert normalized_run(payload(conn)['runs'][runs[0]]) == normalized_run(incremental)
-        assert incremental['next_q'] == [2.] * 7
+        np.testing.assert_array_equal(np.frombuffer(incremental['next_q'], '<f4'), [2.] * 7)
 
 
 @pytest.mark.db
@@ -399,10 +399,38 @@ def test_encode_run_uint16_and_truncation():
     assert encoded['state'] == 'schedule_only'
     assert encoded['headline']['surprise'] is True
     assert encoded['flags'] == ('cold_start',)
-    assert encoded['next_q'] == [None] * 7
+    assert len(encoded['next_q']) == 28
+    assert np.isnan(np.frombuffer(encoded['next_q'], '<f4')).all()
     out.paths[0, 0] = 6553.6
     with pytest.raises(ValueError, match='uint16'):
         encode_run(1, out, record, NOW)
+
+
+@pytest.mark.parametrize('dtype', ['<f4', '>f8'])
+def test_encode_run_float32_quantiles_preserves_epoch_precision(dtype):
+    from msynd.engine.frames import encode_run
+    from msynd.engine.evidence import RouteEvent, RunEvidence
+
+    base = NOW + timedelta(microseconds=123456)
+    origin = NOW + timedelta(microseconds=654321)
+    last = NOW + timedelta(microseconds=345678)
+    ev = RunEvidence(1, {}, (RouteEvent(0, 'A', 1, 'dep', 3, 0, 0, 0, 0),), (), 0, None)
+    record = {'evidence': ev, 'origin_ts': origin.timestamp(), 'lifecycle': 'running',
+              'last_received': last, 'asof': base, 'diverted_from': None, 'part_cancelled': None}
+    halt_q = np.arange(28, dtype=float).reshape(2, 2, 7) + .123456
+    halt_q[0, 0] = np.nan
+    out = ReplayOut(halt_q.astype(dtype), halt_q[1, 0].astype(dtype),
+                    np.array([[.2], [.4]]), .5, False, (), ())
+    encoded = msgpack.unpackb(msgpack.packb(encode_run(1, out, record, base)), raw=False)
+    assert isinstance(encoded['halt_q'], bytes) and len(encoded['halt_q']) == 2 * 2 * 7 * 4
+    assert encoded['halt_shape'] == [2, 2, 7]
+    np.testing.assert_array_equal(np.frombuffer(encoded['halt_q'], '<f4').reshape(encoded['halt_shape']),
+                                  out.halt_q.astype('<f4'))
+    assert isinstance(encoded['next_q'], bytes) and len(encoded['next_q']) == 28
+    np.testing.assert_array_equal(np.frombuffer(encoded['next_q'], '<f4'), out.next_q.astype('<f4'))
+    assert encoded['base_ts'] == base.timestamp()
+    assert encoded['origin_ts'] == origin.timestamp()
+    assert encoded['headline']['last_received'] == last.timestamp()
 
 
 @pytest.mark.parametrize('state,k,rows', [
@@ -437,7 +465,8 @@ def test_write_frame_preserves_per_run_time_bases(db):
     out = ReplayOut(np.full((1, 2, 7), np.nan), np.full(7, np.nan),
                     np.array([[.2], [.4]]), .5, False, (), ())
     encoded = {}
-    for run_id, base in ((2, NOW + timedelta(days=6)), (1, NOW)):
+    fractional = NOW + timedelta(microseconds=123456)
+    for run_id, base in ((2, fractional + timedelta(days=6)), (1, fractional)):
         ev = RunEvidence(run_id, {}, (RouteEvent(0, 'A', 1, 'dep', 3, 0, 0, 0, 0),), (), 0, None)
         record = {'evidence': ev, 'origin_ts': base.timestamp(), 'lifecycle': 'scheduled',
                   'last_received': None, 'asof': base, 'diverted_from': None, 'part_cancelled': None}
@@ -446,11 +475,13 @@ def test_write_frame_preserves_per_run_time_bases(db):
     expected = {run_id: (run['paths'], run['base_ts']) for run_id, run in encoded.items()}
     gen = write_frame(db, True, {}, encoded, [])
     result = payload(db, gen)
-    assert result['base_ts'] == NOW.timestamp()
+    assert result['base_ts'] == fractional.timestamp()
+    assert result['ts'] == db.execute('SELECT ts FROM sim.frame WHERE gen=%s', (gen,)).fetchone()[0].timestamp()
     assert set(result['runs']) == set(encoded)
     for run_id, (paths, base) in expected.items():
         assert result['runs'][run_id]['paths'] == paths
         assert result['runs'][run_id]['base_ts'] == base
+        assert result['runs'][run_id]['origin_ts'] == base
 
 
 

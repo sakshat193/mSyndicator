@@ -10,6 +10,7 @@ import threading
 
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 import msgpack
+import numpy as np
 import psycopg
 from psycopg.rows import dict_row
 from starlette.responses import Response
@@ -248,11 +249,12 @@ def create_app(database_url=None, static_dir='data/static'):
                 if f['is_full']:
                     break
         halts = []
-        qs = prediction.get('halt_q', [])
+        qs = (np.frombuffer(prediction['halt_q'], '<f4').reshape(prediction['halt_shape'])
+              if 'halt_q' in prediction else [])
         for stop in schedule:
             idx = stop['idx']
             if idx < len(qs):
-                arr, dep = qs[idx]
+                arr, dep = [[None if np.isnan(q) else float(q) for q in kind] for kind in qs[idx]]
                 if any(q is not None for q in arr + dep):
                     halts.append({'idx': idx, 'station': stop['station'], 'occ': stop['occ'], 'arr': arr, 'dep': dep})
         return row | {'schedule': schedule, 'halts': halts, 'eta': eta, 'revisions': revisions,
