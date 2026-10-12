@@ -88,3 +88,9 @@ docker compose --profile ops run --rm --no-deps -v "$PWD/data/static:/app/data/s
 python -I -m msynd.static.osm --opl /data/osm/rail.opl
 python -I -m msynd.static.export export'
 ```
+Tiles cleanup (monitor; existing Go `pmtiles` binary; keep `india.pmtiles.orig` for rollback):
+```sh
+docker compose --profile ops run --rm --no-deps --entrypoint sh ops -ec 'printf "/app\n" > /app/.venv/lib/python3.12/site-packages/msynd.pth; python -I -m msynd.static.tiles /data/tiles/india.pmtiles /data/tiles/india.clean.mbtiles'
+pmtiles convert /data/tiles/india.clean.mbtiles /data/tiles/india.clean.pmtiles && pmtiles verify /data/tiles/india.clean.pmtiles
+(test -e /data/tiles/india.pmtiles.orig || cp -p /data/tiles/india.pmtiles /data/tiles/india.pmtiles.orig) && mv /data/tiles/india.clean.pmtiles /data/tiles/india.pmtiles
+```
