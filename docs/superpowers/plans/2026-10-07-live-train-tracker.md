@@ -2416,7 +2416,7 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   - Web: the `sourceStatus` cases above, including fresh frames with old polling showing `old`.
   - `uv run pytest -q tests/api tests/collect`, plus the web test, build and `tsc`, pass.
 - [x] Commit `task 76: truthful source freshness`.
-- [ ] Monitor: deploy. The HUD shows live-data age, and `/api/health` lists the MMT dispatcher.
+- [x] Monitor: deploy. The HUD shows live-data age, and `/api/health` lists the MMT dispatcher.
 
 
 ### Task 77 (amendment 2026-10-13): local-only backup and VM cron (user decisions 2026-10-13: leg bias on now; local-only backup; weekly evaluate Mon 02:00 IST)
@@ -2435,7 +2435,7 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   - note that an empty `OCI_BUCKET_NAME` means local-only backups.
 - [x] Tests: an empty bucket runs one `pg_dump` (with `--schema=obs`) and no `oci` calls, keeps 2 local copies and raises nothing; a set bucket is unchanged (existing tests).
 - [x] Commit `task 77: local-only backup and cron line`.
-- [ ] Monitor (VM): set `OCI_BUCKET_NAME=` in `/opt/msynd/.env` (back it up first) and install the crontab from `docs/deploy.md` (nightly 21:00 UTC with leg bias, weekly Sun 20:30 UTC). Run nightly once by hand and check: the bias rows are written, the engine replays, and a local dump appears in `/data/backups`.
+- [x] Monitor (VM): set `OCI_BUCKET_NAME=` in `/opt/msynd/.env` (back it up first) and install the crontab from `docs/deploy.md` (nightly 21:00 UTC with leg bias, weekly Sun 20:30 UTC). Run nightly once by hand and check: the bias rows are written, the engine replays, and a local dump appears in `/data/backups`.
 
 ---
 
