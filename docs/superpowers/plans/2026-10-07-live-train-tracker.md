@@ -2365,6 +2365,59 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
 - [x] Monitor: deploy the dist. Compare screenshots of the HUD and the open panel against `reports/` from Task 69. The map must show through the glass with visible gentle waves, with no dark fringe wider than about 2 px at the edges. Text contrast is unchanged. fps with the panel closed must be ≥ 60 and within 15 % of Task 71's 102.5. If the refraction costs more than that, cut `numOctaves` to 1 and then `scale`; drop the `url()` before accepting a slower map.
   - Done 2026-10-12: Chromium computes `url("#glass-refract") blur(7px) saturate(1.35)`; map lines bend gently through the HUD and panel, with no edge fringe (reports/t74-panel.png, t74-panel-crop.png vs t74-panel-crop-norefract.png); fps 104.2 (Task 71: 102.5). No tuning needed.
 
+
+### Task 75 (amendment 2026-10-13): per-run cooldown after repeated MMT 5xx (user request: "plan and delegate", approving the council's recommendation)
+
+**Why (monitor, VM DB 2026-10-12):** run 11632 got MMT HTTP 500 375 times between 05:45 and 14:19Z. Each poll job retries up to 5 times, so one broken run fills the 5-minute window with non-`ok` outcomes. The host breaker then pauses everything for 10 minutes roughly every 13.5 minutes, which cost about 75 % of polling. The fix is to isolate the run, not to loosen the breaker: every real 5xx still counts toward the host breaker.
+
+**Plan change (spec §7.1 retries, §7.2 admission):** a run whose 3 most recent status attempts all got HTTP ≥ 500 is held out of polling, harvest and breaker recovery for 1 hour after the latest one. After that it gets one probe attempt per hour until it answers with anything other than 5xx. There is no doubling.
+
+**Files:** `msynd/collect/dispatcher.py`, `msynd/collect/mmt.py`, `msynd/collect/admission.py`, `msynd/collect/__main__.py`, `tests/collect/test_dispatcher.py`, `tests/collect/test_admission.py`.
+
+- `admission.py`: constants `COOLDOWN_5XX = 3` and `COOLDOWN = timedelta(hours=1)`. `PollRun` gains `streak_5xx: int = 0`. `Job` gains `stop_after_5xx: int`, which `next_job` sets to `max(1, COOLDOWN_5XX - run.streak_5xx)` for every job it builds (poll, overdue, recovery, harvest).
+- `dispatcher.py`: `request(..., stop_after_5xx: int | None = None)`. When set, the retry loop also returns once this burst has seen that many responses with HTTP ≥ 500. Timeouts, 429 and transport failures without a status don't count toward it. `None` keeps today's behaviour. Breaker accounting is unchanged.
+- `mmt.py`: `train_running` passes `stop_after_5xx` through.
+- `__main__.py` `load_state`:
+  - for each candidate run, `streak_5xx` = the number of its most recent completed MMT status attempts (any mode; ignore `inflight`) with `http_status >= 500` and no other completed attempt after them;
+  - exclude from both the poll cohort and harvest any run with `streak_5xx >= COOLDOWN_5XX` whose latest such attempt started less than `COOLDOWN` before `now`;
+  - the state comes from `obs.fetch` only, so it survives restarts.
+  - `run_loop` passes `job.stop_after_5xx`.
+- `# ponytail:` comment on the constants: a fixed 1 h cooldown with no doubling; add backoff only if the recovery-yield report shows hourly probes wasting budget.
+- [ ] Tests:
+  - Dispatcher (fake clock): with `stop_after_5xx=3`, the script 503,503,503,200 logs 3 rows and returns `transport_error`; 503, timeout, 503, 503 logs 4 rows; `None` keeps 5 attempts; widespread 5xx across different runs still trips the host breaker.
+  - `load_state` on the test DB: 3 consecutive 5xx with the latest 30 min ago → absent from cohort and harvest; latest 61 min ago → present, and its job has `stop_after_5xx == 1`; a 200 or 400 after the 5xx resets the streak; a streak of 2 gives `stop_after_5xx == 1`; a streak of 1 gives 2; an `inflight` row is ignored.
+  - A healthy run beside a cooling run is still polled within `T_max` (extend the starvation test or add a case).
+  - `uv run pytest -q tests/collect` passes.
+- [ ] Commit `task 75: per-run cooldown after repeated mmt 5xx`.
+- [ ] Monitor: deploy the collector. After 24 h, no run should have more than 3 consecutive 5xx within any hour, and breaker pauses per day should drop.
+
+### Task 76 (amendment 2026-10-13): truthful source freshness (user request: "plan and delegate")
+
+**Why (monitor, 2026-10-12/13):** with the PC relay off overnight, the HUD still said "updated N s ago", because the engine writes a full frame every 5 minutes whether or not new evidence arrived. `/api/health` reads `dispatcher_state:*` metrics, but nothing writes them, so `dispatchers` is always `{}`.
+
+**Plan change (spec §10 `/api/health`, §11 status bar):** health reports source freshness from `obs.fetch` (last `ok` poll and last `ok` harvest, separately), and the collector writes its dispatcher state. The HUD's main text reflects live-data age, not frame age.
+
+**Files:** `msynd/collect/__main__.py`, `msynd/api/app.py`, `tests/api/test_api.py`, `tests/collect/test_admission.py`, `web/src/hud.ts`, `web/src/hud.test.ts`, `web/src/main.ts`, `web/src/main.test.ts` (only if needed).
+
+- Collector: in `run_loop`, insert `sim.metric (clock_timestamp(), 'dispatcher_state:<host>', 0|1|2)` (ok/breaker/stopped, matching `app.py`) at start, whenever `d.state` changes, and at least every 5 minutes.
+- API `/api/health` gains `source: {"poll_ok_at": ts|null, "harvest_ok_at": ts|null}`: the max `received_at` of `ok` MMT status fetches per mode, restricted to `started_at` within the last 2 days so the `(host, started_at)` index applies. Keep the existing fields.
+- Web:
+  - `main.ts` fetches `/api/health` on load and every 60 s, ignoring failures.
+  - `hud.ts` gains a pure `sourceStatus(pollAgeS | null, harvestAgeS | null, frameAgeS | null, dispatcher?: string)`, which returns `{text, freshness, title}`:
+    - text `live data N min ago` (seconds under 2 min);
+    - freshness `fresh` under 5 min, `aging` under 15 min, `old` beyond;
+    - `unknown` with text `live data unknown` when health is unavailable or has no poll time;
+    - when the dispatcher is `breaker` or `stopped`, the text adds ` · paused` or ` · stopped`;
+    - the title carries the frame age and harvest age.
+  - Keep `liveStatus` only if something else still uses it; otherwise replace it.
+- [ ] Tests:
+  - API: health returns `source.poll_ok_at` and `source.harvest_ok_at` from seeded fetch rows (an `ok` poll, a newer failed poll, an `ok` harvest), with nulls when there are none.
+  - Collector: the metric row is written at start and on a state change.
+  - Web: the `sourceStatus` cases above, including fresh frames with old polling showing `old`.
+  - `uv run pytest -q tests/api tests/collect`, plus the web test, build and `tsc`, pass.
+- [ ] Commit `task 76: truthful source freshness`.
+- [ ] Monitor: deploy. The HUD shows live-data age, and `/api/health` lists the MMT dispatcher.
+
 ---
 
 ## Spec coverage check
