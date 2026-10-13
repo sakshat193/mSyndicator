@@ -2410,12 +2410,12 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
     - when the dispatcher is `breaker` or `stopped`, the text adds ` · paused` or ` · stopped`;
     - the title carries the frame age and harvest age.
   - Keep `liveStatus` only if something else still uses it; otherwise replace it.
-- [ ] Tests:
+- [x] Tests:
   - API: health returns `source.poll_ok_at` and `source.harvest_ok_at` from seeded fetch rows (an `ok` poll, a newer failed poll, an `ok` harvest), with nulls when there are none.
   - Collector: the metric row is written at start and on a state change.
   - Web: the `sourceStatus` cases above, including fresh frames with old polling showing `old`.
   - `uv run pytest -q tests/api tests/collect`, plus the web test, build and `tsc`, pass.
-- [ ] Commit `task 76: truthful source freshness`.
+- [x] Commit `task 76: truthful source freshness`.
 - [ ] Monitor: deploy. The HUD shows live-data age, and `/api/health` lists the MMT dispatcher.
 
 
@@ -2433,8 +2433,8 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   - weekly becomes `30 20 * * 0 … python -m msynd.ops.weekly evaluate --models-dir /data/models` (Sun 20:30 UTC = Mon 02:00 IST);
   - fix the line's comment;
   - note that an empty `OCI_BUCKET_NAME` means local-only backups.
-- [ ] Tests: an empty bucket runs one `pg_dump` (with `--schema=obs`) and no `oci` calls, keeps 2 local copies and raises nothing; a set bucket is unchanged (existing tests).
-- [ ] Commit `task 77: local-only backup and cron line`.
+- [x] Tests: an empty bucket runs one `pg_dump` (with `--schema=obs`) and no `oci` calls, keeps 2 local copies and raises nothing; a set bucket is unchanged (existing tests).
+- [x] Commit `task 77: local-only backup and cron line`.
 - [ ] Monitor (VM): set `OCI_BUCKET_NAME=` in `/opt/msynd/.env` (back it up first) and install the crontab from `docs/deploy.md` (nightly 21:00 UTC with leg bias, weekly Sun 20:30 UTC). Run nightly once by hand and check: the bias rows are written, the engine replays, and a local dump appears in `/data/backups`.
 
 ---
