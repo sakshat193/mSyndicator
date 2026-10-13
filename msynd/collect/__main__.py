@@ -6,7 +6,7 @@ import json
 import logging
 import os
 
-from msynd.collect.admission import AdmissionState, PollRun, SCOPE_MIN_KM, next_job
+from msynd.collect.admission import AdmissionState, COOLDOWN, COOLDOWN_5XX, PollRun, SCOPE_MIN_KM, next_job
 from msynd.collect.dispatcher import BudgetExhausted, HostStopped
 from msynd.collect.lifecycle import cancel_not_running, create_runs, expire_runs
 from msynd.collect.mmt import HOST, MmtClient, classify, not_running
@@ -27,19 +27,31 @@ def load_state(conn, now, *, host_state='ok', rate=.2, T_max=None,
     """Recover the scoped cohort and finished-run candidates from durable attempts."""
     AdmissionState((), poll_slots=poll_slots, poll_interval=poll_interval)
     # ponytail: aggregate retained attempts once; add a run/start index if CP-3 finds admission too slow.
-    rows = conn.execute('''
+    attempts_sql = '''
         WITH attempts AS (
-            SELECT f.run_id,f.started_at,f.mode,COALESCE(r.train,split_part(f.key,'/',1)) AS train
+            SELECT f.id,f.run_id,f.started_at,f.mode,f.http_status,f.outcome,
+                   COALESCE(r.train,split_part(f.key,'/',1)) AS train
             FROM obs.fetch f LEFT JOIN obs.run r ON r.id=f.run_id
             WHERE f.host=%s AND f.purpose='status' AND f.started_at<=%s
-        ), polls AS (
+        ), completed AS (
+            SELECT run_id,started_at,
+                   count(*) FILTER (WHERE http_status IS NULL OR http_status<500) OVER (
+                       PARTITION BY run_id ORDER BY started_at DESC,id DESC
+                       ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS newer_non_5xx
+            FROM attempts WHERE outcome<>'inflight'
+        ), streaks AS (
+            SELECT run_id,count(*) AS streak_5xx,max(started_at) AS latest_5xx
+            FROM completed WHERE newer_non_5xx=0 GROUP BY run_id
+        )
+    '''
+    rows = conn.execute(attempts_sql + ''', polls AS (
             SELECT run_id,max(started_at) AS started_at,count(*) AS attempts,
                    max(started_at) FILTER (WHERE mode='poll') AS cohort_at
             FROM attempts GROUP BY run_id
         ), trains AS (
             SELECT train,max(started_at) AS started_at FROM attempts GROUP BY train
         )
-        SELECT r.id,r.train,r.start_date,COALESCE(f.started_at,%s),q.priority
+        SELECT r.id,r.train,r.start_date,COALESCE(f.started_at,%s),q.priority,COALESCE(c.streak_5xx,0)
         FROM obs.run r JOIN LATERAL (
             SELECT (r.start_date::timestamp AT TIME ZONE 'Asia/Kolkata')
                    + (s.dep_off+r.resched_min)*interval '1 minute' AS departure
@@ -48,16 +60,18 @@ def load_state(conn, now, *, host_state='ok', rate=.2, T_max=None,
         ) origin ON true LEFT JOIN polls f ON f.run_id=r.id
         LEFT JOIN trains t ON t.train=r.train
         LEFT JOIN obs.poll_queue q ON q.run_id=r.id AND q.updated_at<=%s
+        LEFT JOIN streaks c ON c.run_id=r.id
         WHERE (r.lifecycle='running' OR (r.lifecycle='scheduled' AND origin.departure<=%s))
           AND EXISTS (SELECT 1 FROM ref.route_stop s
                       WHERE s.route_version_id=r.route_version_id AND s.dist_km>=%s)
+          AND (COALESCE(c.streak_5xx,0)<%s OR c.latest_5xx<=%s)
         ORDER BY COALESCE(f.cohort_at>=%s,false) DESC,
                  COALESCE(t.started_at>=%s,false),COALESCE(f.attempts,0),r.id
         LIMIT %s
     ''', (HOST, now, now-timedelta(seconds=poll_interval), now, now, SCOPE_MIN_KM,
-          now-timedelta(minutes=30), now-timedelta(days=7), poll_slots)).fetchall()
-    harvest = conn.execute('''
-        SELECT r.id,r.train,r.start_date,COALESCE(f.started_at,d.arrival)
+          COOLDOWN_5XX, now-COOLDOWN, now-timedelta(minutes=30), now-timedelta(days=7), poll_slots)).fetchall()
+    harvest = conn.execute(attempts_sql + '''
+        SELECT r.id,r.train,r.start_date,COALESCE(f.started_at,d.arrival),NULL,COALESCE(c.streak_5xx,0)
         FROM obs.run r JOIN LATERAL (
             SELECT s.station,s.occ,(r.start_date::timestamp AT TIME ZONE 'Asia/Kolkata')
                    + (s.arr_off+r.resched_min)*interval '1 minute' AS arrival
@@ -68,12 +82,14 @@ def load_state(conn, now, *, host_state='ok', rate=.2, T_max=None,
                    max(started_at) AS started_at,
                    max(started_at) FILTER (WHERE outcome<>'ok') AS failed_at,
                    max(started_at) FILTER (WHERE outcome='ok') AS ok_at
-            FROM obs.fetch WHERE host=%s AND purpose='status' AND mode='harvest' AND started_at<=%s
+            FROM attempts WHERE mode='harvest'
             GROUP BY run_id
         ) f ON f.run_id=r.id
+        LEFT JOIN streaks c ON c.run_id=r.id
         WHERE r.lifecycle IN ('scheduled','running','expired_unknown')
           AND EXISTS (SELECT 1 FROM ref.route_stop s
                       WHERE s.route_version_id=r.route_version_id AND s.dist_km>=%s)
+          AND (COALESCE(c.streak_5xx,0)<%s OR c.latest_5xx<=%s)
           AND d.arrival+interval '12 hours'<=%s AND %s<d.arrival+interval '48 hours'
           AND COALESCE(f.attempts,0)<4
           AND (f.failed_at IS NULL OR f.failed_at+interval '10 minutes'<=%s)
@@ -82,7 +98,8 @@ def load_state(conn, now, *, host_state='ok', rate=.2, T_max=None,
                AND NOT EXISTS (SELECT 1 FROM obs.event_rev e WHERE e.run_id=r.id
                    AND e.station=d.station AND e.occ=d.occ AND e.kind='arr' AND e.received_at<=%s)))
         ORDER BY d.arrival,r.id
-    ''', (HOST, now, SCOPE_MIN_KM, now, now, now, now, now)).fetchall() if harvest_enabled else []
+    ''', (HOST, now, SCOPE_MIN_KM, COOLDOWN_5XX, now-COOLDOWN,
+          now, now, now, now, now)).fetchall() if harvest_enabled else []
     return AdmissionState(tuple(PollRun(*row) for row in rows), host_state=host_state,
                           rate=rate, T_max=T_max, t_max_factor=t_max_factor,
                           recovery_at=recovery_at, poll_slots=poll_slots, poll_interval=poll_interval,
@@ -157,7 +174,8 @@ async def run_loop(client, conn, *, disk_path='/data', T_max=None, t_max_factor=
                 continue
             try:
                 result = await client.train_running(job.run.train, job.run.start_date, run_id=job.run.id,
-                                                    mode=job.mode, max_attempts=job.max_attempts)
+                                                    mode=job.mode, max_attempts=job.max_attempts,
+                                                    stop_after_5xx=job.stop_after_5xx)
             except BudgetExhausted as exc:
                 day = clock.now().astimezone(IST).date()
                 if budget_logged_day.get(exc.mode) != day:

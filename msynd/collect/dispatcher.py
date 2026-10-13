@@ -184,7 +184,8 @@ class Dispatcher:
                 raise cancelled
             return FetchResult(fetch_id, outcome, status, body, received), retry_after
 
-    async def request(self, purpose, method, url, *, key=None, run_id=None, mode='poll', max_attempts=5, **httpx_kwargs):
+    async def request(self, purpose, method, url, *, key=None, run_id=None, mode='poll', max_attempts=5,
+                      stop_after_5xx: int | None = None, **httpx_kwargs):
         if type(max_attempts) is not int or not 1 <= max_attempts <= 5:
             raise ValueError("max_attempts must be an integer from 1 to 5")
         if httpx.URL(url).host != self.host:
@@ -192,8 +193,13 @@ class Dispatcher:
         if httpx_kwargs.get("follow_redirects"):
             raise ValueError("redirect requests must be dispatched and logged individually")
         refreshed = False
+        seen_5xx = 0
         for attempt in range(max_attempts):
             result, retry_after = await self._attempt(purpose, method, url, key, run_id, mode, httpx_kwargs)
+            if result.status is not None and result.status >= 500:
+                seen_5xx += 1
+                if stop_after_5xx is not None and seen_5xx >= stop_after_5xx:
+                    return result
             if result.outcome == "empty" and not refreshed:
                 refreshed = True
                 if self.on_empty is not None and not self._recovering_session:

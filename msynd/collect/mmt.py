@@ -54,9 +54,11 @@ class MmtClient:
         transport = real_transport()
         return cls(Dispatcher(HOST, settings.mmt_rate, connect, transport, classify=classify, budgets=budgets))
 
-    async def train_running(self, train: str, start: date, run_id=None, *, mode='poll', max_attempts=5) -> FetchResult:
+    async def train_running(self, train: str, start: date, run_id=None, *, mode='poll', max_attempts=5,
+                            stop_after_5xx: int | None = None) -> FetchResult:
         validate_request(train, start)
         return await self.d.request("status", "POST", f"https://{HOST}/api/ris/train/livestatus/v2",
             key=f"{train}/{start.isoformat()}", run_id=run_id, mode=mode, max_attempts=max_attempts,
+            stop_after_5xx=stop_after_5xx,
             json={"trainNumber": train, "dateOfJourney": start.strftime("%d-%m-%Y"), "findNextRunningDate": False},
             headers={"Content-Type": "application/json"})

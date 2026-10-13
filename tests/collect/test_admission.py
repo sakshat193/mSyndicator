@@ -750,3 +750,129 @@ def test_cli_rejects_invalid_poll_settings(args, capsys):
         main(args)
     assert exc.value.code == 2
     assert 'poll' in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('streak,cap', [(0, 3), (1, 2), (2, 1), (3, 1), (8, 1)])
+@pytest.mark.parametrize('reason', ['age', 'targeted', 'overdue', 'recovery', 'harvest', 'harvest_recovery'])
+def test_every_job_limits_remaining_5xx(streak, cap, reason):
+    from msynd.collect.admission import AdmissionState, PollRun, next_job
+
+    run = PollRun(1, '12951', date(2026, 10, 7), NOW - timedelta(seconds=120), streak_5xx=streak)
+    state = AdmissionState((run,), T_max=600)
+    if reason == 'targeted':
+        state = replace(state, runs=(replace(run, priority=100),))
+    elif reason == 'overdue':
+        state = replace(state, T_max=125)
+    elif reason == 'recovery':
+        state = replace(state, host_state='breaker', recovery_at=NOW)
+    elif reason.startswith('harvest'):
+        state = replace(state, runs=(), harvest=(run,),
+                        host_state='breaker' if reason == 'harvest_recovery' else 'ok', recovery_at=NOW)
+    job = next_job(state, NOW)
+    assert job.reason == ('recovery' if reason == 'harvest_recovery' else reason)
+    assert job.stop_after_5xx == cap
+    assert job.max_attempts == (1 if reason.startswith('harvest') else 5)
+
+
+@pytest.mark.db
+@pytest.mark.parametrize('age,eligible', [(30, False), (60, True), (61, True)])
+@pytest.mark.parametrize('inflight_status', [200, 503])
+def test_durable_5xx_cooldown_filters_poll_harvest_and_recovery(db, age, eligible, inflight_status):
+    from msynd.collect.__main__ import load_state
+    from msynd.collect.admission import next_job
+
+    run = make_run(db, start='2026-10-06')
+    latest = NOW - timedelta(minutes=age)
+    for i, mode in enumerate(('poll', 'probe', 'harvest')):
+        insert_fetch(db, host=HOST, run_id=run, mode=mode, outcome='transport_error', http_status=503,
+                     started_at=latest - timedelta(seconds=2-i))
+    insert_fetch(db, host=HOST, run_id=run, outcome='inflight', http_status=inflight_status,
+                 started_at=NOW - timedelta(minutes=1))
+    # Unrelated purposes, hosts and future attempts cannot reset the completed MMT streak.
+    for kwargs in ({'host': 'other'}, {'purpose': 'token'}, {'started_at': NOW + timedelta(seconds=1)}):
+        insert_fetch(db, **({'host': HOST, 'run_id': run, 'started_at': NOW, 'http_status': 200} | kwargs))
+    for _ in range(2):  # Reload without carrying any in-memory cooldown state.
+        state = load_state(db, NOW)
+        assert [r.id for r in state.runs] == ([run] if eligible else [])
+        assert [r.id for r in state.harvest] == ([run] if eligible else [])
+        for candidates in (state, replace(state, runs=())):
+            for recovery in (False, True):
+                admission = replace(candidates, host_state='breaker' if recovery else 'ok', recovery_at=NOW)
+                job = next_job(admission, NOW)
+                if eligible:
+                    assert job.run.streak_5xx == 3 and job.stop_after_5xx == 1
+                else:
+                    assert job is None
+
+
+@pytest.mark.db
+@pytest.mark.parametrize('statuses,streak,cap', [
+    ([503], 1, 2), ([503, 503], 2, 1),
+    ([200, 503, 503, 503], 3, 1),
+    ([503, 503, 503, 200], 0, 3),
+    ([503, 503, 503, 400], 0, 3),
+    ([503, 503, 503, 429], 0, 3),
+    ([503, 503, 503, None], 0, 3),
+    ([503, 503, 503, 200, 503], 1, 2),
+])
+def test_completed_status_attempts_define_trailing_5xx_streak(db, statuses, streak, cap):
+    from msynd.collect.__main__ import load_state
+    from msynd.collect.admission import next_job
+
+    run = make_run(db, start='2026-10-06')
+    for i, status in enumerate(statuses):
+        insert_fetch(db, host=HOST, run_id=run, mode='probe', http_status=status,
+                     outcome='ok' if status == 200 else 'transport_error' if status is None or status >= 429 else 'invalid',
+                     started_at=NOW - timedelta(minutes=61, seconds=len(statuses)-i))
+    state = load_state(db, NOW)
+    for candidate in (state.runs[0], state.harvest[0]):
+        assert candidate.id == run and candidate.streak_5xx == streak
+    assert next_job(state, NOW).stop_after_5xx == cap
+    assert next_job(replace(state, runs=()), NOW).stop_after_5xx == cap
+
+
+@pytest.mark.db
+def test_streak_uses_fetch_id_to_order_attempts_with_equal_start_time(db):
+    from msynd.collect.__main__ import load_state
+
+    run = make_run(db)
+    for status in (503, 503, 503, 200, 503):
+        insert_fetch(db, host=HOST, run_id=run, http_status=status,
+                     outcome='ok' if status == 200 else 'transport_error', started_at=NOW)
+    assert load_state(db, NOW).runs[0].streak_5xx == 1
+
+
+@pytest.mark.db
+@pytest.mark.parametrize('streak,expected_attempts', [(0, 3), (1, 2), (2, 1), (3, 1)])
+def test_loop_cools_broken_run_and_polls_healthy_run_within_t_max(collector_url, tmp_path, streak, expected_attempts):
+    from msynd.collect.__main__ import load_state, run_loop
+
+    with connect(collector_url) as conn:
+        broken = make_run(conn)
+        healthy = make_run(conn, train='12952')
+        conn.execute("UPDATE ref.schedule_version SET valid_from='2026-10-07'")
+        for i in range(streak):
+            insert_fetch(conn, host=HOST, run_id=broken, outcome='transport_error', http_status=503,
+                         started_at=NOW - timedelta(minutes=61, seconds=streak-i))
+        insert_fetch(conn, host=HOST, run_id=healthy, started_at=NOW - timedelta(seconds=120))
+        conn.execute("INSERT INTO obs.poll_queue VALUES (%s,1000000,'test',%s)", (broken, NOW))
+    clock = FakeClock()
+    clock.base = NOW
+    starts = []
+    def handle(request):
+        train = json.loads(request.content)['trainNumber']
+        starts.append((train, clock.t))
+        return httpx.Response(503) if train == '12951' else httpx.Response(200, json={})
+    d = Dispatcher(HOST, .2, lambda: connect(collector_url), httpx.MockTransport(handle), clock=clock)
+    async def execute():
+        with connect(collector_url) as conn:
+            await run_loop(MmtClient(d), conn, disk_path=tmp_path, poll_slots=2, T_max=150,
+                           stop=lambda: clock.t >= 260)
+    asyncio.run(execute())
+    assert sum(train == '12951' for train, _ in starts) == expected_attempts
+    healthy_starts = [t for train, t in starts if train == '12952']
+    assert len(healthy_starts) >= 2
+    assert all(b-a <= 150 for a, b in zip([-120] + healthy_starts, healthy_starts))
+    assert d.state == 'ok'
+    with connect(collector_url) as conn:
+        assert broken not in [r.id for r in load_state(conn, clock.now()).runs]

@@ -480,3 +480,55 @@ def test_breaker_exemption_only_applies_to_invalid(db_url):
         finally:
             await d.close()
     asyncio.run(run())
+
+
+@pytest.mark.parametrize('script,cap,statuses', [
+    ([503, 503, 503, 200], 3, [503, 503, 503]),
+    ([500, 502, 599, 200], 3, [500, 502, 599]),
+    ([503, 'timeout', 503, 503, 200], 3, [503, None, 503, 503]),
+    ([503, 'connect', 503, 503, 200], 3, [503, None, 503, 503]),
+    ([503, 429, 503, 503, 200], 3, [503, 429, 503, 503]),
+    ([503] * 5 + [200], None, [503] * 5),
+])
+def test_stop_after_5xx_caps_only_server_responses(budget_url, script, cap, statuses):
+    async def run():
+        responses = iter(script)
+        def handle(request):
+            status = next(responses)
+            if status == 'timeout':
+                raise httpx.ReadTimeout('offline timeout')
+            if status == 'connect':
+                raise httpx.ConnectError('offline failure')
+            return httpx.Response(status, content=b'ok')
+        d = dispatcher(budget_url, FakeClock(), handle)
+        await d.start()
+        try:
+            result = await d.request('status', 'GET', 'https://h/x', stop_after_5xx=cap)
+            assert result.outcome == 'transport_error' and result.status == statuses[-1]
+            assert d.conn.execute("select http_status,outcome from obs.fetch where host='h' order by id").fetchall() == [
+                (status, 'transport_error') for status in statuses]
+        finally:
+            await d.close()
+    asyncio.run(run())
+
+
+def test_per_run_retry_cap_keeps_widespread_5xx_in_host_breaker(budget_url):
+    from tests.helpers import make_run
+
+    async def run():
+        clock = FakeClock()
+        d = dispatcher(budget_url, clock, lambda request: httpx.Response(503),
+                       breaker_exempt=lambda response: True)
+        await d.start()
+        try:
+            d.conn.autocommit = False  # Roll back the run fixtures and their attempts on close.
+            ids = [make_run(d.conn, train=str(12000+i)) for i in range(20)]
+            for run_id in ids:
+                result = await d.request('status', 'GET', 'https://h/x', run_id=run_id, stop_after_5xx=1)
+                assert result.outcome == 'transport_error'
+            assert d.state == 'breaker' and d.pause_until == clock.t + 600
+            assert d.conn.execute("select run_id,http_status from obs.fetch where host='h' order by id").fetchall() == [
+                (run_id, 503) for run_id in ids]
+        finally:
+            await d.close()
+    asyncio.run(run())
