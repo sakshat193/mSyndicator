@@ -107,11 +107,31 @@ async def run_loop(client, conn, *, disk_path='/data', T_max=None, t_max_factor=
     next_hour = clock.now()
     budget_logged_day = {}
     harvest_exhausted_day = None
+    metric_state, metric_at = None, -float('inf')
+    metric_task = None
+
+    def write_dispatcher_state():
+        nonlocal metric_state, metric_at
+        tick = clock.monotonic()
+        if d.state != metric_state or tick - metric_at >= 300:
+            with conn.transaction():
+                conn.execute('INSERT INTO sim.metric VALUES (clock_timestamp(),%s,%s)',
+                             ('dispatcher_state:' + d.host, {'ok': 0, 'breaker': 1, 'stopped': 2}[d.state]))
+            metric_state, metric_at = d.state, tick
+
+    async def monitor_dispatcher_state():
+        while True:
+            await asyncio.sleep(1)
+            write_dispatcher_state()
+
     try:
         # Acquire the dispatcher's host lock before lifecycle or retention writes.
         await d.start()
+        write_dispatcher_state()
+        metric_task = asyncio.create_task(monitor_dispatcher_state())
         d.classify = _classify_status
         while stop is None or not stop():
+            write_dispatcher_state()
             # Decide at the next request slot, so harvest cannot consume a due poll's spacing.
             wait = d.last_start + 1 / d.rate - clock.monotonic()
             if d.state == 'ok' and wait > 0:
@@ -152,6 +172,8 @@ async def run_loop(client, conn, *, disk_path='/data', T_max=None, t_max_factor=
                 # Stay alive for housekeeping; a challenge requires a manual process restart.
                 log.error('MMT host stopped by a challenge; manual restart required')
                 continue
+            finally:
+                write_dispatcher_state()
             if result.outcome == 'ok':
                 page = parse_status(result.body, job.run.train, job.run.start_date)
                 with conn.transaction():
@@ -160,7 +182,14 @@ async def run_loop(client, conn, *, disk_path='/data', T_max=None, t_max_factor=
                 with conn.transaction():
                     cancel_not_running(conn, job.run.id, result.received_at)
     finally:
-        await d.close()
+        try:
+            if metric_task is not None:
+                metric_task.cancel()
+                await metric_task
+        except asyncio.CancelledError:
+            pass
+        finally:
+            await d.close()
 
 
 def main(argv=None):

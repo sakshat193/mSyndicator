@@ -15,6 +15,7 @@ import psycopg
 from psycopg.rows import dict_row
 from starlette.responses import Response
 
+from msynd.collect.mmt import HOST
 from msynd.config import settings
 
 log = logging.getLogger(__name__)
@@ -294,7 +295,12 @@ def create_app(database_url=None, static_dir='data/static'):
         states = {0: 'ok', 1: 'breaker', 2: 'stopped'}
         dispatchers = {r['name'].split(':', 1)[1]: {'state': states[r['value']], 'ts': r['ts']} for r in rows if r['value'] in states}
         latest = query('SELECT gen,extract(epoch FROM (clock_timestamp()-ts)) AS age FROM sim.frame ORDER BY gen DESC LIMIT 1')
+        source = query('''SELECT max(received_at) FILTER (WHERE mode='poll') AS poll_ok_at,
+            max(received_at) FILTER (WHERE mode='harvest') AS harvest_ok_at
+            FROM obs.fetch WHERE host=%s AND purpose='status' AND outcome='ok'
+              AND started_at >= CURRENT_TIMESTAMP-interval '2 days' ''', (HOST,))[0]
         return {'dispatchers': dispatchers,
+                'source': source,
                 'active_models': query('SELECT id,role,kind,feature_ver,trained_at FROM ml.model WHERE active ORDER BY role'),
                 'dirty_backlog': query('SELECT count(*) AS n FROM obs.dirty_run')[0]['n'],
                 'last_frame': latest[0] if latest else None}

@@ -1,7 +1,12 @@
-export function liveStatus(age: number | null) {
+export function sourceStatus(pollAgeS: number | null, harvestAgeS: number | null,
+  frameAgeS: number | null, dispatcher?: string) {
+  const ageText = (age: number | null) => age === null ? 'unknown' :
+    `${age < 120 ? `${Math.floor(age)} s` : `${Math.floor(age / 60)} min`} ago`;
+  const suffix = dispatcher === 'breaker' ? ' · paused' : dispatcher === 'stopped' ? ' · stopped' : '';
   return {
-    text: age === null ? 'Connecting…' : `updated ${age} s ago`,
-    freshness: age === null ? 'pending' : age < 60 ? 'fresh' : age < 180 ? 'aging' : 'old',
+    text: `live data ${ageText(pollAgeS)}${suffix}`,
+    freshness: pollAgeS === null ? 'unknown' : pollAgeS < 300 ? 'fresh' : pollAgeS < 900 ? 'aging' : 'old',
+    title: `frame ${ageText(frameAgeS)} · harvest ${ageText(harvestAgeS)}`,
   };
 }
 

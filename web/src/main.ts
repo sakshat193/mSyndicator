@@ -13,7 +13,7 @@ import { liveTime } from './timeline';
 import { hoverText, runPanel } from './panel';
 import { mapOptions } from './basemap';
 import { initSearch } from './search';
-import { initHud, liveStatus, trainCount } from './hud';
+import { initHud, sourceStatus, trainCount } from './hud';
 
 // ponytail: userAgentData gates SVG backdrop filters to Chromium; drop once @supports can detect them.
 if ('userAgentData' in navigator) document.body.dataset.refract = '';
@@ -64,6 +64,19 @@ let lastDraw = -Infinity;
 let settling = false;
 let lastStatus = -Infinity;
 let animation: number;
+let health: {
+  source?: { poll_ok_at: string | null; harvest_ok_at: string | null };
+  dispatchers?: Record<string, { state: string }>;
+} | undefined;
+
+async function loadHealth() {
+  try {
+    const response = await fetch('/api/health');
+    if (response.ok) health = await response.json();
+  } catch {}
+}
+void loadHealth();
+const healthInterval = setInterval(loadHealth, 60000);
 
 function clearSelection() {
   selected = null;
@@ -197,10 +210,16 @@ function draw(tick: number) {
       count.removeAttribute('title');
     }
     if (network) {
-      const age = store.latest ? Math.max(0, Math.floor(now / 1000 - store.latest.ts)) : null;
-      const live = liveStatus(age);
+      const sourceAge = (ts: string | null | undefined) => {
+        const time = ts ? Date.parse(ts) : NaN;
+        return Number.isFinite(time) ? Math.max(0, Math.floor((now - time) / 1000)) : null;
+      };
+      const frameAge = store.latest ? Math.max(0, Math.floor(now / 1000 - store.latest.ts)) : null;
+      const live = sourceStatus(sourceAge(health?.source?.poll_ok_at), sourceAge(health?.source?.harvest_ok_at),
+        frameAge, health?.dispatchers?.['rails-ris.makemytrip.com']?.state);
       status.textContent = live.text;
       status.dataset.freshness = live.freshness;
+      status.title = live.title;
     }
     if (panelRun) panel.update(panelRun, simTime);
     renderHover();
@@ -209,5 +228,6 @@ function draw(tick: number) {
 }
 animation = requestAnimationFrame(draw);
 window.addEventListener('pagehide', () => {
+  clearInterval(healthInterval);
   disposeHud(); closeSearch(); panel.close(); disconnect(); cancelAnimationFrame(animation); map.remove();
 }, { once: true });

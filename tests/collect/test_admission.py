@@ -293,6 +293,116 @@ def test_loop_cannot_run_alongside_host_owner(collector_url, tmp_path):
 
 
 @pytest.mark.db
+@pytest.mark.parametrize('initial,response,expected', [
+    ('ok', 'invalid', [0, 1]),
+    ('ok', 'challenge', [0, 2]),
+    ('breaker', 'invalid', [1, 0]),
+])
+def test_loop_records_dispatcher_start_and_final_request_state(collector_url, tmp_path,
+                                                             initial, response, expected):
+    from msynd.collect.__main__ import run_loop
+
+    with connect(collector_url) as conn:
+        make_run(conn)
+        conn.execute("UPDATE ref.schedule_version SET valid_from='2026-10-07'")
+    clock = FakeClock()
+    clock.base = NOW
+    starts = []
+    def handle(request):
+        with connect(collector_url) as conn:
+            assert conn.execute('SELECT value FROM sim.metric WHERE name=%s ORDER BY ts',
+                                ('dispatcher_state:' + HOST,)).fetchall() == [(expected[0],)]
+        starts.append(clock.t)
+        return httpx.Response(403, content=b'captcha') if response == 'challenge' else httpx.Response(200, json={})
+    d = Dispatcher(HOST, .2, lambda: connect(collector_url), httpx.MockTransport(handle), clock=clock)
+    d.state = initial
+    if initial == 'ok' and response == 'invalid':
+        d.outcomes.extend([(0, 'invalid')] * 19)
+    async def execute():
+        with connect(collector_url) as conn:
+            await run_loop(MmtClient(d), conn, disk_path=tmp_path, stop=lambda: bool(starts) or clock.t >= 60)
+    asyncio.run(execute())
+    assert starts == [0]
+    with connect(collector_url) as conn:
+        assert [row[0] for row in conn.execute('SELECT value FROM sim.metric WHERE name=%s ORDER BY ts',
+                                              ('dispatcher_state:' + HOST,))] == expected
+
+
+@pytest.mark.db
+@pytest.mark.parametrize('duration,count', [(0, 1), (601, 3)])
+def test_loop_records_dispatcher_start_and_five_minute_heartbeat(collector_url, tmp_path, duration, count):
+    from msynd.collect.__main__ import run_loop
+
+    clock = FakeClock()
+    d = Dispatcher(HOST, .2, lambda: connect(collector_url),
+                   httpx.MockTransport(lambda r: pytest.fail('idle collector must not send')), clock=clock)
+    with connect(collector_url) as conn:
+        before = conn.execute('SELECT clock_timestamp()').fetchone()[0]
+    async def execute():
+        with connect(collector_url) as conn:
+            await run_loop(MmtClient(d), conn, disk_path=tmp_path, stop=lambda: clock.t >= duration)
+    asyncio.run(execute())
+    with connect(collector_url) as conn:
+        after = conn.execute('SELECT clock_timestamp()').fetchone()[0]
+        rows = conn.execute('SELECT ts,value FROM sim.metric WHERE name=%s ORDER BY ts',
+                            ('dispatcher_state:' + HOST,)).fetchall()
+        assert len(rows) == count
+        assert all(before <= ts <= after and value == 0 for ts, value in rows)
+
+
+@pytest.mark.db
+def test_loop_records_breaker_and_heartbeat_during_retry_wait(collector_url, tmp_path):
+    from msynd.collect.__main__ import run_loop
+
+    with connect(collector_url) as conn:
+        make_run(conn)
+        conn.execute("UPDATE ref.schedule_version SET valid_from='2026-10-07'")
+    clock = FakeClock()
+    clock.base = NOW
+    starts = []
+    def handle(request):
+        starts.append(clock.t)
+        return httpx.Response(503) if len(starts) == 1 else httpx.Response(200, json={})
+    d = Dispatcher(HOST, .2, lambda: connect(collector_url), httpx.MockTransport(handle), clock=clock)
+    d.outcomes.extend([(0, 'invalid')] * 19)
+
+    async def execute():
+        paused, resume = asyncio.Event(), asyncio.Event()
+        async def sleep(seconds):
+            clock.t += seconds
+            if d.state == 'breaker' and not paused.is_set():
+                paused.set()
+                await resume.wait()
+        clock.sleep = sleep
+        async def collect():
+            with connect(collector_url) as conn:
+                await run_loop(MmtClient(d), conn, disk_path=tmp_path, stop=lambda: len(starts) >= 2)
+        async def wait_for_metrics(expected):
+            deadline = asyncio.get_running_loop().time() + 3
+            while True:
+                with connect(collector_url) as conn:
+                    values = [row[0] for row in conn.execute(
+                        'SELECT value FROM sim.metric WHERE name=%s ORDER BY ts', ('dispatcher_state:' + HOST,))]
+                if values == expected:
+                    return
+                if asyncio.get_running_loop().time() >= deadline:
+                    assert values == expected
+                await asyncio.sleep(.02)
+        task = asyncio.create_task(collect())
+        try:
+            await asyncio.wait_for(paused.wait(), timeout=3)
+            await wait_for_metrics([0, 1])
+            clock.t += 300
+            await wait_for_metrics([0, 1, 1])
+        finally:
+            resume.set()
+            await task
+        await wait_for_metrics([0, 1, 1, 0])
+    asyncio.run(execute())
+    assert len(starts) == 2
+
+
+@pytest.mark.db
 def test_loop_fairness_includes_dispatcher_start_wait(collector_url, tmp_path):
     from msynd.collect.__main__ import run_loop
 

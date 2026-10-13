@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from msynd.engine.frames import write_frame
-from tests.helpers import insert_event, make_run
+from tests.helpers import insert_event, insert_fetch, make_run
 
 pytestmark = pytest.mark.db
 NOW = datetime.now(timezone.utc)
@@ -299,6 +299,40 @@ def test_health_metrics_and_search(api):
     assert len(client.get('/api/metrics').json()) == 3
     assert client.get('/api/search', params={'q': train}).json()['trains'][0]['number'] == train
     assert client.get('/api/search?q=MMCT').json()['stations'][0]['code'] == 'MMCT'
+
+
+@pytest.mark.parametrize('seeded', [False, True])
+def test_health_source_freshness_uses_only_recent_ok_mmt_status_by_mode(api, seeded):
+    from msynd.collect.mmt import HOST
+
+    conn, client, *_ = api
+    poll = NOW - timedelta(minutes=20)
+    harvest = NOW - timedelta(minutes=10)
+    fetches = []
+    try:
+        if seeded:
+            for values in [
+                {'mode': 'poll', 'received_at': poll},
+                {'mode': 'poll', 'received_at': poll - timedelta(minutes=1)},
+                {'mode': 'poll', 'outcome': 'transport_error', 'received_at': NOW},
+                {'mode': 'harvest', 'received_at': harvest},
+                {'mode': 'harvest', 'outcome': 'invalid', 'received_at': NOW},
+                {'mode': 'poll', 'host': 'other', 'received_at': NOW},
+                {'mode': 'poll', 'purpose': 'token', 'received_at': NOW},
+                {'mode': 'probe', 'received_at': NOW},
+                {'mode': 'poll', 'started_at': NOW - timedelta(days=3), 'received_at': NOW},
+            ]:
+                fetches.append(insert_fetch(conn, **({'host': HOST, 'started_at': poll} | values)))
+            conn.commit()
+        source = client.get('/api/health').json()['source']
+        assert set(source) == {'poll_ok_at', 'harvest_ok_at'}
+        if seeded:
+            assert datetime.fromisoformat(source['poll_ok_at']) == poll
+            assert datetime.fromisoformat(source['harvest_ok_at']) == harvest
+        else:
+            assert source == {'poll_ok_at': None, 'harvest_ok_at': None}
+    finally:
+        conn.execute('DELETE FROM obs.fetch WHERE id=ANY(%s)', (fetches,))
 
 
 def test_notify_reads_before_send_and_poll_recovers(api):

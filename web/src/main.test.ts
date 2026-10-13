@@ -69,6 +69,14 @@ it.each([
     set textContent(text: string) { statusText = text; statusWrites++; } };
   const panel = element();
   const elements = new Map<string, any>([['#connection', status], ['#panel', panel]]);
+  let healthTick: () => Promise<void>;
+  const clearInterval = vi.fn();
+  vi.stubGlobal('setInterval', (callback: () => Promise<void>, ms: number) => {
+    expect(ms).toBe(60000);
+    healthTick = callback;
+    return 7;
+  });
+  vi.stubGlobal('clearInterval', clearInterval);
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { draw = callback; return 1; });
   vi.stubGlobal('cancelAnimationFrame', () => {});
   vi.stubGlobal('window', { innerWidth: 1000, innerHeight: 800,
@@ -88,7 +96,17 @@ it.each([
   vi.stubGlobal('location', { protocol: 'http:', host: '127.0.0.1' });
   vi.stubGlobal('WebSocket', Socket);
   vi.spyOn(Date, 'now').mockImplementation(() => (simTime + 15) * 1000);
-  const fetch = vi.fn(async (url: string) => url.startsWith('/api/run/') ? { ok: false, status: 503 } :
+  let healthRequests = 0;
+  const fetch = vi.fn(async (url: string) => {
+    if (url === '/api/health') {
+      if (++healthRequests === 1) throw new Error('Health unavailable');
+      if (healthRequests === 3) return { ok: false, status: 503 };
+      return { ok: true, json: async () => ({
+        source: { poll_ok_at: new Date(415000).toISOString(), harvest_ok_at: new Date(1015000).toISOString() },
+        dispatchers: { 'rails-ris.makemytrip.com': { state: 'breaker', ts: new Date(1615000).toISOString() } },
+      }) };
+    }
+    return url.startsWith('/api/run/') ? { ok: false, status: 503 } :
     ({ ok: true, json: async () => ({
     stations: [{ code: 'A', lon: 70, lat: 20 }, { code: 'B', lon: 72, lat: 22 }],
     segments: [{ id: 1, stn_lo: 'A', stn_hi: 'B', polyline: null, derived: false, confidence: 0 }],
@@ -96,7 +114,8 @@ it.each([
       { idx: 0, station: 'A', halt: true, dist_km: 0, sched_off: 0 },
       { idx: 1, station: 'B', halt: true, dist_km: 100, sched_off: 10 },
     ], segments: [] }],
-  }) }));
+  }) });
+  });
   vi.stubGlobal('fetch', fetch);
   const run = { run_id: 9, versions: { route: 7 }, origin_ts: 1000, base_ts: 1000,
     path_shape: [1, 2, 2] as [number, number, number],
@@ -112,8 +131,11 @@ it.each([
   draw!(-1000);
   expect(count.textContent).toBe('Loading…');
   expect(count.title).toBeUndefined();
-  expect(status.textContent).toBe('Connecting…');
-  expect(status.dataset.freshness).toBe('pending');
+  expect(fetch).toHaveBeenCalledWith('/api/health');
+  expect(status.textContent).toBe('live data unknown');
+  expect(status.dataset.freshness).toBe('unknown');
+  expect(status.title).toBe('frame unknown · harvest unknown');
+  await healthTick!();
   Socket.current.receive({ gen: 1, ts: 1600, is_full: true, versions: {}, base_ts: 1000,
     runs: { 9: run }, tombstones: [] });
   const reads = vi.spyOn(DataView.prototype, 'getUint16');
@@ -133,8 +155,10 @@ it.each([
   expect(statusWrites).toBe(2);
   expect(elements.get('#train-count').textContent).toBe('1 train');
   expect(elements.get('#train-count').title).toBe('1 live · 0 by timetable');
-  expect(status.textContent).toBe('updated 15 s ago');
-  expect(status.dataset.freshness).toBe('fresh');
+  expect(status.textContent).toBe('live data 20 min ago · paused');
+  expect(status.dataset.freshness).toBe('old');
+  expect(status.title).toBe('frame 15 s ago · harvest 10 min ago');
+  await healthTick!(); // A failed refresh leaves the last known poll timestamp aging.
   simTime = 1900;
   draw!(116); // Settled heads redraw at 10 Hz only.
   expect(rendered.draws).toBe(2);
@@ -191,6 +215,9 @@ it.each([
   expect(statusWrites).toBe(2);
   draw!(1150);
   expect(statusWrites).toBe(3);
+  expect(status.textContent).toBe('live data 53 min ago · paused');
+  expect(status.dataset.freshness).toBe('old');
+  expect(status.title).toBe('frame 15 s ago · harvest 43 min ago');
   expect(elements.get('#train-count').textContent).toBe('0 trains');
   expect(elements.get('#train-count').title).toBe('0 live · 0 by timetable');
   Socket.current.receive({ gen: 5, ts: 3601, is_full: false, versions: {}, base_ts: null,
@@ -306,6 +333,7 @@ it.each([
   expect(heads().props.updateTriggers.getFillColor).toBe(sameHeadColors);
   expect(heads().props.updateTriggers.getPosition).not.toBe(beforeRedraw);
   rendered.listeners.pagehide();
+  expect(clearInterval).toHaveBeenCalledWith(7);
   expect(toggle.listeners.click).toBeUndefined();
   expect(rendered.listeners['document:keydown']).toBeUndefined();
 });

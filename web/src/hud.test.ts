@@ -1,15 +1,36 @@
 import { expect, it } from 'vitest';
-import { initHud, liveStatus, trainCount } from './hud';
+import { initHud, sourceStatus, trainCount } from './hud';
 
 it.each([
-  [null, 'Connecting…', 'pending'],
-  [0, 'updated 0 s ago', 'fresh'],
-  [59, 'updated 59 s ago', 'fresh'],
-  [60, 'updated 60 s ago', 'aging'],
-  [179, 'updated 179 s ago', 'aging'],
-  [180, 'updated 180 s ago', 'old'],
+  [null, 'live data unknown', 'unknown'],
+  [0, 'live data 0 s ago', 'fresh'],
+  [119, 'live data 119 s ago', 'fresh'],
+  [120, 'live data 2 min ago', 'fresh'],
+  [299, 'live data 4 min ago', 'fresh'],
+  [300, 'live data 5 min ago', 'aging'],
+  [899, 'live data 14 min ago', 'aging'],
+  [900, 'live data 15 min ago', 'old'],
+  [3600, 'live data 60 min ago', 'old'],
 ])('shows age %s as %s with freshness %s', (age, text, freshness) => {
-  expect(liveStatus(age as number | null)).toEqual({ text, freshness });
+  expect(sourceStatus(age as number | null, 600, 0)).toEqual({
+    text, freshness, title: 'frame 0 s ago · harvest 10 min ago',
+  });
+});
+
+it.each([['ok', ''], ['breaker', ' · paused'], ['stopped', ' · stopped']])
+('includes dispatcher %s without hiding old live data behind fresh frames', (dispatcher, suffix) => {
+  expect(sourceStatus(1800, 60, 1, dispatcher)).toEqual({
+    text: `live data 30 min ago${suffix}`, freshness: 'old', title: 'frame 1 s ago · harvest 60 s ago',
+  });
+});
+
+it('shows unknown poll, frame and harvest ages, including a paused dispatcher', () => {
+  expect(sourceStatus(null, null, null)).toEqual({
+    text: 'live data unknown', freshness: 'unknown', title: 'frame unknown · harvest unknown',
+  });
+  expect(sourceStatus(null, 60, 0, 'breaker')).toMatchObject({
+    text: 'live data unknown · paused', freshness: 'unknown',
+  });
 });
 
 it('counts drawn trains with singular/plural text and a live/timetable title', () => {
