@@ -105,8 +105,6 @@ def disk_check(path, *, conn=None, usage=shutil.disk_usage):
 def backup(*, database_url=None, bucket=None, directory='/data/backups', now=None,
            run=subprocess.run):
     bucket = os.environ.get('OCI_BUCKET_NAME', '') if bucket is None else bucket
-    if not bucket:
-        raise ValueError('OCI backup bucket is required')
     now = now or datetime.now(timezone.utc)
     day = now.astimezone(IST).date()
     directory = Path(directory)
@@ -130,6 +128,10 @@ def backup(*, database_url=None, bucket=None, directory='/data/backups', now=Non
                                 if re.fullmatch(r'local-\d{4}-\d{2}-\d{2}\.dump', p.name))
                 for old in copies[:-2]:
                     old.unlink()
+                if not bucket:
+                    # ponytail: local-only until the user approves OCI credentials; setting the bucket re-enables off-site
+                    log.warning('off-site backup disabled: OCI_BUCKET_NAME empty')
+                    return local
         oci = ['oci', 'os', 'object']
         for cadence in ('daily', 'weekly') if day.weekday() == 6 else ('daily',):
             run(oci + ['put', '--bucket-name', bucket, '--name', f'msynd/{cadence}/{day}.dump',

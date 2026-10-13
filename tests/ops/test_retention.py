@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import json
+import logging
 from pathlib import Path
 import subprocess
 
@@ -124,18 +125,40 @@ def test_weekly_backup(tmp_path):
     assert any('msynd/weekly/2026-10-11.dump' in a for a in calls)
 
 
-@pytest.mark.parametrize('failure', ['pg_dump', 'put'])
-def test_failed_backup_preserves_two_valid_copies(tmp_path, failure):
+@pytest.mark.parametrize('bucket,failure', [('test', 'pg_dump'), ('test', 'put'), ('', 'pg_dump')])
+def test_failed_backup_preserves_two_valid_copies(tmp_path, bucket, failure):
     for date in ('2026-09-01', '2026-09-02'):
         (tmp_path / f'local-{date}.dump').write_bytes(b'old')
     calls = []
     with pytest.raises(subprocess.CalledProcessError):
-        backup(database_url='test', bucket='test', directory=tmp_path, now=NOW,
+        backup(database_url='test', bucket=bucket, directory=tmp_path, now=NOW,
                run=runner(calls, fail=lambda a: failure in a))
     assert len(list(tmp_path.glob('local-*.dump'))) == 2
     assert not any('delete' in a for a in calls)
 
 
-def test_backup_requires_bucket_before_dump(tmp_path):
-    with pytest.raises(ValueError, match='bucket'):
-        backup(database_url='test', bucket='', directory=tmp_path, now=NOW, run=lambda *a, **k: pytest.fail('command started'))
+@pytest.mark.parametrize('bucket,env_bucket', [('', 'test-bucket'), (None, ''), (None, None)])
+def test_backup_empty_bucket_keeps_two_local_copies(tmp_path, monkeypatch, caplog, bucket, env_bucket):
+    if env_bucket is None:
+        monkeypatch.delenv('OCI_BUCKET_NAME', raising=False)
+    else:
+        monkeypatch.setenv('OCI_BUCKET_NAME', env_bucket)
+    for date in ('2026-09-01', '2026-09-02'):
+        (tmp_path / f'local-{date}.dump').write_bytes(b'old')
+    unrelated = tmp_path / 'keep.txt'
+    unrelated.write_text('keep')
+    calls = []
+
+    local = backup(database_url='test-dsn', bucket=bucket, directory=tmp_path, now=NOW,
+                   run=runner(calls))
+
+    assert local == tmp_path / 'local-2026-10-08.dump'
+    assert local.read_bytes() == b'dump'
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        'keep.txt', 'local-2026-09-02.dump', 'local-2026-10-08.dump']
+    assert unrelated.read_text() == 'keep'
+    assert len(calls) == 1
+    assert calls[0][0] == 'pg_dump'
+    assert '--schema=obs' in calls[0]
+    assert caplog.record_tuples == [
+        ('msynd.ops.nightly', logging.WARNING, 'off-site backup disabled: OCI_BUCKET_NAME empty')]

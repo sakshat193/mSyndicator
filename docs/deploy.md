@@ -9,7 +9,7 @@ Point the user's DuckDNS hostname at the VM; maintain its DNS record separately.
 Copy `.env.example` to `.env`, replace the `${...}` hostname/auth placeholders, and `chmod 600 .env`.
 Generate the password hash with `docker run --rm -it caddy:2 caddy hash-password`.
 Use `BASIC_AUTH_HASH='<hash>'` with single quotes in `.env` to preserve bcrypt dollar signs.
-Set the OCI bucket and place its config/key under `OCI_CONFIG_DIR` (default `/data/oci`).
+For off-site backups, set `OCI_BUCKET_NAME` and place its config/key under `OCI_CONFIG_DIR` (default `/data/oci`).
 The OCI config's `key_file` must use the container path `/root/.oci/<key-file>`.
 These are user secrets; never commit them. Compose supplies DATABASE_URL for each service's network.
 
@@ -73,10 +73,11 @@ Daemon logs rotate at 10 MB × 5; ops is one-shot and has no db startup dependen
 
 ```cron
 0 21 * * * cd /opt/msynd && docker compose --profile ops run --rm --no-deps ops python -m msynd.ops.nightly
-30 20 * * 6 cd /opt/msynd && docker compose --profile ops run --rm --no-deps ops python -m msynd.ops.weekly
+30 20 * * 0 cd /opt/msynd && docker compose --profile ops run --rm --no-deps ops python -m msynd.ops.weekly evaluate --models-dir /data/models
 ```
-Enable the weekly line only when Task 38 supplies `msynd.ops.weekly`.
-Local backups retain evidence; off-site dumps exclude obs. No raw source export is approved.
+Weekly evaluation runs Monday 02:00 IST (Sunday 20:30 UTC).
+An empty `OCI_BUCKET_NAME` means local-only backups with two retained copies.
+Local backups retain evidence; when enabled, off-site dumps exclude obs. No raw source export is approved.
 Never use `docker compose down -v`: it deletes the database volume.
 
 OSM refresh (monitor; use the verified local India extract):
