@@ -2383,12 +2383,12 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   - the state comes from `obs.fetch` only, so it survives restarts.
   - `run_loop` passes `job.stop_after_5xx`.
 - `# ponytail:` comment on the constants: a fixed 1 h cooldown with no doubling; add backoff only if the recovery-yield report shows hourly probes wasting budget.
-- [ ] Tests:
+- [x] Tests:
   - Dispatcher (fake clock): with `stop_after_5xx=3`, the script 503,503,503,200 logs 3 rows and returns `transport_error`; 503, timeout, 503, 503 logs 4 rows; `None` keeps 5 attempts; widespread 5xx across different runs still trips the host breaker.
   - `load_state` on the test DB: 3 consecutive 5xx with the latest 30 min ago → absent from cohort and harvest; latest 61 min ago → present, and its job has `stop_after_5xx == 1`; a 200 or 400 after the 5xx resets the streak; a streak of 2 gives `stop_after_5xx == 1`; a streak of 1 gives 2; an `inflight` row is ignored.
   - A healthy run beside a cooling run is still polled within `T_max` (extend the starvation test or add a case).
   - `uv run pytest -q tests/collect` passes.
-- [ ] Commit `task 75: per-run cooldown after repeated mmt 5xx`.
+- [x] Commit `task 75: per-run cooldown after repeated mmt 5xx`.
 - [ ] Monitor: deploy the collector. After 24 h, no run should have more than 3 consecutive 5xx within any hour, and breaker pauses per day should drop.
 
 ### Task 76 (amendment 2026-10-13): truthful source freshness (user request: "plan and delegate")
