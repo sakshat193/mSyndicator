@@ -2418,6 +2418,25 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
 - [ ] Commit `task 76: truthful source freshness`.
 - [ ] Monitor: deploy. The HUD shows live-data age, and `/api/health` lists the MMT dispatcher.
 
+
+### Task 77 (amendment 2026-10-13): local-only backup and VM cron (user decisions 2026-10-13: leg bias on now; local-only backup; weekly evaluate Mon 02:00 IST)
+
+**Why:** the VM has no OCI credentials (`/data/oci` is empty), so `backup()` would fail at the upload, and the nightly job would exit non-zero every night. The user chose local-only backups for now. The weekly cron line in `docs/deploy.md` lacks the `evaluate --models-dir /data/models` subcommand.
+
+**Plan change (spec §12 backup):** an empty `OCI_BUCKET_NAME` means local-only. The local dump (2 copies) still runs. The off-site dump and upload are skipped with one warning log line. A set bucket keeps today's behaviour.
+
+**Files:** `msynd/ops/nightly.py`, `tests/ops/test_retention.py` (or wherever `backup` is tested), `docs/deploy.md`.
+
+- `backup()`: when the bucket is empty, write only the local dump (with the same 2-copy pruning), log `off-site backup disabled: OCI_BUCKET_NAME empty`, and return. No `ValueError`. No offsite file is created.
+- `# ponytail:` comment: local-only until the user approves OCI credentials, which re-enables off-site by setting the bucket.
+- `docs/deploy.md` cron block:
+  - weekly becomes `30 20 * * 0 … python -m msynd.ops.weekly evaluate --models-dir /data/models` (Sun 20:30 UTC = Mon 02:00 IST);
+  - fix the line's comment;
+  - note that an empty `OCI_BUCKET_NAME` means local-only backups.
+- [ ] Tests: an empty bucket runs one `pg_dump` (with `--schema=obs`) and no `oci` calls, keeps 2 local copies and raises nothing; a set bucket is unchanged (existing tests).
+- [ ] Commit `task 77: local-only backup and cron line`.
+- [ ] Monitor (VM): set `OCI_BUCKET_NAME=` in `/opt/msynd/.env` (back it up first) and install the crontab from `docs/deploy.md` (nightly 21:00 UTC with leg bias, weekly Sun 20:30 UTC). Run nightly once by hand and check: the bias rows are written, the engine replays, and a local dump appears in `/data/backups`.
+
 ---
 
 ## Spec coverage check
