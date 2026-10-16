@@ -2389,7 +2389,11 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
   - A healthy run beside a cooling run is still polled within `T_max` (extend the starvation test or add a case).
   - `uv run pytest -q tests/collect` passes.
 - [x] Commit `task 75: per-run cooldown after repeated mmt 5xx`.
-- [ ] Monitor: deploy the collector. After 24 h, no run should have more than 3 consecutive 5xx within any hour, and breaker pauses per day should drop.
+- [x] Monitor: deploy the collector. After 24 h, no run should have more than 3 consecutive 5xx within any hour, and breaker pauses per day should drop.
+  - **Monitor result (2026-10-14 ~03:00Z, ~17 h after deploy):** no run had more than 3 consecutive 5xx, and 5xx is near zero. However, the breaker still tripped about every 25 min on 10-13 from 18Z to 23Z (72 breaker rows), and ok/h fell from ~180 to 57–85.
+    - The cause is now HTTP 200 pages that fail `parse_mmt.validate` with "non-monotone event times". These are genuine MMT data errors: for example run 3371 (18477) has a VKR dep at 23:35 followed by a JTI arr at 23:30.
+    - Such runs store nothing, stay in the cohort and are re-polled every 120 s. Run 3371 alone produced 122 invalid answers between 21:03Z and 02:58Z.
+    - Follow-up options are listed in "Monitor status (2026-10-16)" below.
 
 ### Task 76 (amendment 2026-10-13): truthful source freshness (user request: "plan and delegate")
 
@@ -2436,6 +2440,39 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
 - [x] Tests: an empty bucket runs one `pg_dump` (with `--schema=obs`) and no `oci` calls, keeps 2 local copies and raises nothing; a set bucket is unchanged (existing tests).
 - [x] Commit `task 77: local-only backup and cron line`.
 - [x] Monitor (VM): set `OCI_BUCKET_NAME=` in `/opt/msynd/.env` (back it up first) and install the crontab from `docs/deploy.md` (nightly 21:00 UTC with leg bias, weekly Sun 20:30 UTC). Run nightly once by hand and check: the bias rows are written, the engine replays, and a local dump appears in `/data/backups`.
+  - **Monitor result (2026-10-14):** the first scheduled nightly ran at 21:00:01Z on 10-13 and finished in ~30 s. It wrote leg_bias gen 2 (13,442 rows) and `local-2026-10-14.dump` (28 MB), and kept 2 copies.
+    - Gap: the syslog shows `No MTA installed, discarding output`, so cron output (including tracebacks) is lost. A log redirect is pending (see status below).
+    - The first weekly run is Sun 2026-10-18 at 20:30Z. It cannot pass `MIN_RUNS` before Mon 2026-11-02.
+
+### Monitor status (2026-10-16): open decisions for the next session
+
+**Ramp gate (spec §18 "Training data"): batch 10-15 IST FAILS, so harvest is held at 512/day.**
+- The measurement runs ad hoc SQL over `obs.fetch mode='harvest'`, with the IST date taken from `started_at`. "Usable" means an `ok` answer plus an actual destination arrival. R pairs are consecutive halts with dep A and arr B present; W pairs are intermediate halts with both arr and dep present.
+- 10-15: 490 due keys, 512 attempts, 0 challenges.
+  - Usable **53.9 %** (needs ≥ 80 %); R 98.9 %, W 99.2 %.
+  - Classes below 70 % with n ≥ 30: PASS **0.8 %** (n=124), EXP 69.8 % (n=225).
+  - 10-13 was 60.9 % usable and 10-14 was 70.5 %.
+- Cause:
+  - 195 of the 490 keys got MMT 400 "not running on date" and were marked `cancelled`. That includes 121 of the 124 PASS runs, which means the GTFS inventory lists runs that don't operate.
+  - Another 28 keys were invalid 200 pages (non-monotone).
+  - If the 400s are excluded from the denominator: 295 keys (< 300), 89.5 % usable, EXP 87 %.
+- The current setting is unchanged: VM `.env` has MMT_RATE=0.3, MMT_POLL_BUDGET=7500, MMT_HARVEST_BUDGET=512.
+
+**Decisions needed (the user's), with the monitor's recommendation:**
+1. Gate denominator: exclude MMT 400 "not running" keys (not operated, so not a collection failure). *Recommend yes.*
+2. Harvest scope: drop the PASS class (0.8 % yield, ~25 % of the harvest budget). This reverses "any class" for PASS only. *Recommend yes.*
+3. Ramp: keep 512 until a batch passes under rules 1 and 2, then go to 1,500. Each step re-checks the gate.
+4. Invalid-page breaker trips (Task 75 follow-up), choose one:
+   - **A (recommended):** the per-run streak also counts consecutive `invalid` answers, giving 3 → 1 h cooldown, with the breaker unchanged.
+   - **B:** store the page and drop or flag inconsistent events. This changes the validation rule.
+   - **C:** the breaker stops counting invalid answers.
+5. Cron logs: add `>> /data/logs/cron-<job>.log 2>&1` to both crontab lines in `docs/deploy.md` and on the VM, plus a logrotate entry. *Recommend yes.*
+6. Earlier options, still unchosen: a recovery-yield report (offline); an always-on relay device (Pi Zero 2 W or Android/Termux; a live trial needs the user's go); off-site backup with a bucket-scoped OCI key (OCI Create needs the user's OK).
+
+**Model training timeline:**
+- Nightly leg bias already retrains every night.
+- The first weekly LightGBM `evaluate` that can clear `MIN_RUNS=1000` is Mon 2026-11-02. Phase 3 promotion comes from about 11-08.
+- The ramp adds labels but does not move these dates.
 
 ---
 
