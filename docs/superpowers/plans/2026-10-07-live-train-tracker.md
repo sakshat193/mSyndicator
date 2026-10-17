@@ -2558,15 +2558,15 @@ existing `load_state` test module).
 - Evidence comes from `obs.run` and `obs.fetch` only (status bodies may be pruned, so do not parse bodies).
 - `# ponytail:` comment on the skip: weekly-pattern inference only; skipped runs still appear as timetable
   runs in the engine; upgrade to a running-days table if recovery-yield shows misses.
-- [ ] Tests on the test DB:
+- [x] Tests on the test DB:
   - a PASS run is absent from harvest and still present in the poll cohort; a non-PASS run is in harvest;
   - prior same-weekday run at D−7 cancelled with a 400 fetch → D is absent from cohort and harvest;
   - the same, but a newer same-weekday answer (D−7 ok, D−14 cancelled) → D is admitted;
   - the only 400 answer at D−35 → admitted; a 400 at D−6 (other weekday) → admitted;
   - a cancelled run without any 400 fetch (exception cancellation) does not trigger the skip.
-- [ ] `uv run pytest -q` green. Commit `task 79: skip pass harvest and known non-operating weekdays`.
+- [x] `uv run pytest -q` green. Commit `task 79: skip pass harvest and known non-operating weekdays`. (dabd856; 883 passed, 1 skipped. Monitor perf fix: the first draft used a correlated subquery, 96.5 s per load_state on production; the set-based anti-join takes 1.06 s vs 0.90 s before, harvest candidates 4,266 → 3,360.)
 - [ ] Monitor: rebuild `msynd-collector:local`, restart the collector, and compare the next IST batch's
-  400 share and harvest attempts.
+  400 share and harvest attempts. (Deployed 2026-10-17 ~15:45Z at dabd856; rollback image `msynd-collector:pre-t79`. Baseline IST 10-12…10-17: harvest 400 share 49.8, 28.6, 20.5, 39.8, 43.5, 21.4 %; PASS keys 114, 83, 54, 124, 124, 56 of 416–490. First batch under Task 79: IST 10-18.)
 
 ### Task 80 (amendment 2026-10-17): invalid answers count toward the per-run cooldown (user decision 4A)
 
