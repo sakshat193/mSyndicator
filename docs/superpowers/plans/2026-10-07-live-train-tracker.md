@@ -2611,10 +2611,42 @@ read-only report that also records recovery yield.
   - `passes`: due ≥ 300, usable ≥ 80 %, both pair shares ≥ 90 %, no class with n ≥ 30 below 70 %,
     zero challenges; plus `failing` (the rules that failed).
 - Read-only: one connection, no writes, no HTTP.
-- [ ] Tests on the test DB with a synthetic day: the 400 keys leave the denominator; the class threshold only
+- [x] Tests on the test DB with a synthetic day: the 400 keys leave the denominator; the class threshold only
   applies at n ≥ 30; one challenge fails the gate; R/W pair counting on a 3-halt route; the IST day boundary.
-- [ ] `uv run pytest -q` green. Commit `task 81: ramp gate report`.
-- [ ] Monitor: run it on the VM for 10-13…10-17 and record the results here.
+- [x] `uv run pytest -q` green. Commit `task 81: ramp gate report`. (906519a; 906 passed, 1 skipped. Codex was
+  blocked by stale ACLs on `msynd/ops` and `tests/ops` (missing the newer sandbox SIDs; `icacls /reset /T`
+  needs elevation), so the monitor implemented it.)
+- [x] Monitor: run it on the VM for 10-13…10-17 and record the results here. (Deployed 2026-10-17 17:00Z,
+  rollback image `msynd:pre-t81`. Every day: 512 attempts, 0 challenges.)
+
+  | IST day | keys | not running | due | usable % | R % | W % | failing |
+  |---|---|---|---|---|---|---|---|
+  | 10-13 | 448 | 128 | 320 | 85.3 | 98.2 | 98.4 | — |
+  | 10-14 | 440 | 90 | 350 | 88.6 | 98.2 | 98.5 | — |
+  | 10-15 | 490 | 195 | 295 | 89.5 | 98.9 | 99.2 | due |
+  | 10-16 | 460 | 200 | 260 | 84.6 | 98.3 | 98.5 | due |
+  | 10-17 | 416 | 89 | 327 | 87.8 | 98.8 | 98.9 | — |
+
+  Classes with n ≥ 30: EXP 83.7–87.2 %, SF 88.9–97.0 %. These days predate Task 79, so the ramp (decision 3a)
+  waits for IST 10-18, the first batch with PASS out of the harvest.
+
+### Task 82 (amendment 2026-10-17): red selected route with a travelling pulse (user request)
+
+**Why:** the selected route is drawn cyan, the same hue as the network and on-time trains, so it disappears.
+
+**Files:** `web/src/layers.ts`, `web/src/layers.test.ts`, `web/src/main.ts`, `web/src/main.test.ts`.
+
+- `selectionLayers(display, tick)` returns the route in red (`selection`) and an additive glow pulse
+  (`selection-pulse`) that runs from origin to destination every `PULSE_MS`, its tail draining into the
+  destination before it restarts. Route data is cached per display, so per-frame layers re-upload nothing.
+- `main.ts` keeps the selected display and rebuilds these layers each redraw; a selection redraws at ~30 Hz.
+- [x] Tests: red colour; pulse timestamps rise from 0 along the route; `currentTime` at 0, half and a full
+  period; the same data object across ticks; main renders both layers and advances the pulse.
+- [x] `npm --prefix web test` green. Commit `task 82: red selected route with a travelling pulse`. (1985690;
+  186 passed. The pulse path drops repeated halt points and rounds joints: zero-length segments splayed
+  the 16 px glow into rays.)
+- [x] Monitor: deploy `web/dist`; check it in the browser. (Deployed 2026-10-17 17:00Z, previous build in
+  `web/dist.old`. Checked on 11401 against the production API: red route, pulse runs Pune → Supaul in 3 s.)
 
 ---
 
