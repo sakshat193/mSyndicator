@@ -411,9 +411,29 @@ export function trainAlpha(runId: number, selected: number | null): number {
   return selected === null || selected === runId ? 1 : 0.3;
 }
 
-export function selectionLayer(display: Display) {
-  return new PathLayer<Point[]>({ id: 'selection', data: [display.points], getPath: p => p,
-    getWidth: 3, widthUnits: 'pixels', getColor: [0, 240, 255, 190] });
+export const PULSE_MS = 3000;
+const PULSE_TAIL = 0.25; // of the route length
+const selectionCache = new WeakMap<Display, { route: Point[][]; pulse: Trip[] }>();
+
+/** Red route plus a glow that runs origin to destination and drains into it, every PULSE_MS. */
+export function selectionLayers(display: Display, tick: number) {
+  let cached = selectionCache.get(display);
+  if (!cached) {
+    // Halts repeat a point; zero-length segments would splay the wide glow into rays.
+    const path = display.points.filter((p, i, all) => !i || p[0] !== all[i - 1][0] || p[1] !== all[i - 1][1]);
+    let length = 0;
+    const timestamps = path.map((p, i) => i ? length += Math.hypot(p[0] - path[i - 1][0], p[1] - path[i - 1][1]) : 0);
+    cached = { route: [display.points], pulse: [{ path, timestamps }] };
+    selectionCache.set(display, cached);
+  }
+  const total = cached.pulse[0].timestamps.at(-1) || 1, tail = total * PULSE_TAIL;
+  return [new PathLayer<Point[]>({ id: 'selection', data: cached.route, getPath: p => p,
+    getWidth: 3, widthUnits: 'pixels', getColor: [255, 32, 48, 210] }),
+  new GlowTrips<Trip>({ id: 'selection-pulse', data: cached.pulse,
+    getPath: t => t.path, getTimestamps: t => t.timestamps,
+    currentTime: (tick % PULSE_MS) / PULSE_MS * (total + tail), trailLength: tail, fadeTrail: true,
+    getWidth: 16, widthUnits: 'pixels', jointRounded: true, capRounded: true,
+    getColor: [255, 64, 40, 255], parameters: ADDITIVE })];
 }
 
 export function trainLayers(displays: Display[], trails: Trails, simTime: number,

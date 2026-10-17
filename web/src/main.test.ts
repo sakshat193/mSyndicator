@@ -256,7 +256,7 @@ it.each([
   window.innerWidth = 1000;
   draw!(1204);
   expect(rendered.draws).toBe(draws + 2); // Hover also wakes it.
-  expect(rendered.layers.find(l => l.id === 'selection')).toBe(highlight);
+  expect(rendered.layers.find(l => l.id === 'selection').props.data).toBe(highlight.props.data);
   rendered.layers.filter(l => l.id.startsWith('comet-') || l.id === 'streaks')
     .forEach((l, i) => expect(l.props.data).toBe(trailArrays[i]));
   rendered.listeners.keydown({ key: 'Escape' });
@@ -332,6 +332,17 @@ it.each([
   expect(heads().props.data).toBe(sameHeads);
   expect(heads().props.updateTriggers.getFillColor).toBe(sameHeadColors);
   expect(heads().props.updateTriggers.getPosition).not.toBe(beforeRedraw);
+  heads().props.onClick({ object: heads().props.data.find((d: any) => d.run.run_id === 9) });
+  draw!(3462);
+  const pulse = () => rendered.layers.find(l => l.id === 'selection-pulse');
+  const firstPulse = pulse();
+  const selectedDraws = rendered.draws;
+  draw!(3480);
+  expect(rendered.draws).toBe(selectedDraws);
+  draw!(3500); // A selected route redraws at ~30 Hz so its pulse keeps moving.
+  expect(rendered.draws).toBe(selectedDraws + 1);
+  expect(pulse().props.currentTime).toBeGreaterThan(firstPulse.props.currentTime);
+  expect(pulse().props.data).toBe(firstPulse.props.data);
   rendered.listeners.pagehide();
   expect(clearInterval).toHaveBeenCalledWith(7);
   expect(toggle.listeners.click).toBeUndefined();

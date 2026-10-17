@@ -8,7 +8,7 @@ import './style.css';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { connectLive, FrameStore, type RunFrame } from './frames';
 import { displayRun, headAt, easeHead, indexNetwork, networkLayer, trailData, trainLayers,
-  labelBucket, labelStations, stationLabelLayer, selectionLayer, delayColor, type Network } from './layers';
+  labelBucket, labelStations, stationLabelLayer, selectionLayers, delayColor, type Network } from './layers';
 import { liveTime } from './timeline';
 import { hoverText, runPanel } from './panel';
 import { mapOptions } from './basemap';
@@ -53,7 +53,7 @@ let labels: ReturnType<typeof stationLabelLayer> | undefined;
 let labelZoom = -1;
 let selected: number | null = null;
 let panelRun: RunFrame | undefined;
-let highlight: ReturnType<typeof selectionLayer> | undefined;
+let highlight: NonNullable<ReturnType<typeof displayRun>> | undefined;
 let hovered: { id: number; x: number; y: number } | undefined;
 let displays: NonNullable<ReturnType<typeof displayRun>>[] = [];
 const decoded = new WeakMap<RunFrame, ReturnType<typeof displayRun>>();
@@ -92,7 +92,7 @@ function selectRun(run: RunFrame) {
   const display = displays.find(d => d.run.run_id === run.run_id);
   selected = run.run_id;
   panelRun = run;
-  highlight = display ? selectionLayer(display) : undefined;
+  highlight = display;
   settling = true;
   tooltip.hidden = true;
   hovered = undefined;
@@ -163,7 +163,7 @@ function draw(tick: number) {
       const chosen = displays.find(d => d.run.run_id === selected);
       if (selected !== null && !store.runs[selected]) clearSelection();
       else if (chosen) {
-        highlight = selectionLayer(chosen);
+        highlight = chosen;
         if (panelRun !== chosen.run) { panelRun = chosen.run; void panel.show(chosen.run, simTime); }
       } else if (selected !== null) {
         highlight = undefined;
@@ -174,8 +174,9 @@ function draw(tick: number) {
       settling = true;
     }
     // Live motion is far below a pixel per frame, so redraw at ~70 Hz only while a head is
-    // still visibly easing and at 10 Hz otherwise; each deck redraw costs ~14-20 ms on an iGPU.
-    if (tick - lastDraw >= (settling ? 12 : 100)) {
+    // still visibly easing, ~30 Hz for a selected route's pulse and 10 Hz otherwise;
+    // each deck redraw costs ~14-20 ms on an iGPU.
+    if (tick - lastDraw >= (settling ? 12 : highlight ? 33 : 100)) {
       const dt = tick - lastDraw;
       lastDraw = tick;
       const zoom = map.getZoom();
@@ -192,7 +193,7 @@ function draw(tick: number) {
         if (head !== target) settling = true;
         drawnHeads.set(d.run.run_id, head);
       }
-      overlay.setProps({ layers: [background, ...(highlight ? [highlight] : []),
+      overlay.setProps({ layers: [background, ...(highlight ? selectionLayers(highlight, tick) : []),
         ...trainLayers(displays, trails, simTime, zoom, selectRun, selected, hoverRun, drawnHeads, tick),
         ...(labels ? [labels] : [])] });
     }

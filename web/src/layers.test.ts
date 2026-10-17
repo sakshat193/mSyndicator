@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { TripsLayer } from '@deck.gl/geo-layers';
 import { ScatterplotLayer, TextLayer } from '@deck.gl/layers';
 import { indexNetwork, networkLayer, displayRun, trailData, trainLayers,
-  delayColor, trailLength, easeHead, headAt, labelBucket, labelStations, stationLabelLayer, selectionLayer,
+  delayColor, trailLength, easeHead, headAt, labelBucket, labelStations, stationLabelLayer, selectionLayers, PULSE_MS,
   trainAlpha, dataComparator, glyphShift, glyphMetrics, padGlyphAlpha, type Network } from './layers';
 
 function packQuantiles(quantiles: (number | null)[][]): Uint8Array {
@@ -511,11 +511,33 @@ it('dims other trains to 30 percent and highlights the selected expanded path wi
   expect(trainAlpha(10, null)).toBe(1);
   expect(trainAlpha(9, 9)).toBe(1);
   expect(trainAlpha(10, 9)).toBe(0.3);
-  const highlight = selectionLayer(selected);
-  expect(highlight.props.data).toEqual([selected.points]);
-  expect((highlight.props.data as any[])[0]).toBe(selected.points);
-  expect(highlight.props.getWidth).toBe(3);
-  expect(highlight.props.getColor).toEqual([0, 240, 255, 190]);
+  const [route, pulse] = selectionLayers(selected, 0);
+  expect(route.id).toBe('selection');
+  expect(route.props.data).toEqual([selected.points]);
+  expect((route.props.data as any[])[0]).toBe(selected.points);
+  expect(route.props.getWidth).toBe(3);
+  expect(route.props.getColor).toEqual([255, 32, 48, 210]); // Red stands apart from the cyan network.
+  expect(pulse).toBeInstanceOf(TripsLayer);
+  expect(pulse.id).toBe('selection-pulse');
+  const [trip] = pulse.props.data as any[];
+  expect(trip.path).toEqual(selected.points);
+  // Halts repeat a point; zero-length segments would splay the wide glow into rays.
+  const halted = { ...selected, points: [selected.points[0], ...selected.points] };
+  expect((selectionLayers(halted, 0)[1].props.data as any[])[0].path).toEqual(selected.points);
+  expect(trip.timestamps[0]).toBe(0);
+  expect(trip.timestamps.every((t: number, i: number) => !i || t > trip.timestamps[i - 1])).toBe(true);
+  expect((pulse.props as any).jointRounded).toBe(true);
+  const total = trip.timestamps.at(-1), tail = (pulse.props as any).trailLength;
+  expect(total).toBeGreaterThan(0);
+  expect(tail).toBeGreaterThan(0);
+  expect(tail).toBeLessThan(total);
+  expect((pulse.props as any).currentTime).toBe(0); // Origin.
+  const half = selectionLayers(selected, PULSE_MS / 2);
+  // The head reaches the destination and the tail drains into it before the next pulse.
+  expect((half[1].props as any).currentTime).toBeCloseTo((total + tail) / 2);
+  expect((selectionLayers(selected, PULSE_MS * 3)[1].props as any).currentTime).toBe(0);
+  expect(half[0].props.data).toBe(route.props.data);
+  expect(half[1].props.data).toBe(pulse.props.data);
   const layers = trainLayers([selected, other], trails, 1300, 4, () => {}, 9);
   for (const layer of layers.filter(l => l instanceof TripsLayer)) {
     const data = layer.props.data as any[];
