@@ -2467,12 +2467,40 @@ No new dependency. The routing uses stdlib `heapq`, not networkx, and the `osmiu
    - **B:** store the page and drop or flag inconsistent events. This changes the validation rule.
    - **C:** the breaker stops counting invalid answers.
 5. Cron logs: add `>> /data/logs/cron-<job>.log 2>&1` to both crontab lines in `docs/deploy.md` and on the VM, plus a logrotate entry. *Recommend yes.*
-6. Earlier options, still unchosen: a recovery-yield report (offline); an always-on relay device (Pi Zero 2 W or Android/Termux; a live trial needs the user's go); off-site backup with a bucket-scoped OCI key (OCI Create needs the user's OK).
+6. Earlier options, still unchosen: a recovery-yield report (offline); off-site backup with a bucket-scoped OCI key (OCI Create needs the user's OK). The always-on relay device option is superseded by Task 78's direct Oracle collection.
 
 **Model training timeline:**
 - Nightly leg bias already retrains every night.
 - The first weekly LightGBM `evaluate` that can clear `MIN_RUNS=1000` is Mon 2026-11-02. Phase 3 promotion comes from about 11-08.
 - The ramp adds labels but does not move these dates.
+
+### Task 78 (2026-10-16): laptop-independent cloud collection
+
+User authorized replacing the laptop relay, superseding the earlier deployment restriction.
+
+- [x] Re-test the actual VM instead of assuming all cloud egress is rejected. Six requests
+  through a temporary VM-host OpenSSL 3.0 relay returned HTTP 200 and parsed successfully.
+  The existing Trixie/OpenSSL 3.5.7 container's direct control request timed out (fetch 32075).
+- [x] Build the collector separately on `python:3.12-slim-bookworm` using the existing
+  Dockerfile and lockfile. The image uses OpenSSL 3.0.22; direct fetches 32094–32096 all
+  returned 200 and parsed. Other services retain their image and PostgreSQL dump compatibility.
+- [x] Add the database restart policy. Apply it with `docker update` without recreating
+  the production database; Docker is enabled at boot.
+- [x] Deploy at 17:52:59 UTC with `COMPOSE_FILE=compose.yaml`, preserving the live flag,
+  rate and budgets. Disable the Windows relay task and close its residual SSH tunnel.
+  No third-party relay, cloud account or paid resource was needed.
+- [x] Preserve the previous image and VM configuration, with rollback script, under
+  `/opt/msynd/deploy-backups/20261016-direct-collector/`.
+- [x] Monitor follow-up (2026-10-17 13:08 UTC): healthy for about 19 hours with no
+  relay configured. Since the laptop relay stopped: 3,125 `ok`, 562 `invalid`,
+  3 `transport_error`, zero challenges. Latest 30 minutes: 90 `ok`; actual-event
+  revisions continue arriving. Invalid source pages remain subject to existing validation.
+- [x] Review: no runtime/configuration blockers. Clarify the runbook to invoke the
+  retained rollback script, which restores the old Compose file and image as well as `.env`.
+- [x] Verification: Compose regression tests fail before the change and pass afterwards;
+  image imports and direct source probes pass. Full Python suite: 869 passed, 1 skipped
+  (2026-10-17; `MSYND_TEST_DSN` uses `127.0.0.1` because Windows `localhost` stalled).
+  Web: 186 passed. A full-day soak and VM reboot are not claimed.
 
 ---
 

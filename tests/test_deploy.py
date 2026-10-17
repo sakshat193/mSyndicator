@@ -44,6 +44,20 @@ def test_db_only_start_preserves_pilot_storage_and_port(compose):
         'volume', 'pgdata', '/var/lib/postgresql/data')
 
 
+def test_database_recovers_after_host_restart(compose):
+    assert compose['services']['db']['restart'] == 'unless-stopped'
+
+
+def test_direct_collector_build_is_isolated_from_backup_runtime(compose):
+    collector = compose['services']['collector']
+    ops = compose['services']['ops']
+    assert collector['image'] != ops['image']
+    assert collector['build']['args']['PYTHON_BASE'] == 'python:3.12-slim-bookworm'
+    assert 'PYTHON_BASE' not in ops['build'].get('args', {})
+    assert 'MSYND_RELAY' not in collector['environment']
+    assert 'network_mode' not in collector
+
+
 def test_app_services_have_private_ports_and_bounded_logs(compose):
     for name in ('collector', 'engine', 'api', 'caddy'):
         service = compose['services'][name]

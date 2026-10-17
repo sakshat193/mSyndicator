@@ -1159,7 +1159,7 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
   - Results (`docs/gates/G2.md`): 469 runs and 456 trains (targets met); 1.3 % invalid, no empty or challenge responses; ETA revision rate 2 %; passing stations on 89 % of trains.
   - S `mmt_status` (6,775 lags): P50 4.7 min, fitted P90 54.5 min, tail above 16.6 min with τ = 218 min, ε = 0.00028 (95 % CI ≤ 0.00057). `data/params.json` is no longer provisional.
   - Caveat: only one weekday was sampled. G7(d) at the ε CI upper bound and τ × 2 follows as Task 51.
-- **Collector host (2026-10-10, open until CP-3):** MMT cannot be polled from the Oracle VM. The live collector needs a residential IP; the VM keeps the database, engine, API and dashboard.
+- **Collector host (updated 2026-10-16, Task 78):** direct Oracle collection works with the Bookworm/OpenSSL 3.0 collector image. The Trixie/OpenSSL 3.5 client timed out on the same VM. This supersedes the October 10 inference that a residential IP was required. The collector, database, engine, API and dashboard now run independently of the laptop; the relay remains a rollback option.
 
 ---
 

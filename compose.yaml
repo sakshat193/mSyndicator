@@ -23,6 +23,7 @@ x-python: &python
 services:
   db:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: msynd
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-msynd}
@@ -38,6 +39,12 @@ services:
       retries: 30
   collector:
     <<: *python
+    image: msynd-collector:local
+    build:
+      context: .
+      args:
+        # ponytail: keep OpenSSL 3.0 until direct MMT probes pass on a newer runtime.
+        PYTHON_BASE: python:3.12-slim-bookworm
     profiles: [app]
     command: ["python", "-m", "msynd.collect", "--budget", "poll=${MMT_POLL_BUDGET:-5000}", "--budget", "harvest=${MMT_HARVEST_BUDGET:-0}"]
     environment:

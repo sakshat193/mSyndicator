@@ -1,4 +1,5 @@
-FROM python:3.12-slim-trixie
+ARG PYTHON_BASE=python:3.12-slim-trixie
+FROM ${PYTHON_BASE}
 
 COPY --from=ghcr.io/astral-sh/uv:0.10.12 /uv /usr/local/bin/uv
 RUN apt-get update \

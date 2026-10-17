@@ -32,7 +32,37 @@ The image uses frozen uv dependencies, ops extras, OpenMP libraries and a Postgr
 Its build context excludes local evidence, backups, secrets and Git metadata.
 The monitor must run the pinned-image smoke test on A1 and the measured G5 restore drill.
 
-## Residential relay
+## Direct cloud collection (2026-10-16)
+
+The collector uses its own `msynd-collector:local` image, built on Python 3.12 Bookworm
+(OpenSSL 3.0). The Oracle VM can reach MMT with this client; the Trixie/OpenSSL 3.5
+client timed out on the same VM. The laptop relay is no longer required.
+The other services keep the Trixie image, including the PostgreSQL 16-compatible dump client.
+
+For an existing relay deployment, back up `.env`, set `COMPOSE_FILE=compose.yaml`,
+and preserve the approved live flag, rate and budgets. Build and switch only the collector:
+```sh
+docker compose --profile app build collector
+docker compose --profile app up -d --no-deps collector
+docker update --restart unless-stopped msynd-db-1
+```
+The last command applies the database restart policy without recreating its container.
+Docker must be enabled at boot. Check new `obs.fetch` successes and source freshness with
+the laptop relay stopped before disabling its scheduled task. Do not reboot just to test this.
+On a new deployment, Compose applies the database restart policy automatically.
+
+Rollback of the October 16 cutover: enable and start `msynd-relay` in elevated
+Windows PowerShell, then run on the VM:
+```sh
+sh /opt/msynd/deploy-backups/20261016-direct-collector/rollback.sh
+```
+The script restores the saved `.env`, `compose.yaml` and `Dockerfile`, retags the
+previous Trixie image as `msynd:local`, and recreates only the collector. Restoring
+`.env` alone does not select the old image. Retain the backup and previous image;
+review the backup first if configuration has changed since that cutover.
+Upstream acceptance can change; investigate fresh failures before assuming an IP restriction.
+
+## Residential relay (fallback)
 
 The PC's plain httpx client makes each HTTPS request to MMT; the VM dispatcher owns pacing, budgets and retries.
 On the PC, open elevated Windows PowerShell in the repo and set `$SshTarget` to your SSH destination:
@@ -48,7 +78,7 @@ Stopping lasts until the next trigger; unregister to keep it stopped. Relay exit
 Keep the PC powered with the lid open; Windows sleep is inhibited while the relay runs.
 On the VM, write `/etc/ssh/sshd_config.d/70-msynd-keepalive.conf` with `ClientAliveInterval 30` and `ClientAliveCountMax 3` on separate lines.
 Validate and reload: `sudo sshd -t && sudo systemctl reload ssh`.
-After the gate and pilot handover, set these VM `.env` lines (harvest stays 0 until an approved ramp):
+For the relay fallback, set these VM `.env` lines (harvest stays 0 until an approved ramp):
 ```dotenv
 COMPOSE_FILE=compose.yaml:compose.relay.yaml
 MSYND_LIVE=1
@@ -61,7 +91,7 @@ Then use the Startup commands below. When the tunnel is down, requests fail loca
 Collector, engine, API and Caddy require the `app` profile; ops uses the separate `ops` profile.
 `docker compose up -d db` starts only db, preserving the current pilot setup.
 Do not start collector while the pilot owns the MMT host lock.
-Leave MSYND_LIVE at 0 until the relevant gate; the monitor then uses the relay settings above.
+Leave MSYND_LIVE at 0 until the relevant gate; the monitor then uses the direct cloud setup above.
 The collector command reads its poll and harvest budgets from `.env` (defaults: 5000 and 0).
 The engine main uses run_loop defaults, including its default particle counts and empty S tables.
 After the gate and pilot handover, the monitor starts daemons with `docker compose --profile app up -d`.
