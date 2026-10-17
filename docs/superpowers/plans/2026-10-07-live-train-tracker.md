@@ -2817,9 +2817,15 @@ the whole route, origin to destination, capped so that short routes do not zoom 
 - `selectRun` replaces `easeTo` with `fitBounds` over the bounding box of `display.points`, padded clear of the panel and the
   HUD, `maxZoom: 10`, `linear: true`, `duration: 600`. Only a user selection (click or search) moves the camera; new frames never refit.
   A run without geometry leaves the camera where it is.
-- [ ] Tests first: bounds and padding for a wide and a phone viewport, the zoom cap, no refit on a new generation.
-- [ ] `npm --prefix web test` green. Commit `task 91: selecting a train fits its whole route`.
-- [ ] Monitor: select a long route (12951) and a short one; frame intervals during the fit.
+- [x] Tests first: bounds and padding for a wide and a phone viewport, the zoom cap, no refit on a new generation.
+- [x] `npm --prefix web test` green. Commit `task 91: selecting a train fits its whole route`.
+- [x] Monitor: select a long route (12951) and a short one; frame intervals during the fit.
+  2026-10-18 (1400x900, headless): 12951 fits Mumbai Central to New Delhi between the HUD, panel and legend; frames during
+  the fit p50/p90/max 13.9/41.7/55 and 13.9/41.7/56 (easeTo before: 14.0/41.7/70, 13.8/34.7/69). Short 68404 Puri to
+  Khurda Road (44 km) stops at the zoom-10 cap; the fly from India level to z10 loads new basemap tiles, max 195 and 166
+  (long tasks [113,81,54,66,197], [83,57,99,54,166]) against 91 and 132 for the z6 easeTo. A run with no display leaves the
+  camera. Review fix: on a phone the fit ran before /api/run filled the panel, which then grew to 60vh over the route, so
+  the bottom padding now reserves the full 60vh box (the band left at 390x844 is about 124 px).
 
 ### Task 92 (amendment 2026-10-17): selected route coloured by speed (user pick 3a)
 
