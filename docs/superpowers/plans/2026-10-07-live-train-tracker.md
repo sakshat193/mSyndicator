@@ -2796,11 +2796,16 @@ reads `sim.frame` newest first with no bound, so the client cursor pulls every s
 - With a train selected, the four train layers dim through layer `opacity` (× 0.3), with constant colours. The selected train
   draws on top in its own small layers (trail and head) at full strength.
 - The lookup reads only `gen >= COALESCE((SELECT max(gen) FROM sim.frame WHERE is_full), 0)`, newest first. Results are unchanged.
-- [ ] Tests first: no colour trigger depends on `selected`; the selected layers hold only the selected run; `/api/run` finds a run
+- [x] Tests first: no colour trigger depends on `selected`; the selected layers hold only the selected run; `/api/run` finds a run
   in a delta after the latest full and ignores frames older than it.
-- [ ] `npm --prefix web test` and `uv run pytest -q` green (DB tests included). Commit `task 90: selection dims by opacity; bounded
+- [x] `npm --prefix web test` and `uv run pytest -q` green (DB tests included). Commit `task 90: selection dims by opacity; bounded
   run lookup`.
-- [ ] Monitor: selection long task before and after; deploy the api (rebuild `msynd:local`, restart api).
+- [x] Monitor: selection long task before and after; deploy the api (rebuild `msynd:local`, restart api).
+  2026-10-17: 190 web tests, 907 pytest passed (1 skipped). Selecting 12951 / 12002 / 11401: long tasks before [72,70], [], []
+  with max frames 90/21/69 ms, after [65,62], [], [] with 69/14/70; clearing max frames 42/14/28 before, 28/14/15 after. The
+  first select is mostly one-time panel, fetch and selection build. Other trains dim, the selected route draws on top. Deployed
+  19:42Z (VM d00e085, bundle index-CPiHTK8n.js); `up -d api` also recreated `db` (compose drift since Task 78, pgdata kept)
+  and restarted collector and engine. `/api/run` for five running trains: 200 in 85-180 ms with halts.
 
 ### Task 91 (amendment 2026-10-17): selecting a train fits its whole route (user pick 2a)
 
