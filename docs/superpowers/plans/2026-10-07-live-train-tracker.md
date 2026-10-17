@@ -2776,9 +2776,14 @@ and re-uploads all ~2,600 timetable trails, even when a delta frame changed a fe
 - `trailData` reuses a display's trail objects while the display and the hour base are unchanged (cache keyed by display).
 - The timetable trails split into 16 layers by `run_id % 16`, each with its own `dataComparator`, so a delta re-uploads only the
   chunks it touches. Selection and picking behave as before.
-- [ ] Tests first: an unchanged display yields the identical trail object; changing one run changes exactly one timetable chunk's data.
-- [ ] `npm --prefix web test` green. Commit `task 89: delta frames re-upload only changed trails`.
-- [ ] Monitor: the long task when a delta frame lands, before and after.
+- [x] Tests first: an unchanged display yields the identical trail object; changing one run changes exactly one timetable chunk's data.
+- [x] `npm --prefix web test` green (193). Commit `task 89: delta frames re-upload only changed trails`. (main.test.ts's two
+  'timetable' lookups now read 'timetable-10'; assertions unchanged.)
+- [x] Monitor: the long task when a delta frame lands, before and after. Done 2026-10-17 ~19:20Z, at night: deltas are 0-3 KB
+  (1,987 of 1,993 runs schedule_only), so the gain cannot show yet. Before: 0 long tasks over 45-60 s. After: 3 deltas in 3 min,
+  one 80 ms long task (max frame 76), others none (max frame 40, 14); idle p50/p90/p99 7.0/14.0/23.6. 16 chunk layers did not
+  regress zoom/drag: India 13.8/35.0/55.4/56 and 13.9/34.8/41.9/43, Mumbai 13.7/34.6/48.9/62 and 7.4/34.6/35.0/36. Recheck at
+  daytime with large deltas.
 
 ### Task 90 (amendment 2026-10-17): selection without a colour re-upload, and a bounded run lookup (navigation fix #6)
 
