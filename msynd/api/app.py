@@ -252,7 +252,9 @@ def create_app(database_url=None, static_dir='data/static'):
                 ORDER BY station,occ,kind,received_at DESC''', (run_id,)).fetchall()
             # Read the newest durable update, without requiring a registry/model cache.
             prediction = {}
-            for record in conn.execute('SELECT payload FROM sim.frame ORDER BY gen DESC'):
+            for record in conn.execute('''SELECT payload FROM sim.frame
+                WHERE gen >= COALESCE((SELECT max(gen) FROM sim.frame WHERE is_full), 0)
+                ORDER BY gen DESC'''):
                 f = unpack(record['payload'])
                 if run_id in f['tombstones']:
                     break

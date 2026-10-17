@@ -256,6 +256,33 @@ def test_run_endpoint_all_remaining_halts_and_eta_age(api):
     assert client.get('/api/run/999999999').status_code == 404
 
 
+def test_run_endpoint_reads_only_latest_full_and_following_deltas(api, monkeypatch):
+    conn, client, app, run, other, *_ = api
+    frame(conn, True, {run: {'state': 'observed'}})
+    frame(conn, False, {other: {'state': 'observed'}})
+    frame(conn, True, {run: {'state': 'observed'}})
+    qs = np.full((3, 2, 7), 315., '<f4')
+    gen = frame(conn, False, {run: {'state': 'stale', 'halt_shape': [3, 2, 7], 'halt_q': qs.tobytes()}})
+    wait_read(app, gen)
+    execute = psycopg.Connection.execute
+    fetched = []
+
+    def track(self, query, *args, **kwargs):
+        cursor = execute(self, query, *args, **kwargs)
+        if isinstance(query, str) and query.startswith('SELECT payload FROM sim.frame'):
+            fetched.append(cursor.rowcount)
+        return cursor
+
+    monkeypatch.setattr(psycopg.Connection, 'execute', track)
+    result = client.get(f'/api/run/{run}').json()
+    assert result['evidence_state'] == 'stale'
+    assert [h['idx'] for h in result['halts']] == [0, 1, 2]
+    assert all(h['arr'] == h['dep'] == [315.] * 7 for h in result['halts'])
+    result = client.get(f'/api/run/{other}').json()
+    assert result['evidence_state'] == 'schedule_only' and result['halts'] == []
+    assert fetched == [2, 2]
+
+
 def test_replay_window_max_24h(api):
     conn, client, _, run, *_ = api
     insert_event(conn, run, 'BRC', 1, 'arr', NOW, NOW - timedelta(minutes=2))

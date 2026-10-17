@@ -241,6 +241,15 @@ it.each([
   pointer('click', point());
   draw!(1192);
   expect(rendered.draws).toBe(draws + 1); // Selection wakes the idle overlay.
+  const selectedHead = rendered.layers.find(l => l.id === 'selected-head');
+  expect(selectedHead).toBeDefined();
+  expect(selectedHead.props.data).toEqual([heads().props.data[0]]);
+  expect(selectedHead.props.getPosition(selectedHead.props.data[0])).toBe(head());
+  expect(selectedHead.props.updateTriggers.getPosition).toBe(heads().props.updateTriggers.getPosition);
+  const layerIds = rendered.layers.map(l => l.id);
+  expect(layerIds.indexOf('selection-pulse')).toBeLessThan(layerIds.indexOf('comets'));
+  expect(layerIds.indexOf('selected-trail')).toBe(layerIds.indexOf('heads') + 1);
+  expect(layerIds.indexOf('selected-head')).toBe(layerIds.indexOf('station-labels') - 1);
   const highlight = rendered.layers.find(l => l.id === 'selection');
   expect(highlight.props.data[0]).toEqual([[70, 20], [72, 22]]);
   const toggle = elements.get('#hud-toggle');
@@ -284,6 +293,7 @@ it.each([
   rendered.listeners.keydown({ key: 'Escape' });
   draw!(1216);
   expect(rendered.layers.some(l => l.id === 'selection')).toBe(false);
+  expect(rendered.layers.some(l => l.id === 'selected-trail' || l.id === 'selected-head')).toBe(false);
   expect(panel.hidden).toBe(true);
   const pending = { run_id: 42, state: 'schedule_only', origin_ts: 1000, versions: { route: 7 } };
   Socket.current.receive({ gen: 6, ts: 3601, is_full: false, versions: {}, base_ts: null,
@@ -360,6 +370,7 @@ it.each([
   pointer('click', point(9));
   draw!(3462);
   expect.soft(heads().props.updateTriggers.getPosition).toBe(beforeSelection);
+  expect(rendered.layers.find(l => l.id === 'selected-head').props.updateTriggers.getPosition).toBe(beforeSelection);
   const pulse = () => rendered.layers.find(l => l.id === 'selection-pulse');
   const firstPulse = pulse();
   const selectedDraws = rendered.draws;

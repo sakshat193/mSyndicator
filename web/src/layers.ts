@@ -472,10 +472,6 @@ export function stationLabelLayer(stations: Network['stations'], zoom: number) {
     getTextAnchor: 'middle', getAlignmentBaseline: 'top', pickable: false });
 }
 
-export function trainAlpha(runId: number, selected: number | null): number {
-  return selected === null || selected === runId ? 1 : 0.3;
-}
-
 export const PULSE_MS = 3000;
 const PULSE_TAIL = 0.25; // of the route length
 type Pulse = Trip & { color: [number, number, number, number] };
@@ -535,29 +531,36 @@ export function trainLayers(displays: Display[], trails: Trails, simTime: number
     timetableCache.set(trails, chunks);
     previousTimetable = chunks;
   }
-  const length = trailLength(zoom);
+  const length = trailLength(zoom), opacity = selected === null ? 1 : 0.3;
   // Dense India-wide views stay thin and dim; zoomed-in trails widen and brighten.
   const k = Math.min(1, Math.max(0, (zoom - 4) / 4));
-  return [new GlowTrips<Trail>({ id: 'comets', data: trails.comets, dataComparator,
+  const comets = new GlowTrips<Trail>({ id: 'comets', data: trails.comets, dataComparator, opacity,
     getPath: t => t.path, getTimestamps: t => t.timestamps,
     currentTime: simTime - trails.base, trailLength: length / 1.5, fadeTrail: true,
-    getWidth: 7 * GLOW_SCALE, widthUnits: 'pixels', getColor: t => [...t.color, 255 * trainAlpha(t.runId, selected)],
-    updateTriggers: { getColor: selected }, parameters: ADDITIVE }),
-  new CulledTrips<Trail>({ id: 'streaks', data: trails.streaks, dataComparator,
+    getWidth: 7 * GLOW_SCALE, widthUnits: 'pixels', getColor: t => [...t.color, 255], parameters: ADDITIVE });
+  const streaks = new CulledTrips<Trail>({ id: 'streaks', data: trails.streaks, dataComparator, opacity,
     getPath: t => t.path, getTimestamps: t => t.timestamps,
     currentTime: simTime - trails.base, trailLength: length, fadeTrail: true,
-    getWidth: 1.5, widthUnits: 'pixels', getColor: t => [...t.color, 24 * trainAlpha(t.runId, selected)],
-    updateTriggers: { getColor: selected }, parameters: ADDITIVE }),
-  ...chunks.map((data, c) => new GlowTrips<Trail>({ id: `timetable-${c}`, data, dataComparator,
+    getWidth: 1.5, widthUnits: 'pixels', getColor: t => [...t.color, 24], parameters: ADDITIVE });
+  const timetable = chunks.map((data, c) => new GlowTrips<Trail>({ id: `timetable-${c}`, data, dataComparator,
     getPath: t => t.path, getTimestamps: t => t.timestamps,
     currentTime: simTime - trails.base, trailLength: length / 1.5, fadeTrail: true,
-    getWidth: 6 * GLOW_SCALE, widthScale: 0.5 + 0.5 * k, opacity: 0.35 + 0.65 * k, widthUnits: 'pixels',
-    getColor: t => [...t.color, 190 * trainAlpha(t.runId, selected)], updateTriggers: { getColor: selected }, parameters: ADDITIVE })),
-  new GlowDots<Display>({ id: 'heads', data: displays, dataComparator,
+    getWidth: 6 * GLOW_SCALE, widthScale: 0.5 + 0.5 * k, opacity: (0.35 + 0.65 * k) * opacity, widthUnits: 'pixels',
+    getColor: t => [...t.color, 190], parameters: ADDITIVE }));
+  const dots = new GlowDots<Display>({ id: 'heads', data: displays, dataComparator,
     getPosition: d => heads?.get(d.run.run_id) ?? d.head,
     getRadius: d => (d.run.state === 'schedule_only' ? 4.5 : 5.5) * GLOW_SCALE, radiusScale: 0.6 + 0.4 * k,
-    opacity: 0.45 + 0.55 * k, radiusUnits: 'pixels',
-    getFillColor: d => [...d.color, 230 * trainAlpha(d.run.run_id, selected)] as [number, number, number, number],
-    updateTriggers: { getPosition: headsVersion, getFillColor: selected }, parameters: ADDITIVE,
-    pickable: false })];
+    opacity: (0.45 + 0.55 * k) * opacity, radiusUnits: 'pixels',
+    getFillColor: d => [...d.color, 230] as [number, number, number, number],
+    updateTriggers: { getPosition: headsVersion }, parameters: ADDITIVE, pickable: false });
+  const layers = [comets, streaks, ...timetable, dots];
+  const display = displays.find(d => d.run.run_id === selected);
+  if (display) {
+    const scheduled = display.run.state === 'schedule_only';
+    const trail = (scheduled ? trails.timetable : trails.comets).find(t => t.runId === selected)!;
+    layers.push((scheduled ? timetable[display.run.run_id % 16] : comets).clone({
+      id: 'selected-trail', data: [trail], opacity: scheduled ? 0.35 + 0.65 * k : 1 }),
+    dots.clone({ id: 'selected-head', data: [display], opacity: 0.45 + 0.55 * k }));
+  }
+  return layers;
 }

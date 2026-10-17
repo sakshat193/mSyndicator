@@ -3,7 +3,7 @@ import { TripsLayer } from '@deck.gl/geo-layers';
 import { ScatterplotLayer, TextLayer } from '@deck.gl/layers';
 import { indexNetwork, networkLayer, displayRun, trailData, trainLayers,
   delayColor, trailLength, easeHead, headAt, labelBucket, labelStations, stationLabelLayer, selectionLayers, PULSE_MS,
-  trainAlpha, nearestRun, dataComparator, glyphShift, glyphMetrics, padGlyphAlpha, type Network } from './layers';
+  nearestRun, dataComparator, glyphShift, glyphMetrics, padGlyphAlpha, type Network } from './layers';
 
 const GLOW_SCALE = Math.sqrt(6.125 / 3.5);
 const timetableIds = Array.from({ length: 16 }, (_, c) => `timetable-${c}`);
@@ -590,13 +590,8 @@ it.each([[4, 12], [6.99, 12], [7, 13], [8, 13]])(
     expect(layer.props.outlineColor).toEqual([5, 7, 13, 255]);
   });
 
-it('dims other trains to 30 percent and highlights the selected expanded path without copying it', () => {
+it('highlights the selected expanded path without copying it', () => {
   const selected = displayRun(runFixture(), chained, 1300)!;
-  const other = { ...selected, run: { ...selected.run, run_id: 10 } };
-  const trails = trailData([selected, other], 1300);
-  expect(trainAlpha(10, null)).toBe(1);
-  expect(trainAlpha(9, 9)).toBe(1);
-  expect(trainAlpha(10, 9)).toBe(0.3);
   const [route, pulse] = selectionLayers(selected, 0, 900); // Before departure: all ahead.
   expect(route.id).toBe('selection');
   expect(route.props.data).toEqual([selected.points]);
@@ -642,39 +637,77 @@ it('dims other trains to 30 percent and highlights the selected expanded path wi
   expect(arrived.path).toEqual(selected.points);
   expect(color(arrived)).toEqual(color(behind));
   expect(none).toBeUndefined();
-  const layers = trainLayers([selected, other], trails, 1300, 4, 9);
-  for (const layer of layers.filter(l => l instanceof TripsLayer)) {
-    const data = layer.props.data as any[];
-    if (!data.length) continue;
-    const color = layer.props.getColor as Function;
-    const otherIndex = layer.id === 'streaks' ? 2 : 1;
-    expect(color(data[otherIndex])[3]).toBeCloseTo(color(data[0])[3] * 0.3);
-  }
-  const heads = layers.find(l => l instanceof ScatterplotLayer)!;
-  expect((heads.props.getFillColor as Function)(other)[3]).toBeCloseTo(69);
-  expect((heads.props.getFillColor as Function)(selected)[3]).toBe(230);
 });
 
-it.each([
-  ['schedule_only', null, 1], ['schedule_only', 9, 1], ['schedule_only', 10, 0.3],
-  ['observed', null, 1], ['observed', 9, 1], ['observed', 10, 0.3],
-  ['stale', null, 1], ['stale', 9, 1], ['stale', 10, 0.3],
-])('draws %s heads, comets and streaks with selection %s at alpha %s', (state, selected, alpha) => {
-  expect(trainAlpha(9, selected as number | null)).toBeCloseTo(alpha as number);
-  const display = displayRun({ ...runFixture(8), state }, network, 1300)!;
-  const layers = trainLayers([display], trailData([display], 1300), 1300, 4, selected as number | null);
-  const trips = layers.filter(l => l instanceof TripsLayer);
-  trips.forEach(layer => {
-    const data = layer.props.data as any[];
-    const color = layer.props.getColor as Function;
-    const alphas: Record<string, number> = { comets: 255, streaks: 24, timetable: 190 };
-    const baseAlpha = alphas[layer.id.split('-')[0]];
-    for (const trip of data) expect(color(trip)[3]).toBeCloseTo(baseAlpha! * (alpha as number));
-    expect(layer.props.updateTriggers!.getColor).toBe(selected);
-  });
-  const heads = layers.find(l => l instanceof ScatterplotLayer)!;
-  expect((heads.props.getFillColor as Function)(display)).toEqual([...display.color, 230 * (alpha as number)]);
-  expect(heads.props.updateTriggers!.getFillColor).toBe(selected);
+it.each([4, 6, 8])('selection changes only opacity on the base train layers at zoom %s', zoom => {
+  const displays = ['observed', 'stale', 'schedule_only'].map((state, i) =>
+    displayRun({ ...runFixture(8), run_id: i + 9, state }, network, 1300)!);
+  const trails = trailData(displays, 1300), heads = new Map<number, [number, number]>();
+  const first = trainLayers(displays, trails, 1300, zoom, null, heads, 7);
+  for (const selected of [9, 10, 11, null]) {
+    const layers = trainLayers(displays, trails, 1300, zoom, selected, heads, 7);
+    for (const before of first) {
+      const layer = layers.find(l => l.id === before.id)!;
+      const { opacity, ...props } = layer.props;
+      const { opacity: original, ...originalProps } = before.props;
+      expect(opacity).toBeCloseTo(original! * (selected === null ? 1 : 0.3));
+      for (const key of Object.keys(originalProps)) {
+        const value = (props as any)[key], previous = (originalProps as any)[key];
+        if (typeof previous !== 'function') expect(value).toEqual(previous);
+      }
+      expect(layer.props.data).toBe(before.props.data);
+      expect(layer.props.updateTriggers!.getColor).toBeUndefined();
+      expect(layer.props.updateTriggers!.getFillColor).toBeUndefined();
+      for (const item of layer.props.data as any[]) {
+        const color = layer instanceof ScatterplotLayer ? layer.props.getFillColor : layer.props.getColor;
+        const alpha = layer.id === 'heads' ? 230 : layer.id === 'comets' ? 255 : layer.id === 'streaks' ? 24 : 190;
+        expect((color as Function)(item)).toEqual([...item.color, alpha]);
+      }
+    }
+  }
+});
+
+it.each(['observed', 'stale', 'schedule_only'])('overlays only the selected %s cached trail and drawn head', state => {
+  const display = displayRun({ ...runFixture(8), state }, chained, 4900)!;
+  const other = displayRun({ ...runFixture(), run_id: 10, state }, chained, 4900)!;
+  const displays = [other, display], trails = trailData(displays, 4900);
+  const heads = new Map<number, [number, number]>([[9, [70.5, 21.5]], [10, [71, 22]]]);
+  for (const zoom of [4, 6, 8]) {
+    const base = trainLayers(displays, trails, 4900, zoom, null, heads, 7);
+    const layers = trainLayers(displays, trails, 4900, zoom, 9, heads, 7);
+    expect(layers.slice(0, base.length).map(l => l.id)).toEqual(base.map(l => l.id));
+    expect(layers).toHaveLength(base.length + 2);
+    const [trail, head] = layers.slice(base.length) as [TripsLayer, ScatterplotLayer];
+    const source = base.find(l => l.id === (state === 'schedule_only' ? 'timetable-9' : 'comets'))!;
+    const core = (state === 'schedule_only' ? trails.timetable : trails.comets).find(t => t.runId === 9)!;
+    expect(trail).toBeInstanceOf(TripsLayer);
+    expect(trail.constructor).toBe(source.constructor);
+    expect(trail.props.data).toHaveLength(1);
+    expect((trail.props.data as any[])[0]).toBe(core);
+    for (const key of ['currentTime', 'trailLength', 'fadeTrail', 'getWidth', 'widthUnits', 'widthScale', 'opacity', 'parameters'])
+      expect((trail.props as any)[key]).toEqual((source.props as any)[key]);
+    expect((trail.props.getColor as Function)(core)).toEqual([...display.color, state === 'schedule_only' ? 190 : 255]);
+    expect((trail.props.getPath as Function)(core)).toBe(core.path);
+    expect((trail.props.getTimestamps as Function)(core)).toBe(core.timestamps);
+    expect((layers.find(l => l.id === source.id)!.props.data as any[]).find(t => t.runId === 9)).toBe(core);
+    const originalHead = base.find(l => l.id === 'heads')!;
+    expect(head).toBeInstanceOf(ScatterplotLayer);
+    expect(head.constructor).toBe(originalHead.constructor);
+    expect(head.props.data).toEqual([display]);
+    expect((head.props.data as any[])[0]).toBe(display);
+    expect((head.props.getPosition as Function)(display)).toBe(heads.get(9));
+    expect(head.props.updateTriggers!.getPosition).toBe(7);
+    expect(head.props.opacity).toBe(originalHead.props.opacity);
+    expect(head.props.parameters).toEqual(originalHead.props.parameters);
+    const next = trainLayers(displays, trails, 4901, zoom, 9, heads, 8).slice(base.length);
+    expect((next[0].props.data as any[])[0]).toBe(core);
+    expect(next[0].props.dataComparator!(next[0].props.data, trail.props.data)).toBe(true);
+    expect(next[1].props.dataComparator!(next[1].props.data, head.props.data)).toBe(true);
+    expect(next[1].props.updateTriggers!.getPosition).toBe(8);
+    expect(layers.find(l => l.id === 'heads')!.props.data).toBe(displays);
+    for (const selected of [null, 999])
+      expect(trainLayers(displays, trails, 4900, zoom, selected, heads, 7).map(l => l.id)).toEqual(base.map(l => l.id));
+  }
 });
 
 it.each(['observed', 'stale'])('keeps %s glow and eight streaks separate from the delay-coloured timetable core', state => {
@@ -727,7 +760,7 @@ it('draws sixteen ordered timetable chunks with the same glow props and cached d
     displayRun({ ...runFixture(), run_id, state: 'schedule_only' }, network, 4900)!);
   const trails = trailData(displays, 4900);
   const layers = trainLayers(displays, trails, 4900, 6, 17);
-  expect(layers.map(l => l.id)).toEqual(['comets', 'streaks', ...timetableIds, 'heads']);
+  expect(layers.map(l => l.id)).toEqual(['comets', 'streaks', ...timetableIds, 'heads', 'selected-trail', 'selected-head']);
   const chunks = layers.filter(l => l instanceof TripsLayer).filter(l => l.id.startsWith('timetable-'));
   expect(chunks).toHaveLength(16);
   const grouped = new Map([[0, [0, 32, 16]], [1, [33, 17, 1]], [10, [10, 26]], [15, [15, 31]]]);
@@ -741,7 +774,7 @@ it('draws sixteen ordered timetable chunks with the same glow props and cached d
       expect(trail).toBe(trails.timetable.find(t => t.runId === trail.runId));
       expect((layer.props.getPath as Function)(trail)).toBe(trail.path);
       expect((layer.props.getTimestamps as Function)(trail)).toBe(trail.timestamps);
-      expect((layer.props.getColor as Function)(trail)).toEqual([...trail.color, trail.runId === 17 ? 190 : 57]);
+      expect((layer.props.getColor as Function)(trail)).toEqual([...trail.color, 190]);
     }
     expect(layer.props.dataComparator).toBe(dataComparator);
     expect(layer.props.currentTime).toBe(1300);
@@ -749,9 +782,9 @@ it('draws sixteen ordered timetable chunks with the same glow props and cached d
     expect(layer.props.fadeTrail).toBe(true);
     expect(layer.props.getWidth).toBe(6 * GLOW_SCALE);
     expect(layer.props.widthScale).toBe(0.75);
-    expect(layer.props.opacity).toBeCloseTo(0.675);
+    expect(layer.props.opacity).toBeCloseTo(0.675 * 0.3);
     expect(layer.props.widthUnits).toBe('pixels');
-    expect(layer.props.updateTriggers!.getColor).toBe(17);
+    expect(layer.props.updateTriggers!.getColor).toBeUndefined();
     expect(layer.props.parameters).toEqual(layers[0].props.parameters);
     expect(next.find(l => l.id === layer.id)!.props.data).toBe(data);
   });
