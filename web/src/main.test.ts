@@ -334,14 +334,14 @@ it.each([
   Socket.current.receive({ gen: 10, ts: 3601, is_full: true, versions: {}, base_ts: 1000,
     runs: { 9: { ...run, state: 'observed' }, 10: { ...run, run_id: 10, state: 'schedule_only' } }, tombstones: [] });
   draw!(3250);
-  const timetable = rendered.layers.find(l => l.id === 'timetable');
+  const timetable = rendered.layers.find(l => l.id === 'timetable-10');
   expect(timetable.props.data).toHaveLength(1);
   const timetableHead = heads().props.data.find((d: any) => d.run.run_id === 10);
   const liveTrails = rendered.layers.filter(l => l.id.startsWith('comet-') || l.id === 'streaks');
   Socket.current.receive({ gen: 11, ts: 3601, is_full: false, versions: {}, base_ts: 1000,
     runs: { 9: { ...run, state: 'stale' } }, tombstones: [] });
   draw!(3350);
-  const nextTimetable = rendered.layers.find(l => l.id === 'timetable');
+  const nextTimetable = rendered.layers.find(l => l.id === 'timetable-10');
   expect(nextTimetable.props.data[0]).toBe(timetable.props.data[0]);
   expect(nextTimetable.props.dataComparator(nextTimetable.props.data, timetable.props.data)).toBe(true);
   expect(heads().props.data.find((d: any) => d.run.run_id === 10)).toBe(timetableHead);

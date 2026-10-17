@@ -92,6 +92,8 @@ class GlowDots<D> extends ScatterplotLayer<D> {
 }
 const networkLayers = new WeakMap<Network, PathLayer<Point[]>>();
 const trailCache = new WeakMap<Display, { base: number; core: Trail; streaks: Trail[] }>();
+const timetableCache = new WeakMap<Trails, Trail[][]>();
+let previousTimetable: Trail[][] = [];
 
 export function indexNetwork(network: Network): NetworkIndex {
   const existing = indices.get(network);
@@ -525,6 +527,14 @@ export function selectionLayers(display: Display, tick: number, simTime: number)
 export function trainLayers(displays: Display[], trails: Trails, simTime: number,
                             zoom: number, selected: number | null = null,
                             heads?: ReadonlyMap<number, Point>, headsVersion?: number) {
+  let chunks = timetableCache.get(trails);
+  if (!chunks) {
+    chunks = Array.from({ length: 16 }, () => [] as Trail[]);
+    for (const trail of trails.timetable) chunks[trail.runId % 16].push(trail);
+    chunks = chunks.map((chunk, c) => dataComparator(chunk, previousTimetable[c]) ? previousTimetable[c] : chunk);
+    timetableCache.set(trails, chunks);
+    previousTimetable = chunks;
+  }
   const length = trailLength(zoom);
   // Dense India-wide views stay thin and dim; zoomed-in trails widen and brighten.
   const k = Math.min(1, Math.max(0, (zoom - 4) / 4));
@@ -538,11 +548,11 @@ export function trainLayers(displays: Display[], trails: Trails, simTime: number
     currentTime: simTime - trails.base, trailLength: length, fadeTrail: true,
     getWidth: 1.5, widthUnits: 'pixels', getColor: t => [...t.color, 24 * trainAlpha(t.runId, selected)],
     updateTriggers: { getColor: selected }, parameters: ADDITIVE }),
-  new GlowTrips<Trail>({ id: 'timetable', data: trails.timetable, dataComparator,
+  ...chunks.map((data, c) => new GlowTrips<Trail>({ id: `timetable-${c}`, data, dataComparator,
     getPath: t => t.path, getTimestamps: t => t.timestamps,
     currentTime: simTime - trails.base, trailLength: length / 1.5, fadeTrail: true,
     getWidth: 6 * GLOW_SCALE, widthScale: 0.5 + 0.5 * k, opacity: 0.35 + 0.65 * k, widthUnits: 'pixels',
-    getColor: t => [...t.color, 190 * trainAlpha(t.runId, selected)], updateTriggers: { getColor: selected }, parameters: ADDITIVE }),
+    getColor: t => [...t.color, 190 * trainAlpha(t.runId, selected)], updateTriggers: { getColor: selected }, parameters: ADDITIVE })),
   new GlowDots<Display>({ id: 'heads', data: displays, dataComparator,
     getPosition: d => heads?.get(d.run.run_id) ?? d.head,
     getRadius: d => (d.run.state === 'schedule_only' ? 4.5 : 5.5) * GLOW_SCALE, radiusScale: 0.6 + 0.4 * k,

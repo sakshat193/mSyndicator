@@ -6,6 +6,7 @@ import { indexNetwork, networkLayer, displayRun, trailData, trainLayers,
   trainAlpha, nearestRun, dataComparator, glyphShift, glyphMetrics, padGlyphAlpha, type Network } from './layers';
 
 const GLOW_SCALE = Math.sqrt(6.125 / 3.5);
+const timetableIds = Array.from({ length: 16 }, (_, c) => `timetable-${c}`);
 
 function packQuantiles(quantiles: (number | null)[][]): Uint8Array {
   const values = quantiles.flat(), packed = new Uint8Array(values.length * 4);
@@ -178,7 +179,7 @@ it('draws one fading glow comet with additive blending and unpicked heads', () =
   const layers = trainLayers([display], trails, 1300, 4);
   const trips = layers.filter(layer => layer instanceof TripsLayer);
   const comets = trips.filter(layer => layer.id === 'comets');
-  expect(trips.map(layer => layer.id)).toEqual(['comets', 'streaks', 'timetable']);
+  expect(trips.map(layer => layer.id)).toEqual(['comets', 'streaks', ...timetableIds]);
   expect(comets).toHaveLength(1);
   expect(comets[0].props.getWidth).toBe(7 * GLOW_SCALE);
   expect(comets[0].props.trailLength).toBe(21600);
@@ -259,7 +260,7 @@ it('culls whole segments outside each trips window and gives only the pulse a so
   const display = displayRun(runFixture(), network, 1300)!;
   const layers = [...trainLayers([display], trailData([display], 1300), 1300, 4),
     selectionLayers(display, 0, 900)[1]].filter(l => l instanceof TripsLayer);
-  expect(layers.map(l => l.id)).toEqual(['comets', 'streaks', 'timetable', 'selection-pulse']);
+  expect(layers.map(l => l.id)).toEqual(['comets', 'streaks', ...timetableIds, 'selection-pulse']);
   const filter = 'fs:DECKGL_FILTER_COLOR';
   for (const layer of layers) {
     Object.assign(layer, { context: { device: { type: 'webgl' }, defaultShaderModules: [] } });
@@ -299,7 +300,7 @@ it.each([[3, 0.5, 0.35, 0.6, 0.45], [4, 0.5, 0.35, 0.6, 0.45],
     const live = displayRun({ ...runFixture(), state: 'observed' }, network, 1300)!;
     const timetable = displayRun({ ...runFixture(), run_id: 10, state: 'schedule_only' }, network, 1300)!;
     const layers = trainLayers([live, timetable], trailData([live, timetable], 1300), 1300, zoom);
-    const core = layers.filter(l => l instanceof TripsLayer).find(l => l.id === 'timetable')!;
+    const core = layers.filter(l => l instanceof TripsLayer).find(l => l.id === 'timetable-10')!;
     expect(core.props.getWidth).toBe(6 * GLOW_SCALE);
     expect(core.props.widthScale).toBe(widthScale);
     expect(core.props.opacity).toBe(trailOpacity);
@@ -667,7 +668,7 @@ it.each([
     const data = layer.props.data as any[];
     const color = layer.props.getColor as Function;
     const alphas: Record<string, number> = { comets: 255, streaks: 24, timetable: 190 };
-    const baseAlpha = alphas[layer.id];
+    const baseAlpha = alphas[layer.id.split('-')[0]];
     for (const trip of data) expect(color(trip)[3]).toBeCloseTo(baseAlpha! * (alpha as number));
     expect(layer.props.updateTriggers!.getColor).toBe(selected);
   });
@@ -690,8 +691,9 @@ it.each(['observed', 'stale'])('keeps %s glow and eight streaks separate from th
   expect(trails.streaks.every(t => t.runId === 9)).toBe(true);
   expect(trails.comets[0].color).toEqual(live.color);
   const layers = trainLayers([live, timetable], trails, 1300, 4);
-  const core = layers.filter(l => l instanceof TripsLayer).find(l => l.id === 'timetable')!;
-  expect(core.props.data).toBe(trails.timetable);
+  const core = layers.filter(l => l instanceof TripsLayer).find(l => l.id === 'timetable-10')!;
+  expect(core.props.data).toEqual(trails.timetable);
+  expect((core.props.data as any[])[0]).toBe(trails.timetable[0]);
   expect(core.props.getWidth).toBe(6 * GLOW_SCALE);
   expect(core.props.widthScale).toBe(0.5);
   expect(core.props.opacity).toBe(0.35);
@@ -710,6 +712,72 @@ it.each(['schedule_only', 'observed', 'stale'])('keeps %s heads in their delay c
   const layers = trainLayers([display], trailData([display], 1300), 1300, 4);
   const heads = layers.find(l => l instanceof ScatterplotLayer)!;
   expect((heads.props.getFillColor as Function)(display)).toEqual([252, 238, 10, 230]);
+});
+
+it('an unchanged display yields the identical trail object across a delta', () => {
+  const live = displayRun(runFixture(), network, 1300)!;
+  const timetable = displayRun({ ...runFixture(), run_id: 10, state: 'schedule_only' }, network, 1300)!;
+  const first = trailData([live, timetable], 1300);
+  const next = trailData([{ ...live }, timetable], 1400);
+  expect(next.timetable[0]).toBe(first.timetable[0]);
+});
+
+it('draws sixteen ordered timetable chunks with the same glow props and cached data on repeated pushes', () => {
+  const displays = [33, 0, 17, 32, 1, 16, 15, 31, 10, 26].map(run_id =>
+    displayRun({ ...runFixture(), run_id, state: 'schedule_only' }, network, 4900)!);
+  const trails = trailData(displays, 4900);
+  const layers = trainLayers(displays, trails, 4900, 6, 17);
+  expect(layers.map(l => l.id)).toEqual(['comets', 'streaks', ...timetableIds, 'heads']);
+  const chunks = layers.filter(l => l instanceof TripsLayer).filter(l => l.id.startsWith('timetable-'));
+  expect(chunks).toHaveLength(16);
+  const grouped = new Map([[0, [0, 32, 16]], [1, [33, 17, 1]], [10, [10, 26]], [15, [15, 31]]]);
+  const next = trainLayers(displays, trails, 4900.1, 7, 33);
+  chunks.forEach((layer, c) => {
+    expect(layer.id).toBe(`timetable-${c}`);
+    expect(layer.constructor).toBe(layers[0].constructor);
+    const data = layer.props.data as any[];
+    expect(data.map(t => t.runId)).toEqual(grouped.get(c) ?? []);
+    for (const trail of data) {
+      expect(trail).toBe(trails.timetable.find(t => t.runId === trail.runId));
+      expect((layer.props.getPath as Function)(trail)).toBe(trail.path);
+      expect((layer.props.getTimestamps as Function)(trail)).toBe(trail.timestamps);
+      expect((layer.props.getColor as Function)(trail)).toEqual([...trail.color, trail.runId === 17 ? 190 : 57]);
+    }
+    expect(layer.props.dataComparator).toBe(dataComparator);
+    expect(layer.props.currentTime).toBe(1300);
+    expect(layer.props.trailLength).toBe(5400);
+    expect(layer.props.fadeTrail).toBe(true);
+    expect(layer.props.getWidth).toBe(6 * GLOW_SCALE);
+    expect(layer.props.widthScale).toBe(0.75);
+    expect(layer.props.opacity).toBeCloseTo(0.675);
+    expect(layer.props.widthUnits).toBe('pixels');
+    expect(layer.props.updateTriggers!.getColor).toBe(17);
+    expect(layer.props.parameters).toEqual(layers[0].props.parameters);
+    expect(next.find(l => l.id === layer.id)!.props.data).toBe(data);
+  });
+});
+
+it.each(['changing', 'removing'])('%s one run changes only its timetable chunk', action => {
+  const displays = Array.from({ length: 32 }, (_, run_id) =>
+    displayRun({ ...runFixture(), run_id, state: 'schedule_only' }, network, 1300)!);
+  const first = trainLayers(displays, trailData(displays, 1300), 1300, 4)
+    .filter(l => l instanceof TripsLayer && l.id.startsWith('timetable-'));
+  const updated = displays.flatMap(d => d.run.run_id !== 10 ? [d] : action === 'removing' ? []
+    : [displayRun({ ...d.run, halt_p50: packQuantiles([[null, 0], [20, null]]) }, network, 1400)!]);
+  const next = trainLayers(updated, trailData(updated, 1400), 1400, 4)
+    .filter(l => l instanceof TripsLayer && l.id.startsWith('timetable-'));
+  expect(first).toHaveLength(16);
+  expect(next).toHaveLength(16);
+  next.forEach((layer, c) => {
+    const previous = first[c].props.data as any[], data = layer.props.data as any[];
+    expect(layer.id).toBe(first[c].id);
+    expect(layer.props.dataComparator!(data, previous)).toBe(c !== 10);
+    if (c === 10) {
+      expect(data).not.toBe(previous);
+      expect(data.map(t => t.runId)).toEqual(action === 'removing' ? [26] : [10, 26]);
+      if (action === 'changing') expect(data[0].timestamps).toEqual([1000, 2200]);
+    } else expect(data).toBe(previous);
+  });
 });
 
 it('reuses each unchanged display\'s trail objects within an hour and rebases them in a new hour', () => {
