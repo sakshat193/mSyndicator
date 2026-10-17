@@ -27,6 +27,8 @@ def load_state(conn, now, *, host_state='ok', rate=.2, T_max=None,
     """Recover the scoped cohort and finished-run candidates from durable attempts."""
     AdmissionState((), poll_slots=poll_slots, poll_interval=poll_interval)
     # ponytail: aggregate retained attempts once; add a run/start index if CP-3 finds admission too slow.
+    # ponytail: weekly inference only; skipped runs remain timetable runs in the engine.
+    # Upgrade to a running-days table if recovery-yield shows missed operating runs.
     attempts_sql = '''
         WITH attempts AS (
             SELECT f.id,f.run_id,f.started_at,f.mode,f.http_status,f.outcome,
@@ -42,6 +44,24 @@ def load_state(conn, now, *, host_state='ok', rate=.2, T_max=None,
         ), streaks AS (
             SELECT run_id,count(*) AS streak_5xx,max(started_at) AS latest_5xx
             FROM completed WHERE newer_non_5xx=0 GROUP BY run_id
+        ), answered AS (
+            SELECT DISTINCT ON (f.run_id) r.train,r.start_date,
+                   f.http_status=400 AND r.lifecycle='cancelled' AS nr
+            FROM attempts f JOIN obs.run r ON r.id=f.run_id
+            WHERE f.outcome<>'inflight'
+              AND (f.outcome='ok' OR (f.http_status=400 AND r.lifecycle='cancelled'))
+            ORDER BY f.run_id,f.started_at DESC,f.id DESC
+        ), covers AS (
+            SELECT DISTINCT ON (a.train,a.start_date+7*k)
+                   a.train,a.start_date+7*k AS target,a.nr
+            FROM answered a CROSS JOIN generate_series(1,4) weeks(k)
+            ORDER BY a.train,a.start_date+7*k,a.start_date DESC
+        ), skip AS (
+            SELECT train,target FROM covers WHERE nr
+        ), eligible_runs AS (
+            SELECT r.* FROM obs.run r WHERE NOT EXISTS (
+                SELECT 1 FROM skip s WHERE s.train=r.train AND s.target=r.start_date
+            )
         )
     '''
     rows = conn.execute(attempts_sql + ''', polls AS (
@@ -52,7 +72,7 @@ def load_state(conn, now, *, host_state='ok', rate=.2, T_max=None,
             SELECT train,max(started_at) AS started_at FROM attempts GROUP BY train
         )
         SELECT r.id,r.train,r.start_date,COALESCE(f.started_at,%s),q.priority,COALESCE(c.streak_5xx,0)
-        FROM obs.run r JOIN LATERAL (
+        FROM eligible_runs r JOIN LATERAL (
             SELECT (r.start_date::timestamp AT TIME ZONE 'Asia/Kolkata')
                    + (s.dep_off+r.resched_min)*interval '1 minute' AS departure
             FROM ref.schedule_stop s WHERE s.version_id=r.schedule_version_id
@@ -72,7 +92,7 @@ def load_state(conn, now, *, host_state='ok', rate=.2, T_max=None,
           COOLDOWN_5XX, now-COOLDOWN, now-timedelta(minutes=30), now-timedelta(days=7), poll_slots)).fetchall()
     harvest = conn.execute(attempts_sql + '''
         SELECT r.id,r.train,r.start_date,COALESCE(f.started_at,d.arrival),NULL,COALESCE(c.streak_5xx,0)
-        FROM obs.run r JOIN LATERAL (
+        FROM eligible_runs r JOIN ref.train t ON t.number=r.train JOIN LATERAL (
             SELECT s.station,s.occ,(r.start_date::timestamp AT TIME ZONE 'Asia/Kolkata')
                    + (s.arr_off+r.resched_min)*interval '1 minute' AS arrival
             FROM ref.schedule_stop s WHERE s.version_id=r.schedule_version_id
@@ -87,6 +107,7 @@ def load_state(conn, now, *, host_state='ok', rate=.2, T_max=None,
         ) f ON f.run_id=r.id
         LEFT JOIN streaks c ON c.run_id=r.id
         WHERE r.lifecycle IN ('scheduled','running','expired_unknown')
+          AND t.class<>'PASS'
           AND EXISTS (SELECT 1 FROM ref.route_stop s
                       WHERE s.route_version_id=r.route_version_id AND s.dist_km>=%s)
           AND (COALESCE(c.streak_5xx,0)<%s OR c.latest_5xx<=%s)

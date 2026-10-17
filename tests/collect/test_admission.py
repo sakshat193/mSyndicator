@@ -557,6 +557,55 @@ def test_scope_excludes_short_routes(db):
 
 
 @pytest.mark.db
+def test_pass_stays_in_poll_cohort_but_leaves_harvest(db):
+    from msynd.collect.__main__ import load_state
+
+    passenger = make_run(db)
+    other = make_run(db, train='12952')
+    db.execute("UPDATE ref.train SET class='PASS' WHERE number='12951'")
+    state = load_state(db, NOW + timedelta(days=1))
+    assert {r.id for r in state.runs} == {passenger, other}
+    assert [r.id for r in state.harvest] == [other]
+
+
+@pytest.mark.db
+@pytest.mark.parametrize('history,eligible', [
+    ([(7, 'cancelled', 400, 'invalid')], False),
+    ([(14, 'cancelled', 400, 'invalid')], False),
+    ([(21, 'cancelled', 400, 'invalid')], False),
+    ([(28, 'cancelled', 400, 'invalid')], False),
+    ([(7, 'completed', 200, 'ok'), (14, 'cancelled', 400, 'invalid')], True),
+    ([(7, 'cancelled', 400, 'invalid'), (14, 'completed', 200, 'ok')], False),
+    ([(35, 'cancelled', 400, 'invalid')], True),
+    ([(6, 'cancelled', 400, 'invalid')], True),
+    ([(7, 'cancelled', None, None)], True),
+    ([(7, 'cancelled', 200, 'ok')], True),
+    ([(7, 'scheduled', 400, 'invalid')], True),
+    ([(7, 'cancelled', 200, 'invalid'), (14, 'cancelled', 400, 'invalid')], False),
+    ([(7, 'cancelled', None, None), (14, 'cancelled', 400, 'invalid')], False),
+])
+def test_weekday_admission_uses_most_recent_answer_in_last_four_weeks(db, history, eligible):
+    from msynd.collect.__main__ import load_state
+
+    run = make_run(db)
+    other = make_run(db, train='12952')
+    for days, lifecycle, status, outcome in history:
+        prior = db.execute('''
+            INSERT INTO obs.run(train,start_date,schedule_version_id,route_version_id,lifecycle)
+            SELECT train,start_date-%s,schedule_version_id,route_version_id,%s
+            FROM obs.run WHERE id=%s RETURNING id
+        ''', (days, lifecycle, run)).fetchone()[0]
+        if outcome is not None:
+            insert_fetch(db, host=HOST, run_id=prior, http_status=status, outcome=outcome,
+                         started_at=NOW - timedelta(days=days))
+    state = load_state(db, NOW + timedelta(days=1))
+    for candidates in (state.runs, state.harvest):
+        ids = {r.id for r in candidates}
+        assert (run in ids) is eligible
+        assert other in ids
+
+
+@pytest.mark.db
 def test_cohort_bounded_and_kept_across_restart(db):
     from msynd.collect.__main__ import load_state
 
