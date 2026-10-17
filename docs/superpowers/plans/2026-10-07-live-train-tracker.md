@@ -2740,11 +2740,13 @@ layer's `getPosition` trigger is the frame tick, so every push re-uploads every 
 - Other pushes (the 30 Hz pulse, a zoom change, a new frame, a selection) reuse the current heads: no head loop, no position upload.
 - `map.on('move')` only hides the tooltip. MapboxOverlay already redraws deck on each map render. The draw loop pushes props
   once per animation frame when the zoom changed since the last push, because trail length, width and opacity depend on zoom.
-- [ ] Tests first in `main.test.ts`: a move without a zoom change pushes nothing; a zoom change pushes with the same heads version;
+- [x] Tests first in `main.test.ts`: a move without a zoom change pushes nothing; a zoom change pushes with the same heads version;
   idle heads recompute at 10 Hz and easing heads every frame until they settle; the pulse pushes at 30 Hz with the same version.
-- [ ] `npm --prefix web test` green. Commit `task 87: heads on the sim clock`.
-- [ ] Monitor: frame intervals for zoom clicks and a drag pan against the Task 84 baseline (Mumbai p50/p90/p99 20.9/48.7/76.4 ms,
+- [x] `npm --prefix web test` green (189). Commit `task 87: heads on the sim clock`.
+- [x] Monitor: frame intervals for zoom clicks and a drag pan against the Task 84 baseline (Mumbai p50/p90/p99 20.9/48.7/76.4 ms,
   India 27.7/70.1/97.3 ms).
+  (2026-10-18, ~2,000 trains, two runs each: Mumbai 13.9/34.8/41.7 ms, max 42-48 (Task 86: 14.5/45/66, max 77); India
+  20.7-27.3/56-62/70 ms, max 71-76 (Task 86: 20.8/69.4/94, max 111). The selection pulse still animates.)
 
 ### Task 88 (amendment 2026-10-17): deck canvas at one device pixel, no MSAA (navigation fix #4)
 
