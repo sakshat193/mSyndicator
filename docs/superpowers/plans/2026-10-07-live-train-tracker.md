@@ -2882,10 +2882,14 @@ when the panel hides, u pan in more)". On a 390×844 phone the expanded panel le
 - Toggling refits the selected route with Task 91's `fitBounds` options. While collapsed the padding reserves the bar's own rect:
   phone bottom = innerHeight − bar.top + 16; desktop top = max(live.bottom, bar.bottom) + 16 and no right reservation. Expanded
   keeps Task 91's padding, including the phone 60vh reservation. No fit without a display.
-- [ ] Tests first: the button toggles the state, label and `aria-expanded`; the state survives close and a new selection; the
+- [x] Tests first: the button toggles the state, label and `aria-expanded`; the state survives close and a new selection; the
   collapsed padding on desktop and phone; a toggle calls `fitBounds` again with the new padding; the expanded cases are unchanged.
-- [ ] `npm --prefix web test` green and the build passes. Commit `task 94: hide the train panel; the route refits`.
-- [ ] Monitor: screenshots at desktop and 390×844 in both states; deploy.
+- [x] `npm --prefix web test` green (202) and the build passes. Commit `task 94: hide the train panel; the route refits`.
+- [x] Monitor: screenshots at desktop and 390×844 in both states; deploy.
+  - 2026-10-18 (12951/12952): desktop 1400×900 bar 380×89 at the top right, controls back at the right edge, route recentred
+    (a tall N–S route stays height-bound). Phone 390×844: expanded panel top 326 px (map band ~124 px); collapsed bar 89 px at
+    the bottom, controls just above it, the route fills the screen. Collapsed state kept across close and a new selection.
+    Deployed 2026-10-17 ~20:40Z (VM b2a95d3, index-DB85gftl.js); site 401 behind auth.
 
 ### Task 95 (amendment 2026-10-18): off-site backup to Google Drive with rclone (user decision 8: "Just the google drive")
 
