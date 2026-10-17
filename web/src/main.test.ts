@@ -5,7 +5,7 @@ import './layers';
 
 const rendered = vi.hoisted(() => ({ layers: [] as any[], options: {} as any,
   draws: 0, zoom: 4, moving: false, mapOptions: {} as any, setup: [] as string[],
-  ease: [] as any[], listeners: {} as Record<string, Function>,
+  ease: [] as any[], fits: [] as any[], listeners: {} as Record<string, Function>,
   selectSearch: undefined as ((run: RunFrame) => void) | undefined }));
 vi.mock('./search', async importOriginal => {
   const actual = await importOriginal<typeof import('./search')>();
@@ -20,6 +20,7 @@ vi.mock('maplibre-gl', () => ({
     addControl() {} remove() {} getZoom() { return rendered.zoom; }
     on(name: string, callback: Function) { rendered.listeners[`map:${name}`] = callback; }
     easeTo(options: unknown) { rendered.ease.push(options); }
+    fitBounds(bounds: unknown, options: unknown) { rendered.fits.push({ bounds, options }); }
     isMoving() { return rendered.moving; }
     project([lon, lat]: [number, number]) { return { x: (lon - 69) * 50, y: (23 - lat) * 50 }; }
     getCanvas() { return { style: {} }; }
@@ -54,6 +55,7 @@ it.each([
   rendered.zoom = 4;
   rendered.setup = [];
   rendered.ease = [];
+  rendered.fits = [];
   rendered.listeners = {};
   let statusWrites = 0;
   const element = (): any => ({ hidden: true, textContent: '', value: '', offsetWidth: 180, offsetHeight: 80,
@@ -62,6 +64,7 @@ it.each([
     setAttribute(name: string, value: string) { this.attributes[name] = value; },
     removeAttribute(name: string) { delete this.attributes[name]; if (name === 'title') delete this.title; },
     contains() { return false; }, scrollIntoView() {},
+    getBoundingClientRect() { return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 }; },
     addEventListener(name: string, callback: Function) { this.listeners[name] = callback; },
     removeEventListener(name: string) { delete this.listeners[name]; },
     replaceChildren() {}, append() {}, focus() {},
@@ -70,7 +73,8 @@ it.each([
   const status = { ...element(), get textContent() { return statusText; },
     set textContent(text: string) { statusText = text; statusWrites++; } };
   const panel = element();
-  const elements = new Map<string, any>([['#connection', status], ['#panel', panel]]);
+  const elements = new Map<string, any>([['#connection', status], ['#panel', panel],
+    ['#live', element()], ['#legend', element()]]);
   let healthTick: () => Promise<void>;
   const clearInterval = vi.fn();
   vi.stubGlobal('setInterval', (callback: () => Promise<void>, ms: number) => {
@@ -81,7 +85,9 @@ it.each([
   vi.stubGlobal('clearInterval', clearInterval);
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { draw = callback; return 1; });
   vi.stubGlobal('cancelAnimationFrame', () => {});
-  vi.stubGlobal('window', { innerWidth: 1000, innerHeight: 800,
+  let reducedMotion = false;
+  const matchMedia = vi.fn(() => ({ matches: reducedMotion }));
+  vi.stubGlobal('window', { innerWidth: 1000, innerHeight: 800, matchMedia,
     addEventListener: (name: string, callback: Function) => { rendered.listeners[name] = callback; } });
   const body = { dataset: {} as Record<string, string | undefined> };
   vi.stubGlobal('navigator', browserNavigator);
@@ -214,7 +220,8 @@ it.each([
   pointer('click', point());
   expect(panel.hidden).toBe(false);
   expect(fetch).toHaveBeenCalledWith('/api/run/9', expect.any(Object));
-  expect(rendered.ease.at(-1)).toMatchObject({ center: expect.any(Array), zoom: 6 });
+  expect.soft(rendered.fits.at(-1)).toEqual({ bounds: [[70, 20], [72, 22]],
+    options: { padding: { top: 16, right: 16, bottom: 16, left: 16 }, maxZoom: 10, linear: true, duration: 600 } });
   Socket.current.receive({ gen: 4, ts: 3601, is_full: false, versions: {}, base_ts: null,
     runs: {}, tombstones: [9] });
   draw!(500);
@@ -298,12 +305,15 @@ it.each([
   const pending = { run_id: 42, state: 'schedule_only', origin_ts: 1000, versions: { route: 7 } };
   Socket.current.receive({ gen: 6, ts: 3601, is_full: false, versions: {}, base_ts: null,
     runs: { 42: pending }, tombstones: [] });
+  const fitsBeforePending = rendered.fits.length, easeBeforePending = rendered.ease.length;
   rendered.selectSearch!(pending);
   expect(panel.hidden).toBe(false); // Live store membership is sufficient, even before a path is drawable.
   expect(fetch).toHaveBeenCalledWith('/api/run/42', expect.any(Object));
   draw!(1228);
   expect(panel.hidden).toBe(false);
   expect(rendered.layers.some(l => l.id === 'selection')).toBe(false);
+  expect(rendered.fits).toHaveLength(fitsBeforePending);
+  expect(rendered.ease).toHaveLength(easeBeforePending);
   Socket.current.receive({ gen: 7, ts: 3601, is_full: false, versions: {}, base_ts: null,
     runs: {}, tombstones: [42] });
   draw!(1240);
@@ -481,6 +491,68 @@ it.each([
   expect.soft(version()).toBe(settledVersion + 1);
   expect(headAt).toHaveBeenCalledTimes(2);
   expect(easeHead).toHaveBeenCalledTimes(2);
+
+  const rect = (left: number, top: number, width: number, height: number) =>
+    ({ left, top, width, height, right: left + width, bottom: top + height });
+  const empty = rect(0, 0, 0, 0), live = elements.get('#live'), legend = elements.get('#legend');
+  const wide = { width: 1400, height: 900, live: rect(16, 16, 300, 164),
+    legend: rect(16, 830, 300, 54), panel: rect(1004, 16, 380, 868), hud: 'shown', reduce: false };
+  const phone = { width: 390, height: 844, live: rect(12, 12, 300, 168),
+    legend: rect(12, 778, 300, 54), panel: rect(12, 440, 366, 392), hud: 'shown', reduce: false };
+  for (const test of [
+    { ...wide, name: 'wide', padding: { top: 196, right: 412, bottom: 86, left: 16 } },
+    { ...phone, name: 'phone', padding: { top: 196, right: 16, bottom: 534.4, left: 16 } },
+    { ...phone, name: 'short phone panel', panel: rect(12, 752, 366, 80),
+      padding: { top: 196, right: 16, bottom: 534.4, left: 16 } },
+    { ...wide, name: 'hidden wide HUD', hud: 'hidden', live: rect(16, 16, 300, 60),
+      padding: { top: 92, right: 16, bottom: 16, left: 16 } },
+    { ...phone, name: 'hidden phone HUD', hud: 'hidden', live: rect(12, 12, 300, 36),
+      padding: { top: 64, right: 16, bottom: 16, left: 16 } },
+    { ...wide, name: 'no horizontal room', panel: rect(32, 16, 1352, 868),
+      padding: { top: 16, right: 16, bottom: 16, left: 16 } },
+    { ...phone, name: 'no vertical room', live: rect(12, 12, 300, 396),
+      padding: { top: 16, right: 16, bottom: 16, left: 16 } },
+    { ...wide, name: 'reduced motion', reduce: true,
+      padding: { top: 196, right: 412, bottom: 86, left: 16 } },
+  ]) {
+    window.innerWidth = test.width;
+    window.innerHeight = test.height;
+    body.dataset.hud = test.hud;
+    reducedMotion = test.reduce;
+    live.getBoundingClientRect = () => test.live;
+    legend.getBoundingClientRect = () => test.hud === 'hidden' || (test.width < 640 && !panel.hidden) ? empty : test.legend;
+    panel.getBoundingClientRect = () => panel.hidden || test.hud === 'hidden' ? empty : test.panel;
+    rendered.listeners.keydown({ key: 'Escape' });
+    rendered.zoom = 14;
+    const fits = rendered.fits.length;
+    rendered.selectSearch!(run);
+    expect.soft(rendered.fits.length, test.name).toBe(fits + 1);
+    expect.soft(rendered.fits.at(-1), test.name).toEqual({ bounds: [[70, 20], [72, 22]],
+      options: { padding: test.padding, maxZoom: 10, linear: true, duration: test.reduce ? 0 : 600 } });
+  }
+  expect.soft(matchMedia).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)');
+  expect.soft(rendered.ease).toHaveLength(0);
+
+  const fits = rendered.fits.length;
+  draw!(10000);
+  const requests = () => fetch.mock.calls.filter(([url]) => url === '/api/run/9').length;
+  const beforeGeneration = requests();
+  Socket.current.receive({ gen: 13, ts: 1900, is_full: false, versions: {}, base_ts: 1000,
+    runs: { 9: { ...run, state: 'observed' } }, tombstones: [] });
+  draw!(10016);
+  expect(requests()).toBe(beforeGeneration + 1); // Re-showing the panel must not move the camera.
+  expect(rendered.fits).toHaveLength(fits);
+  Socket.current.receive({ gen: 14, ts: 1900, is_full: false, versions: {}, base_ts: 1000,
+    runs: { 9: { ...run, versions: { route: 99 } } }, tombstones: [] });
+  draw!(10032);
+  expect(requests()).toBe(beforeGeneration + 2);
+  expect(rendered.fits).toHaveLength(fits);
+  Socket.current.receive({ gen: 15, ts: 1900, is_full: false, versions: {}, base_ts: 1000,
+    runs: { 9: run }, tombstones: [] });
+  draw!(10048);
+  expect(rendered.fits).toHaveLength(fits);
+  rendered.listeners.keydown({ key: 'Escape' });
+  expect(rendered.fits).toHaveLength(fits);
   rendered.listeners.pagehide();
   expect(clearInterval).toHaveBeenCalledWith(7);
   expect(toggle.listeners.click).toBeUndefined();

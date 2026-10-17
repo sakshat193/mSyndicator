@@ -103,7 +103,28 @@ function selectRun(run: RunFrame) {
   tooltip.hidden = true;
   hovered = undefined;
   void panel.show(run, liveTime());
-  if (display) map.easeTo({ center: headAt(display, liveTime()), zoom: Math.max(6, map.getZoom()) });
+  if (display) {
+    const live = document.querySelector<HTMLElement>('#live')!.getBoundingClientRect();
+    const legend = document.querySelector<HTMLElement>('#legend')!.getBoundingClientRect();
+    const panel = panelElement.getBoundingClientRect();
+    const { innerWidth, innerHeight } = window;
+    let padding = { top: live.bottom + 16, right: 16,
+      bottom: legend.height ? innerHeight - legend.top + 16 : 16, left: 16 };
+    if (panel.width && panel.height) {
+      if (innerWidth < 640) padding.bottom = Math.max(padding.bottom,
+        innerHeight - Math.min(panel.top, panel.bottom - 0.6 * innerHeight) + 16);
+      else padding.right = innerWidth - panel.left + 16;
+    }
+    if (padding.left + padding.right >= innerWidth || padding.top + padding.bottom >= innerHeight)
+      padding = { top: 16, right: 16, bottom: 16, left: 16 };
+    let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity;
+    for (const [lon, lat] of display.points) {
+      west = Math.min(west, lon); south = Math.min(south, lat);
+      east = Math.max(east, lon); north = Math.max(north, lat);
+    }
+    map.fitBounds([[west, south], [east, north]], { padding, maxZoom: 10, linear: true,
+      duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 600 });
+  }
 }
 
 function renderHover(refresh = false) {
