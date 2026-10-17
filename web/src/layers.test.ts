@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { TripsLayer } from '@deck.gl/geo-layers';
 import { ScatterplotLayer, TextLayer } from '@deck.gl/layers';
 import { indexNetwork, networkLayer, displayRun, trailData, trainLayers,
-  delayColor, trailLength, easeHead, headAt, labelBucket, labelStations, stationLabelLayer, selectionLayers, PULSE_MS,
+  delayColor, speedColor, trailLength, easeHead, headAt, labelBucket, labelStations, stationLabelLayer, selectionLayers, PULSE_MS,
   nearestRun, dataComparator, glyphShift, glyphMetrics, padGlyphAlpha, type Network } from './layers';
 
 const GLOW_SCALE = Math.sqrt(6.125 / 3.5);
@@ -590,14 +590,69 @@ it.each([[4, 12], [6.99, 12], [7, 13], [8, 13]])(
     expect(layer.props.outlineColor).toEqual([5, 7, 13, 255]);
   });
 
-it('highlights the selected expanded path without copying it', () => {
+it.each([
+  [29.9, [160, 16, 32, 210]], [30, [255, 32, 48, 210]], [59.9, [255, 32, 48, 210]],
+  [60, [255, 128, 32, 210]], [89.9, [255, 128, 32, 210]],
+  [90, [255, 208, 64, 210]], [109.9, [255, 208, 64, 210]], [110, [255, 244, 216, 210]],
+])('uses the lower-inclusive speed band at %s km/h without cyan', (kmh, color) => {
+  expect(speedColor).toBeTypeOf('function');
+  const actual = speedColor(kmh as number);
+  expect(actual).toEqual(color);
+  expect(actual[1]).toBeLessThanOrEqual(actual[0]);
+  expect(actual[2]).toBeLessThanOrEqual(actual[0]);
+});
+
+it('colours each gap by stop distance and event duration and caches the data per display', () => {
+  const distances = [0, 5, 20, 65, 165, 225];
+  const mixed: Network = { ...network,
+    stations: distances.map((_, i) => ({ code: String(i), lon: 70 + i, lat: 20 })),
+    segments: [{ ...network.segments[0], polyline: [[70, 20], [70.5, 21], [71, 20]] }],
+    routes: [{ ...network.routes[0], stops: distances.map((dist_km, idx) =>
+      ({ idx, station: String(idx), halt: true, dist_km, sched_off: null })),
+    segments: [{ idx: 0, segment_id: 1, forward: true }] }],
+  };
+  const run = { ...eventRun(distances.map((_, i) => [i, i * 100])),
+    halt_p50: packQuantiles([[null, 0], [15, null], [35, null], [71, null], [131, null], [161, null]]) };
+  const selected = displayRun(run, mixed, 1300)!;
+  const [route] = selectionLayers(selected, 0, 900);
+  const data = route.props.data as any[];
+  expect(data).toHaveLength(5);
+  expect(route.props.getColor).toBeTypeOf('function');
+  expect(data.map((gap, index) => (route.props.getColor as Function)(gap, { index }))).toEqual([
+    [160, 16, 32, 210], [255, 32, 48, 210], [255, 128, 32, 210],
+    [255, 208, 64, 210], [255, 244, 216, 210],
+  ]);
+  data.forEach((gap, i) => expect((route.props.getPath as Function)(gap)).toBe(selected.gaps[i].path));
+  const same = selectionLayers(selected, PULSE_MS / 2, 1500)[0];
+  const fresh = selectionLayers(displayRun(run, mixed, 1300)!, 0, 900)[0];
+  expect(same.props.data).toBe(data);
+  expect(fresh.props.data).not.toBe(data);
+  data.forEach((gap, index) => {
+    const color = (route.props.getColor as Function)(gap, { index });
+    expect((same.props.getColor as Function)(gap, { index })).toBe(color);
+    expect((fresh.props.getColor as Function)((fresh.props.data as any[])[index], { index })).not.toBe(color);
+  });
+});
+
+it.each([10, 5])('keeps the selected gap red without positive duration (arrival %s min)', arrival => {
+  const selected = displayRun({ ...runFixture(),
+    halt_p50: packQuantiles([[null, 10], [arrival, null]]) }, chained, 1300)!;
+  const [route] = selectionLayers(selected, 0, 900);
+  expect(route.props.getColor).toBeTypeOf('function');
+  expect((route.props.getColor as Function)((route.props.data as any[])[0], { index: 0 })).toEqual([255, 32, 48, 210]);
+});
+
+it('highlights the selected gaps without copying their paths and keeps the pulse last', () => {
   const selected = displayRun(runFixture(), chained, 1300)!;
-  const [route, pulse] = selectionLayers(selected, 0, 900); // Before departure: all ahead.
+  const layers = selectionLayers(selected, 0, 900); // Before departure: all ahead.
+  const [route, pulse] = layers;
+  expect(layers.map(layer => layer.id)).toEqual(['selection', 'selection-pulse']);
   expect(route.id).toBe('selection');
-  expect(route.props.data).toEqual([selected.points]);
-  expect((route.props.data as any[])[0]).toBe(selected.points);
+  expect(route.props.data as any[]).toHaveLength(1);
+  expect((route.props.getPath as Function)((route.props.data as any[])[0])).toBe(selected.gaps[0].path);
   expect(route.props.getWidth).toBe(3);
-  expect(route.props.getColor).toEqual([255, 32, 48, 210]); // Red stands apart from the cyan network.
+  expect(route.props.widthUnits).toBe('pixels');
+  expect((route.props.getColor as Function)((route.props.data as any[])[0], { index: 0 })).toEqual([255, 244, 216, 210]);
   expect(pulse).toBeInstanceOf(TripsLayer);
   expect(pulse.id).toBe('selection-pulse');
   expect(pulse.props.getWidth).toBe(16 * GLOW_SCALE);

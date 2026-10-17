@@ -229,6 +229,14 @@ export function delayColor(delay: number): NeonColor {
   return a.map((c, i) => c + (b[i] - c) * f) as NeonColor;
 }
 
+export function speedColor(kmh: number): [number, number, number, number] {
+  if (kmh < 30) return [160, 16, 32, 210];
+  if (kmh < 60) return [255, 32, 48, 210];
+  if (kmh < 90) return [255, 128, 32, 210];
+  if (kmh < 110) return [255, 208, 64, 210];
+  return [255, 244, 216, 210];
+}
+
 const MAX_TRAIL_LENGTH = 32400;
 
 export function trailLength(zoom: number): number {
@@ -476,10 +484,11 @@ export const PULSE_MS = 3000;
 const PULSE_TAIL = 0.25; // of the route length
 type Pulse = Trip & { color: [number, number, number, number] };
 const BEHIND: Pulse['color'] = [255, 64, 40, 80], AHEAD: Pulse['color'] = [255, 72, 48, 255];
-const selectionCache = new WeakMap<Display, { route: Point[][]; path: Point[]; timestamps: number[];
+const selectionCache = new WeakMap<Display, { route: Point[][]; colors: ReturnType<typeof speedColor>[];
+  path: Point[]; timestamps: number[];
   along: number[]; at?: number; pulse?: Pulse[] }>();
 
-/** Red route plus a glow that runs origin to destination and drains into it every PULSE_MS,
+/** Speed-coloured route plus a glow that runs origin to destination and drains into it every PULSE_MS,
  * dim behind the train and bright once it passes it. */
 export function selectionLayers(display: Display, tick: number, simTime: number) {
   let cached = selectionCache.get(display);
@@ -490,10 +499,16 @@ export function selectionLayers(display: Display, tick: number, simTime: number)
     const timestamps = path.map((p, i) => i ? length += Math.hypot(p[0] - path[i - 1][0], p[1] - path[i - 1][1]) : 0);
     length = 0;
     const along = display.points.map((p, i, all) => i ? length += Math.hypot(p[0] - all[i - 1][0], p[1] - all[i - 1][1]) : 0);
-    cached = { route: [display.points], path, timestamps, along };
+    const colors = display.gaps.map((_, e) => {
+      const seconds = display.eventTimes[e + 1] - display.eventTimes[e];
+      return seconds > 0
+        ? speedColor((display.stops[e + 1].dist_km - display.stops[e].dist_km) / (seconds / 3600))
+        : speedColor(30);
+    });
+    cached = { route: display.gaps.map(g => g.path), colors, path, timestamps, along };
     selectionCache.set(display, cached);
   }
-  const { path, timestamps, along } = cached, times = display.times;
+  const { path, timestamps, along, colors } = cached, times = display.times;
   const total = timestamps.at(-1) || 1, tail = total * PULSE_TAIL;
   // headAt is linear in time between expanded vertices, so this is the head's distance along the route.
   const e = times.findIndex(t => t > simTime);
@@ -513,7 +528,7 @@ export function selectionLayers(display: Display, tick: number, simTime: number)
     }
   }
   return [new PathLayer<Point[]>({ id: 'selection', data: cached.route, getPath: p => p,
-    getWidth: 3, widthUnits: 'pixels', getColor: [255, 32, 48, 210] }),
+    getWidth: 3, widthUnits: 'pixels', getColor: (_, { index }) => colors[index] }),
   new GlowTrips<Pulse>({ id: 'selection-pulse', data: cached.pulse, lead: 0.1,
     getPath: t => t.path, getTimestamps: t => t.timestamps, getColor: t => t.color,
     currentTime: (tick % PULSE_MS) / PULSE_MS * (total + tail), trailLength: tail, fadeTrail: true,
