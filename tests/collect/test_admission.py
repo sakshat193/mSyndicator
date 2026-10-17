@@ -416,9 +416,14 @@ def test_loop_fairness_includes_dispatcher_start_wait(collector_url, tmp_path):
     clock = FakeClock()
     clock.base = NOW
     starts = []
+    body = json.loads((FIXTURES / 'completed_12951.json').read_text())
+    body['response']['trainDetails']['terminated'] = False
+    body['response']['stations'][-1]['arrivalDetails']['arrived'] = False
     def handle(request):
-        starts.append((json.loads(request.content)['trainNumber'], clock.t))
-        return httpx.Response(200, json={})
+        train = json.loads(request.content)['trainNumber']
+        starts.append((train, clock.t))
+        body['response']['trainDetails']['trainNumber'] = train
+        return httpx.Response(200, json=body)
     d = Dispatcher(HOST, .2, lambda: connect(collector_url), httpx.MockTransport(handle), clock=clock)
     async def execute():
         with connect(collector_url) as conn:
@@ -707,10 +712,11 @@ def test_harvest_attempt_cap_and_retry_delay(db, outcome):
     for i in range(3):
         insert_fetch(db, host=HOST, run_id=run, mode='harvest', outcome=outcome,
                      started_at=now - timedelta(minutes=30-i*10))
-    assert load_state(db, now - timedelta(seconds=1)).harvest == ()
-    assert [r.id for r in load_state(db, now).harvest] == [run]
-    insert_fetch(db, host=HOST, run_id=run, mode='harvest', outcome=outcome, started_at=now)
-    assert load_state(db, now + timedelta(minutes=10)).harvest == ()
+    ready = now + timedelta(minutes=50) if outcome == 'invalid' else now
+    assert load_state(db, ready - timedelta(seconds=1)).harvest == ()
+    assert [r.id for r in load_state(db, ready).harvest] == [run]
+    insert_fetch(db, host=HOST, run_id=run, mode='harvest', outcome=outcome, started_at=ready)
+    assert load_state(db, ready + timedelta(hours=1)).harvest == ()
 
 
 @pytest.mark.db
@@ -806,7 +812,7 @@ def test_cli_rejects_invalid_poll_settings(args, capsys):
 def test_every_job_limits_remaining_5xx(streak, cap, reason):
     from msynd.collect.admission import AdmissionState, PollRun, next_job
 
-    run = PollRun(1, '12951', date(2026, 10, 7), NOW - timedelta(seconds=120), streak_5xx=streak)
+    run = PollRun(1, '12951', date(2026, 10, 7), NOW - timedelta(seconds=120), bad_streak=streak)
     state = AdmissionState((run,), T_max=600)
     if reason == 'targeted':
         state = replace(state, runs=(replace(run, priority=100),))
@@ -826,14 +832,19 @@ def test_every_job_limits_remaining_5xx(streak, cap, reason):
 @pytest.mark.db
 @pytest.mark.parametrize('age,eligible', [(30, False), (60, True), (61, True)])
 @pytest.mark.parametrize('inflight_status', [200, 503])
-def test_durable_5xx_cooldown_filters_poll_harvest_and_recovery(db, age, eligible, inflight_status):
+@pytest.mark.parametrize('answers', [
+    [(503, 'transport_error')] * 3,
+    [(200, 'invalid')] * 3,
+    [(503, 'transport_error'), (200, 'invalid'), (200, 'invalid')],
+], ids=['5xx', 'invalid', 'mixed'])
+def test_durable_bad_cooldown_filters_poll_harvest_and_recovery(db, age, eligible, inflight_status, answers):
     from msynd.collect.__main__ import load_state
     from msynd.collect.admission import next_job
 
     run = make_run(db, start='2026-10-06')
     latest = NOW - timedelta(minutes=age)
-    for i, mode in enumerate(('poll', 'probe', 'harvest')):
-        insert_fetch(db, host=HOST, run_id=run, mode=mode, outcome='transport_error', http_status=503,
+    for i, (mode, (status, outcome)) in enumerate(zip(('poll', 'probe', 'harvest'), answers)):
+        insert_fetch(db, host=HOST, run_id=run, mode=mode, outcome=outcome, http_status=status,
                      started_at=latest - timedelta(seconds=2-i))
     insert_fetch(db, host=HOST, run_id=run, outcome='inflight', http_status=inflight_status,
                  started_at=NOW - timedelta(minutes=1))
@@ -849,7 +860,7 @@ def test_durable_5xx_cooldown_filters_poll_harvest_and_recovery(db, age, eligibl
                 admission = replace(candidates, host_state='breaker' if recovery else 'ok', recovery_at=NOW)
                 job = next_job(admission, NOW)
                 if eligible:
-                    assert job.run.streak_5xx == 3 and job.stop_after_5xx == 1
+                    assert job.run.bad_streak == 3 and job.stop_after_5xx == 1
                 else:
                     assert job is None
 
@@ -859,12 +870,12 @@ def test_durable_5xx_cooldown_filters_poll_harvest_and_recovery(db, age, eligibl
     ([503], 1, 2), ([503, 503], 2, 1),
     ([200, 503, 503, 503], 3, 1),
     ([503, 503, 503, 200], 0, 3),
-    ([503, 503, 503, 400], 0, 3),
+    ([503, 503, 503, 400], 4, 1),
     ([503, 503, 503, 429], 0, 3),
     ([503, 503, 503, None], 0, 3),
     ([503, 503, 503, 200, 503], 1, 2),
 ])
-def test_completed_status_attempts_define_trailing_5xx_streak(db, statuses, streak, cap):
+def test_completed_status_attempts_define_trailing_bad_streak(db, statuses, streak, cap):
     from msynd.collect.__main__ import load_state
     from msynd.collect.admission import next_job
 
@@ -875,8 +886,29 @@ def test_completed_status_attempts_define_trailing_5xx_streak(db, statuses, stre
                      started_at=NOW - timedelta(minutes=61, seconds=len(statuses)-i))
     state = load_state(db, NOW)
     for candidate in (state.runs[0], state.harvest[0]):
-        assert candidate.id == run and candidate.streak_5xx == streak
+        assert candidate.id == run and candidate.bad_streak == streak
     assert next_job(state, NOW).stop_after_5xx == cap
+    assert next_job(replace(state, runs=()), NOW).stop_after_5xx == cap
+
+
+@pytest.mark.db
+@pytest.mark.parametrize('reset', [(200, 'ok'), (None, 'transport_error')], ids=['ok', 'statusless'])
+@pytest.mark.parametrize('trailing_invalid,cap', [(False, 3), (True, 2)])
+def test_completed_answer_resets_invalid_streak(db, reset, trailing_invalid, cap):
+    from msynd.collect.__main__ import load_state
+    from msynd.collect.admission import next_job
+
+    run = make_run(db, start='2026-10-06')
+    answers = [(200, 'invalid')] * 3 + [reset]
+    if trailing_invalid:
+        answers.append((200, 'invalid'))
+    for i, (status, outcome) in enumerate(answers):
+        insert_fetch(db, host=HOST, run_id=run, mode='probe', http_status=status, outcome=outcome,
+                     started_at=NOW - timedelta(seconds=len(answers)-i))
+    state = load_state(db, NOW)
+    for candidates in (state.runs, state.harvest):
+        assert [r.id for r in candidates] == [run]
+    assert next_job(state, NOW + timedelta(seconds=120)).stop_after_5xx == cap
     assert next_job(replace(state, runs=()), NOW).stop_after_5xx == cap
 
 
@@ -888,7 +920,7 @@ def test_streak_uses_fetch_id_to_order_attempts_with_equal_start_time(db):
     for status in (503, 503, 503, 200, 503):
         insert_fetch(db, host=HOST, run_id=run, http_status=status,
                      outcome='ok' if status == 200 else 'transport_error', started_at=NOW)
-    assert load_state(db, NOW).runs[0].streak_5xx == 1
+    assert load_state(db, NOW).runs[0].bad_streak == 1
 
 
 @pytest.mark.db

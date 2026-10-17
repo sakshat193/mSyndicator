@@ -5,7 +5,7 @@ import math
 
 SCOPE_MIN_KM = 150.0
 # ponytail: fixed 1 h cooldown, no doubling; add backoff if recovery-yield shows hourly probes wasting budget.
-COOLDOWN_5XX = 3
+COOLDOWN_STREAK = 3
 COOLDOWN = timedelta(hours=1)
 
 
@@ -16,7 +16,7 @@ class PollRun:
     start_date: date
     last_fetch: datetime
     priority: float | None = None
-    streak_5xx: int = 0
+    bad_streak: int = 0
 
 
 @dataclass(frozen=True)
@@ -56,7 +56,7 @@ class Job:
 
 def next_job(state: AdmissionState, now: datetime) -> Job | None:
     def job(run, reason, mode='poll', max_attempts=5):
-        return Job(run, reason, max(1, COOLDOWN_5XX - run.streak_5xx), mode, max_attempts)
+        return Job(run, reason, max(1, COOLDOWN_STREAK - run.bad_streak), mode, max_attempts)
 
     if state.host_state == 'stopped':
         return None

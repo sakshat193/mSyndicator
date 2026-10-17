@@ -6,7 +6,7 @@ import json
 import logging
 import os
 
-from msynd.collect.admission import AdmissionState, COOLDOWN, COOLDOWN_5XX, PollRun, SCOPE_MIN_KM, next_job
+from msynd.collect.admission import AdmissionState, COOLDOWN, COOLDOWN_STREAK, PollRun, SCOPE_MIN_KM, next_job
 from msynd.collect.dispatcher import BudgetExhausted, HostStopped
 from msynd.collect.lifecycle import cancel_not_running, create_runs, expire_runs
 from msynd.collect.mmt import HOST, MmtClient, classify, not_running
@@ -37,13 +37,13 @@ def load_state(conn, now, *, host_state='ok', rate=.2, T_max=None,
             WHERE f.host=%s AND f.purpose='status' AND f.started_at<=%s
         ), completed AS (
             SELECT run_id,started_at,
-                   count(*) FILTER (WHERE http_status IS NULL OR http_status<500) OVER (
+                   count(*) FILTER (WHERE (http_status IS NULL OR http_status<500) AND outcome<>'invalid') OVER (
                        PARTITION BY run_id ORDER BY started_at DESC,id DESC
-                       ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS newer_non_5xx
+                       ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS newer_non_bad
             FROM attempts WHERE outcome<>'inflight'
         ), streaks AS (
-            SELECT run_id,count(*) AS streak_5xx,max(started_at) AS latest_5xx
-            FROM completed WHERE newer_non_5xx=0 GROUP BY run_id
+            SELECT run_id,count(*) AS bad_streak,max(started_at) AS latest_bad
+            FROM completed WHERE newer_non_bad=0 GROUP BY run_id
         ), answered AS (
             SELECT DISTINCT ON (f.run_id) r.train,r.start_date,
                    f.http_status=400 AND r.lifecycle='cancelled' AS nr
@@ -71,7 +71,7 @@ def load_state(conn, now, *, host_state='ok', rate=.2, T_max=None,
         ), trains AS (
             SELECT train,max(started_at) AS started_at FROM attempts GROUP BY train
         )
-        SELECT r.id,r.train,r.start_date,COALESCE(f.started_at,%s),q.priority,COALESCE(c.streak_5xx,0)
+        SELECT r.id,r.train,r.start_date,COALESCE(f.started_at,%s),q.priority,COALESCE(c.bad_streak,0)
         FROM eligible_runs r JOIN LATERAL (
             SELECT (r.start_date::timestamp AT TIME ZONE 'Asia/Kolkata')
                    + (s.dep_off+r.resched_min)*interval '1 minute' AS departure
@@ -84,14 +84,14 @@ def load_state(conn, now, *, host_state='ok', rate=.2, T_max=None,
         WHERE (r.lifecycle='running' OR (r.lifecycle='scheduled' AND origin.departure<=%s))
           AND EXISTS (SELECT 1 FROM ref.route_stop s
                       WHERE s.route_version_id=r.route_version_id AND s.dist_km>=%s)
-          AND (COALESCE(c.streak_5xx,0)<%s OR c.latest_5xx<=%s)
+          AND (COALESCE(c.bad_streak,0)<%s OR c.latest_bad<=%s)
         ORDER BY COALESCE(f.cohort_at>=%s,false) DESC,
                  COALESCE(t.started_at>=%s,false),COALESCE(f.attempts,0),r.id
         LIMIT %s
     ''', (HOST, now, now-timedelta(seconds=poll_interval), now, now, SCOPE_MIN_KM,
-          COOLDOWN_5XX, now-COOLDOWN, now-timedelta(minutes=30), now-timedelta(days=7), poll_slots)).fetchall()
+          COOLDOWN_STREAK, now-COOLDOWN, now-timedelta(minutes=30), now-timedelta(days=7), poll_slots)).fetchall()
     harvest = conn.execute(attempts_sql + '''
-        SELECT r.id,r.train,r.start_date,COALESCE(f.started_at,d.arrival),NULL,COALESCE(c.streak_5xx,0)
+        SELECT r.id,r.train,r.start_date,COALESCE(f.started_at,d.arrival),NULL,COALESCE(c.bad_streak,0)
         FROM eligible_runs r JOIN ref.train t ON t.number=r.train JOIN LATERAL (
             SELECT s.station,s.occ,(r.start_date::timestamp AT TIME ZONE 'Asia/Kolkata')
                    + (s.arr_off+r.resched_min)*interval '1 minute' AS arrival
@@ -110,7 +110,7 @@ def load_state(conn, now, *, host_state='ok', rate=.2, T_max=None,
           AND t.class<>'PASS'
           AND EXISTS (SELECT 1 FROM ref.route_stop s
                       WHERE s.route_version_id=r.route_version_id AND s.dist_km>=%s)
-          AND (COALESCE(c.streak_5xx,0)<%s OR c.latest_5xx<=%s)
+          AND (COALESCE(c.bad_streak,0)<%s OR c.latest_bad<=%s)
           AND d.arrival+interval '12 hours'<=%s AND %s<d.arrival+interval '48 hours'
           AND COALESCE(f.attempts,0)<4
           AND (f.failed_at IS NULL OR f.failed_at+interval '10 minutes'<=%s)
@@ -119,7 +119,7 @@ def load_state(conn, now, *, host_state='ok', rate=.2, T_max=None,
                AND NOT EXISTS (SELECT 1 FROM obs.event_rev e WHERE e.run_id=r.id
                    AND e.station=d.station AND e.occ=d.occ AND e.kind='arr' AND e.received_at<=%s)))
         ORDER BY d.arrival,r.id
-    ''', (HOST, now, SCOPE_MIN_KM, COOLDOWN_5XX, now-COOLDOWN,
+    ''', (HOST, now, SCOPE_MIN_KM, COOLDOWN_STREAK, now-COOLDOWN,
           now, now, now, now, now)).fetchall() if harvest_enabled else []
     return AdmissionState(tuple(PollRun(*row) for row in rows), host_state=host_state,
                           rate=rate, T_max=T_max, t_max_factor=t_max_factor,
