@@ -214,6 +214,21 @@ export function easeHead(head: Point | undefined, target: Point, dt: number, eps
   return Math.abs(next[0] - target[0]) <= eps && Math.abs(next[1] - target[1]) <= eps ? target : next;
 }
 
+// ponytail: linear picking fits ~2,000 heads; use a screen-space grid if counts or pointer cost grow.
+export function nearestRun(displays: Display[], heads: ReadonlyMap<number, Point>,
+                           project: (point: Point) => { x: number; y: number }, x: number, y: number, radius = 10): RunFrame | null {
+  let nearest: RunFrame | null = null, distance = radius * radius;
+  for (const d of displays) {
+    const p = project(heads.get(d.run.run_id) ?? d.head);
+    const squared = (p.x - x) ** 2 + (p.y - y) ** 2;
+    if (squared <= distance && (nearest === null || squared < distance)) {
+      nearest = d.run;
+      distance = squared;
+    }
+  }
+  return nearest;
+}
+
 export function trailData(displays: Display[], simTime: number): Trails {
   // Rebase only on generations to retain float32 precision without rebuilding animation attributes.
   const base = Math.floor(simTime / 3600) * 3600;
@@ -481,8 +496,7 @@ export function selectionLayers(display: Display, tick: number, simTime: number)
 }
 
 export function trainLayers(displays: Display[], trails: Trails, simTime: number,
-                            zoom: number, select: (run: RunFrame) => void, selected: number | null = null,
-                            hover?: (run: RunFrame | null, x: number, y: number) => void,
+                            zoom: number, selected: number | null = null,
                             heads?: ReadonlyMap<number, Point>, redraw?: number) {
   const length = trailLength(zoom);
   // Dense India-wide views stay thin and dim; zoomed-in trails widen and brighten.
@@ -508,6 +522,5 @@ export function trainLayers(displays: Display[], trails: Trails, simTime: number
     opacity: 0.45 + 0.55 * k, radiusUnits: 'pixels',
     getFillColor: d => [...d.color, 230 * trainAlpha(d.run.run_id, selected)] as [number, number, number, number],
     updateTriggers: { getPosition: redraw, getFillColor: selected }, parameters: ADDITIVE,
-    pickable: true, onClick: info => { if (info.object) select(info.object.run); },
-    onHover: info => hover?.(info.object?.run ?? null, info.x, info.y) })];
+    pickable: false })];
 }

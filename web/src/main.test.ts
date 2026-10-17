@@ -4,7 +4,7 @@ import type { Frame, RunFrame } from './frames';
 import './layers';
 
 const rendered = vi.hoisted(() => ({ layers: [] as any[], options: {} as any,
-  draws: 0, zoom: 4, mapOptions: {} as any, setup: [] as string[],
+  draws: 0, zoom: 4, moving: false, mapOptions: {} as any, setup: [] as string[],
   ease: [] as any[], listeners: {} as Record<string, Function>,
   selectSearch: undefined as ((run: RunFrame) => void) | undefined }));
 vi.mock('./search', async importOriginal => {
@@ -20,6 +20,8 @@ vi.mock('maplibre-gl', () => ({
     addControl() {} remove() {} getZoom() { return rendered.zoom; }
     on(name: string, callback: Function) { rendered.listeners[`map:${name}`] = callback; }
     easeTo(options: unknown) { rendered.ease.push(options); }
+    isMoving() { return rendered.moving; }
+    project([lon, lat]: [number, number]) { return { x: (lon - 69) * 50, y: (23 - lat) * 50 }; }
     getCanvas() { return { style: {} }; }
   }, NavigationControl: class {},
   addProtocol() { rendered.setup.push('protocol'); },
@@ -146,12 +148,16 @@ it.each([
   const timestamps = trails.map(layer => layer.props.getTimestamps(layer.props.data[0]));
   const heads = () => rendered.layers.find(layer => layer.id === 'heads');
   const head = () => heads().props.getPosition(heads().props.data[0]);
+  const point = (id = 9) => { // Where the mocked map projects a run's drawn head.
+    const [lon, lat] = heads().props.getPosition(heads().props.data.find((d: any) => d.run.run_id === id));
+    return { x: (lon - 69) * 50, y: (23 - lat) * 50 };
+  };
+  const pointer = (name: string, at: { x: number; y: number }) => rendered.listeners[`map:${name}`]({ point: at });
   const headData = heads().props.data;
   const positionTrigger = heads().props.updateTriggers.getPosition;
   const decodedReads = reads.mock.calls.length;
   expect(decodedReads).toBeGreaterThan(0);
   expect(head()).toEqual([71, 21]);
-  expect(rendered.options.pickingRadius).toBe(10);
   expect(statusWrites).toBe(2);
   expect(elements.get('#train-count').textContent).toBe('1 train');
   expect(elements.get('#train-count').title).toBe('1 live · 0 by timetable');
@@ -203,7 +209,7 @@ it.each([
   draw!(400);
   expect(reads.mock.calls.length).toBe(decodedReads);
   expect(head()[0]).toBeLessThan(72);
-  heads().props.onClick({ object: heads().props.data[0] });
+  pointer('click', point());
   expect(panel.hidden).toBe(false);
   expect(fetch).toHaveBeenCalledWith('/api/run/9', expect.any(Object));
   expect(rendered.ease.at(-1)).toMatchObject({ center: expect.any(Array), zoom: 6 });
@@ -230,7 +236,7 @@ it.each([
   expect(rendered.draws).toBe(draws);
   const trailArrays = rendered.layers.filter(l => l.id.startsWith('comet-') || l.id === 'streaks')
     .map(l => l.props.data);
-  heads().props.onClick({ object: heads().props.data[0] });
+  pointer('click', point());
   draw!(1192);
   expect(rendered.draws).toBe(draws + 1); // Selection wakes the idle overlay.
   const highlight = rendered.layers.find(l => l.id === 'selection');
@@ -246,16 +252,30 @@ it.each([
   expect(body.dataset.hud).toBe('shown');
   expect(panel.hidden).toBe(false);
   expect(rendered.layers.find(l => l.id === 'selection')).toBe(highlight);
-  heads().props.onHover({ object: heads().props.data[0], x: 100, y: 100 });
-  expect(elements.get('#hover').style.transform).toBe('translate(116px, 116px)');
-  heads().props.onHover({ object: heads().props.data[0], x: 1000, y: 800 });
-  expect(elements.get('#hover').style.transform).toBe('translate(804px, 704px)');
-  window.innerWidth = 390;
-  heads().props.onHover({ object: heads().props.data[0], x: 390, y: 800 });
-  expect(elements.get('#hover').style.transform).toBe('translate(198px, 708px)');
+  const hover = elements.get('#hover');
+  expect(point()).toEqual({ x: 100, y: 100 });
+  pointer('mousemove', { x: 106, y: 108 });
+  expect(hover.hidden).toBe(false);
+  expect(hover.style.transform).toBe('translate(122px, 124px)');
+  window.innerHeight = 150;
+  pointer('mousemove', point());
+  expect(hover.style.transform).toBe('translate(116px, 54px)');
+  window.innerWidth = 200;
+  window.innerHeight = 800;
+  pointer('mousemove', point());
+  expect(hover.style.transform).toBe('translate(12px, 116px)');
   window.innerWidth = 1000;
+  pointer('mousemove', { x: 111, y: 100 });
+  expect(hover.hidden).toBe(true);
+  pointer('mousemove', point());
+  rendered.listeners['map:mouseout']();
+  expect(hover.hidden).toBe(true);
+  rendered.moving = true;
+  pointer('mousemove', point());
+  expect(hover.hidden).toBe(true); // A dragged map keeps its head under the cursor; no tooltip mid-pan.
+  rendered.moving = false;
   draw!(1204);
-  expect(rendered.draws).toBe(draws + 2); // Hover also wakes it.
+  expect(rendered.draws).toBe(draws + 1); // Hover leaves the idle overlay asleep.
   expect(rendered.layers.find(l => l.id === 'selection').props.data).toBe(highlight.props.data);
   rendered.layers.filter(l => l.id.startsWith('comet-') || l.id === 'streaks')
     .forEach((l, i) => expect(l.props.data).toBe(trailArrays[i]));
@@ -332,7 +352,7 @@ it.each([
   expect(heads().props.data).toBe(sameHeads);
   expect(heads().props.updateTriggers.getFillColor).toBe(sameHeadColors);
   expect(heads().props.updateTriggers.getPosition).not.toBe(beforeRedraw);
-  heads().props.onClick({ object: heads().props.data.find((d: any) => d.run.run_id === 9) });
+  pointer('click', point(9));
   draw!(3462);
   const pulse = () => rendered.layers.find(l => l.id === 'selection-pulse');
   const firstPulse = pulse();

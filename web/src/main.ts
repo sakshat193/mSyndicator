@@ -7,7 +7,7 @@ import '@fontsource-variable/inter';
 import './style.css';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { connectLive, FrameStore, type RunFrame } from './frames';
-import { displayRun, headAt, easeHead, indexNetwork, networkLayer, trailData, trainLayers,
+import { displayRun, headAt, easeHead, nearestRun, indexNetwork, networkLayer, trailData, trainLayers,
   labelBucket, labelStations, stationLabelLayer, selectionLayers, delayColor, type Network } from './layers';
 import { liveTime } from './timeline';
 import { hoverText, runPanel } from './panel';
@@ -31,7 +31,7 @@ map.on('error', event => {
   if (!('sourceId' in event) || event.sourceId !== 'india') console.error(event.error);
 });
 map.addControl(new NavigationControl({ showCompass: false }), 'bottom-right');
-const overlay = new MapboxOverlay({ interleaved: false, layers: [], pickingRadius: 10 });
+const overlay = new MapboxOverlay({ interleaved: false, layers: [] });
 map.addControl(overlay);
 const store = new FrameStore();
 const disconnect = connectLive(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/live`, store);
@@ -55,6 +55,7 @@ let selected: number | null = null;
 let panelRun: RunFrame | undefined;
 let highlight: NonNullable<ReturnType<typeof displayRun>> | undefined;
 let hovered: { id: number; x: number; y: number } | undefined;
+let hoverWidth = 0, hoverHeight = 0;
 let displays: NonNullable<ReturnType<typeof displayRun>>[] = [];
 const decoded = new WeakMap<RunFrame, ReturnType<typeof displayRun>>();
 const drawnHeads = new Map<number, ReturnType<typeof headAt>>();
@@ -100,28 +101,32 @@ function selectRun(run: RunFrame) {
   if (display) map.easeTo({ center: headAt(display, liveTime()), zoom: Math.max(6, map.getZoom()) });
 }
 
-function renderHover() {
-  const display = hovered && displays.find(d => d.run.run_id === hovered!.id);
-  if (!display || !network || !hovered) { tooltip.hidden = true; return; }
-  const text = hoverText(display.run, network, display.delay, Date.now() / 1000);
-  hoverTitle.textContent = text.title;
-  hoverRoute.textContent = text.route;
-  hoverDelay.textContent = text.delay;
-  hoverDelay.style.setProperty('--delay-color', `rgb(${delayColor(display.delay).join(',')})`);
-  hoverEvidence.textContent = text.evidence;
-  tooltip.hidden = false;
-  const width = tooltip.offsetWidth, height = tooltip.offsetHeight;
+function renderHover(refresh = false) {
+  if (!network || !hovered) { tooltip.hidden = true; return; }
+  if (refresh) {
+    const display = displays.find(d => d.run.run_id === hovered!.id);
+    if (!display) { tooltip.hidden = true; return; }
+    const text = hoverText(display.run, network, display.delay, Date.now() / 1000);
+    hoverTitle.textContent = text.title;
+    hoverRoute.textContent = text.route;
+    hoverDelay.textContent = text.delay;
+    hoverDelay.style.setProperty('--delay-color', `rgb(${delayColor(display.delay).join(',')})`);
+    hoverEvidence.textContent = text.evidence;
+    tooltip.hidden = false;
+    hoverWidth = tooltip.offsetWidth;
+    hoverHeight = tooltip.offsetHeight;
+  }
   const gutter = window.innerWidth < 640 ? 12 : 16;
-  const x = Math.max(gutter, Math.min(hovered.x + 16, window.innerWidth - width - gutter));
-  const y = Math.max(gutter, Math.min(hovered.y + 16, window.innerHeight - height - gutter));
+  const x = Math.max(gutter, Math.min(hovered.x + 16, window.innerWidth - hoverWidth - gutter));
+  const y = Math.max(gutter, Math.min(hovered.y + 16, window.innerHeight - hoverHeight - gutter));
   tooltip.style.transform = `translate(${x}px, ${y}px)`;
 }
 
 function hoverRun(run: RunFrame | null, x: number, y: number) {
+  const changed = hovered?.id !== run?.run_id;
   hovered = run ? { id: run.run_id, x, y } : undefined;
   map.getCanvas().style.cursor = run ? 'pointer' : '';
-  renderHover();
-  settling = true;
+  renderHover(changed);
 }
 
 const closeSearch = initSearch(document.querySelector<HTMLInputElement>('#search')!,
@@ -130,6 +135,16 @@ window.addEventListener('keydown', event => {
   if (event.key === 'Escape') { closeSearch(); clearSelection(); hoverRun(null, 0, 0); }
 });
 map.on('move', () => { settling = true; hoverRun(null, 0, 0); });
+map.on('mousemove', event => {
+  const { x, y } = event.point;
+  hoverRun(map.isMoving() ? null : nearestRun(displays, drawnHeads, p => map.project(p), x, y), x, y);
+});
+map.on('mouseout', () => hoverRun(null, 0, 0));
+map.on('click', event => {
+  const { x, y } = event.point;
+  const run = nearestRun(displays, drawnHeads, p => map.project(p), x, y);
+  if (run) selectRun(run);
+});
 
 async function loadNetwork() {
   try {
@@ -170,7 +185,7 @@ function draw(tick: number) {
         const run = store.runs[selected];
         if (panelRun !== run) { panelRun = run; void panel.show(run, simTime); }
       }
-      renderHover();
+      renderHover(true);
       settling = true;
     }
     // Live motion is far below a pixel per frame, so redraw at ~70 Hz only while a head is
@@ -194,7 +209,7 @@ function draw(tick: number) {
         drawnHeads.set(d.run.run_id, head);
       }
       overlay.setProps({ layers: [background, ...(highlight ? selectionLayers(highlight, tick, simTime) : []),
-        ...trainLayers(displays, trails, simTime, zoom, selectRun, selected, hoverRun, drawnHeads, tick),
+        ...trainLayers(displays, trails, simTime, zoom, selected, drawnHeads, tick),
         ...(labels ? [labels] : [])] });
     }
   }
@@ -223,7 +238,7 @@ function draw(tick: number) {
       status.title = live.title;
     }
     if (panelRun) panel.update(panelRun, simTime);
-    renderHover();
+    renderHover(true);
   }
   animation = requestAnimationFrame(draw);
 }

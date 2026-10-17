@@ -3,7 +3,7 @@ import { TripsLayer } from '@deck.gl/geo-layers';
 import { ScatterplotLayer, TextLayer } from '@deck.gl/layers';
 import { indexNetwork, networkLayer, displayRun, trailData, trainLayers,
   delayColor, trailLength, easeHead, headAt, labelBucket, labelStations, stationLabelLayer, selectionLayers, PULSE_MS,
-  trainAlpha, dataComparator, glyphShift, glyphMetrics, padGlyphAlpha, type Network } from './layers';
+  trainAlpha, nearestRun, dataComparator, glyphShift, glyphMetrics, padGlyphAlpha, type Network } from './layers';
 
 function packQuantiles(quantiles: (number | null)[][]): Uint8Array {
   const values = quantiles.flat(), packed = new Uint8Array(values.length * 4);
@@ -170,11 +170,10 @@ it('hides derived segments and straight chords over 150 km while retaining store
   expect(networkLayer(drawing).props.data).toEqual([chain, [[70, 20], [70.1, 20]]]);
 });
 
-it('draws one fading glow comet with additive blending and pickable heads', () => {
+it('draws one fading glow comet with additive blending and unpicked heads', () => {
   const display = displayRun(runFixture(), network, 1300)!;
   const trails = trailData([display], 1300);
-  let selected: unknown;
-  const layers = trainLayers([display], trails, 1300, 4, run => { selected = run; });
+  const layers = trainLayers([display], trails, 1300, 4);
   const trips = layers.filter(layer => layer instanceof TripsLayer);
   const comets = trips.filter(layer => layer.id === 'comets');
   expect(trips.map(layer => layer.id)).toEqual(['comets', 'streaks', 'timetable']);
@@ -197,16 +196,26 @@ it('draws one fading glow comet with additive blending and pickable heads', () =
   const heads = layers.find(layer => layer instanceof ScatterplotLayer)!;
   expect((heads.props.getRadius as Function)(display)).toBe(5.5);
   expect(heads.props.radiusUnits).toBe('pixels');
-  expect(heads.props.pickable).toBe(true);
+  expect(heads.props.pickable).toBe(false); // GPU picking stalls on readPixels; main.ts picks on the CPU.
   expect((heads.props.getFillColor as Function)(display)).toEqual([...display.color, 230]);
   expect(heads.props.parameters).toEqual(comets[0].props.parameters);
-  (heads.props.onClick as Function)({ object: display });
-  expect(selected).toBe(display.run);
+});
+
+it('picks the nearest drawn head within ten pixels, keeping the first on ties', () => {
+  const a = displayRun(runFixture(), network, 1300)!;
+  const b = { ...a, run: { ...a.run, run_id: a.run.run_id + 1 } };
+  const c = { ...a, run: { ...a.run, run_id: a.run.run_id + 2 } };
+  const [lon, lat] = a.head; // a has no drawn head yet, so its target counts.
+  const heads = new Map<number, [number, number]>([[b.run.run_id, [lon + 0.1, lat]], [c.run.run_id, [lon, lat]]]);
+  const project = ([x, y]: [number, number]) => ({ x: (x - lon) * 100, y: (y - lat) * 100 });
+  expect(nearestRun([a, b, c], heads, project, 4, 0)).toBe(a.run);
+  expect(nearestRun([a, b, c], heads, project, 8, 0)).toBe(b.run);
+  expect(nearestRun([a, b, c], heads, project, 21, 0)).toBeNull();
 });
 
 it('appends glow after the TripsLayer fade and guards both glow snippets during picking', () => {
   const display = displayRun(runFixture(), network, 1300)!;
-  const layers = trainLayers([display], trailData([display], 1300), 1300, 4, () => {});
+  const layers = trainLayers([display], trailData([display], 1300), 1300, 4);
   const filter = 'fs:DECKGL_FILTER_COLOR';
   const glow = `if (picking.isActive < 0.5) {
   float age = clamp((trips.currentTime - vTime) / trips.trailLength, 0.0, 1.0);
@@ -239,7 +248,7 @@ it.each([[3, 0.5, 0.35, 0.6, 0.45], [4, 0.5, 0.35, 0.6, 0.45],
   'scales timetable glow and heads with clamped zoom %s', (zoom, widthScale, trailOpacity, radiusScale, headOpacity) => {
     const live = displayRun({ ...runFixture(), state: 'observed' }, network, 1300)!;
     const timetable = displayRun({ ...runFixture(), run_id: 10, state: 'schedule_only' }, network, 1300)!;
-    const layers = trainLayers([live, timetable], trailData([live, timetable], 1300), 1300, zoom, () => {});
+    const layers = trainLayers([live, timetable], trailData([live, timetable], 1300), 1300, zoom);
     const core = layers.filter(l => l instanceof TripsLayer).find(l => l.id === 'timetable')!;
     expect(core.props.getWidth).toBe(6);
     expect(core.props.widthScale).toBe(widthScale);
@@ -581,7 +590,7 @@ it('dims other trains to 30 percent and highlights the selected expanded path wi
   expect(arrived.path).toEqual(selected.points);
   expect(color(arrived)).toEqual(color(behind));
   expect(none).toBeUndefined();
-  const layers = trainLayers([selected, other], trails, 1300, 4, () => {}, 9);
+  const layers = trainLayers([selected, other], trails, 1300, 4, 9);
   for (const layer of layers.filter(l => l instanceof TripsLayer)) {
     const data = layer.props.data as any[];
     if (!data.length) continue;
@@ -601,7 +610,7 @@ it.each([
 ])('draws %s heads, comets and streaks with selection %s at alpha %s', (state, selected, alpha) => {
   expect(trainAlpha(9, selected as number | null)).toBeCloseTo(alpha as number);
   const display = displayRun({ ...runFixture(8), state }, network, 1300)!;
-  const layers = trainLayers([display], trailData([display], 1300), 1300, 4, () => {}, selected as number | null);
+  const layers = trainLayers([display], trailData([display], 1300), 1300, 4, selected as number | null);
   const trips = layers.filter(l => l instanceof TripsLayer);
   trips.forEach(layer => {
     const data = layer.props.data as any[];
@@ -629,7 +638,7 @@ it.each(['observed', 'stale'])('keeps %s glow and eight streaks separate from th
   expect(trails.streaks).toHaveLength(8);
   expect(trails.streaks.every(t => t.runId === 9)).toBe(true);
   expect(trails.comets[0].color).toEqual(live.color);
-  const layers = trainLayers([live, timetable], trails, 1300, 4, () => {});
+  const layers = trainLayers([live, timetable], trails, 1300, 4);
   const core = layers.filter(l => l instanceof TripsLayer).find(l => l.id === 'timetable')!;
   expect(core.props.data).toBe(trails.timetable);
   expect(core.props.getWidth).toBe(6);
@@ -647,7 +656,7 @@ it.each(['observed', 'stale'])('keeps %s glow and eight streaks separate from th
 it.each(['schedule_only', 'observed', 'stale'])('keeps %s heads in their delay colour before shader glow', state => {
   const run = { ...runFixture(), state, halt_p50: packQuantiles([[null, 0], [25, null]]) };
   const display = displayRun(run, network, 1300)!;
-  const layers = trainLayers([display], trailData([display], 1300), 1300, 4, () => {});
+  const layers = trainLayers([display], trailData([display], 1300), 1300, 4);
   const heads = layers.find(l => l instanceof ScatterplotLayer)!;
   expect((heads.props.getFillColor as Function)(display)).toEqual([252, 238, 10, 230]);
 });
@@ -746,6 +755,6 @@ it('compares layer data by length and element identity, including heads', () => 
   expect(dataComparator([a], [{}])).toBe(false);
   expect(dataComparator([a], undefined)).toBe(false);
   const display = displayRun(runFixture(), network, 1300)!;
-  for (const layer of trainLayers([display], trailData([display], 1300), 1300, 4, () => {}))
+  for (const layer of trainLayers([display], trailData([display], 1300), 1300, 4))
     expect(layer.props.dataComparator).toBe(dataComparator);
 });
