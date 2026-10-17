@@ -43,8 +43,11 @@
         <div class="legend-labels"><span>On time</span><span>15 min</span><span>60+ min late</span></div>
       </section>
       <aside id="panel" class="glass" aria-label="Train predictions" tabindex="-1" hidden>
+        <button class="panel-close panel-toggle" data-toggle type="button" aria-expanded="true" aria-label="Hide train details" aria-controls="panel-content">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>
+        </button>
         <button class="panel-close" data-close type="button" aria-label="Close train panel">×</button>
-        <div data-content aria-live="polite"></div>
+        <div id="panel-content" data-content aria-live="polite"></div>
       </aside>
       <div id="hover" class="glass" role="tooltip" hidden>
         <strong data-hover-title></strong><p class="route-name" data-hover-route></p>

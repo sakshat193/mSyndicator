@@ -314,6 +314,11 @@ it.each([
   expect(rendered.layers.some(l => l.id === 'selection')).toBe(false);
   expect(rendered.fits).toHaveLength(fitsBeforePending);
   expect(rendered.ease).toHaveLength(easeBeforePending);
+  const panelToggle = panel.querySelector('[data-toggle]');
+  panelToggle.listeners.click?.();
+  expect.soft(rendered.fits).toHaveLength(fitsBeforePending);
+  panelToggle.listeners.click?.();
+  expect.soft(rendered.fits).toHaveLength(fitsBeforePending);
   Socket.current.receive({ gen: 7, ts: 3601, is_full: false, versions: {}, base_ts: null,
     runs: {}, tombstones: [42] });
   draw!(1240);
@@ -496,9 +501,11 @@ it.each([
     ({ left, top, width, height, right: left + width, bottom: top + height });
   const empty = rect(0, 0, 0, 0), live = elements.get('#live'), legend = elements.get('#legend');
   const wide = { width: 1400, height: 900, live: rect(16, 16, 300, 164),
-    legend: rect(16, 830, 300, 54), panel: rect(1004, 16, 380, 868), hud: 'shown', reduce: false };
+    legend: rect(16, 830, 300, 54), panel: rect(1004, 16, 380, 868), bar: rect(1004, 16, 380, 100),
+    hud: 'shown', reduce: false, collapsed: false };
   const phone = { width: 390, height: 844, live: rect(12, 12, 300, 168),
-    legend: rect(12, 778, 300, 54), panel: rect(12, 440, 366, 392), hud: 'shown', reduce: false };
+    legend: rect(12, 778, 300, 54), panel: rect(12, 440, 366, 392), bar: rect(12, 732, 366, 100),
+    hud: 'shown', reduce: false, collapsed: false };
   for (const test of [
     { ...wide, name: 'wide', padding: { top: 196, right: 412, bottom: 86, left: 16 } },
     { ...phone, name: 'phone', padding: { top: 196, right: 16, bottom: 534.4, left: 16 } },
@@ -514,6 +521,16 @@ it.each([
       padding: { top: 16, right: 16, bottom: 16, left: 16 } },
     { ...wide, name: 'reduced motion', reduce: true,
       padding: { top: 196, right: 412, bottom: 86, left: 16 } },
+    { ...wide, name: 'collapsed wide', collapsed: true,
+      padding: { top: 196, right: 16, bottom: 86, left: 16 } },
+    { ...wide, name: 'bar below wide HUD', collapsed: true, live: rect(16, 16, 300, 60),
+      padding: { top: 132, right: 16, bottom: 86, left: 16 } },
+    { ...phone, name: 'collapsed phone', collapsed: true,
+      padding: { top: 196, right: 16, bottom: 128, left: 16 } },
+    { ...phone, name: 'collapsed phone without room', collapsed: true, live: rect(12, 12, 300, 720),
+      padding: { top: 16, right: 16, bottom: 16, left: 16 } },
+    { ...wide, name: 'hidden collapsed HUD', collapsed: true, hud: 'hidden', live: rect(16, 16, 300, 60),
+      padding: { top: 92, right: 16, bottom: 16, left: 16 } },
   ]) {
     window.innerWidth = test.width;
     window.innerHeight = test.height;
@@ -521,8 +538,10 @@ it.each([
     reducedMotion = test.reduce;
     live.getBoundingClientRect = () => test.live;
     legend.getBoundingClientRect = () => test.hud === 'hidden' || (test.width < 640 && !panel.hidden) ? empty : test.legend;
-    panel.getBoundingClientRect = () => panel.hidden || test.hud === 'hidden' ? empty : test.panel;
+    panel.getBoundingClientRect = () => panel.hidden || test.hud === 'hidden' ? empty :
+      panel.dataset.collapsed !== undefined ? test.bar : test.panel;
     rendered.listeners.keydown({ key: 'Escape' });
+    if ((panel.dataset.collapsed !== undefined) !== test.collapsed) panelToggle.listeners.click?.();
     rendered.zoom = 14;
     const fits = rendered.fits.length;
     rendered.selectSearch!(run);
@@ -532,6 +551,27 @@ it.each([
   }
   expect.soft(matchMedia).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)');
   expect.soft(rendered.ease).toHaveLength(0);
+
+  body.dataset.hud = 'shown';
+  reducedMotion = false;
+  for (const test of [wide, phone]) {
+    window.innerWidth = test.width;
+    window.innerHeight = test.height;
+    live.getBoundingClientRect = () => test.live;
+    legend.getBoundingClientRect = () => test.width < 640 ? empty : test.legend;
+    panel.getBoundingClientRect = () => panel.dataset.collapsed !== undefined ? test.bar : test.panel;
+    const fits = rendered.fits.length;
+    panelToggle.listeners.click?.();
+    expect.soft(rendered.fits.length).toBe(fits + 1);
+    expect.soft(rendered.fits.at(-1)).toEqual({ bounds: [[70, 20], [72, 22]], options: {
+      padding: { top: 196, right: test.width < 640 ? 16 : 412,
+        bottom: test.width < 640 ? 534.4 : 86, left: 16 }, maxZoom: 10, linear: true, duration: 600 } });
+    panelToggle.listeners.click?.();
+    expect.soft(rendered.fits.length).toBe(fits + 2);
+    expect.soft(rendered.fits.at(-1)).toEqual({ bounds: [[70, 20], [72, 22]], options: {
+      padding: { top: 196, right: 16, bottom: test.width < 640 ? 128 : 86, left: 16 },
+      maxZoom: 10, linear: true, duration: 600 } });
+  }
 
   const fits = rendered.fits.length;
   draw!(10000);
@@ -547,12 +587,18 @@ it.each([
   draw!(10032);
   expect(requests()).toBe(beforeGeneration + 2);
   expect(rendered.fits).toHaveLength(fits);
+  panelToggle.listeners.click?.();
+  expect.soft(rendered.fits).toHaveLength(fits);
+  panelToggle.listeners.click?.();
+  expect.soft(rendered.fits).toHaveLength(fits);
   Socket.current.receive({ gen: 15, ts: 1900, is_full: false, versions: {}, base_ts: 1000,
     runs: { 9: run }, tombstones: [] });
   draw!(10048);
   expect(rendered.fits).toHaveLength(fits);
   rendered.listeners.keydown({ key: 'Escape' });
   expect(rendered.fits).toHaveLength(fits);
+  panelToggle.listeners.click?.();
+  expect.soft(rendered.fits).toHaveLength(fits);
   rendered.listeners.pagehide();
   expect(clearInterval).toHaveBeenCalledWith(7);
   expect(toggle.listeners.click).toBeUndefined();

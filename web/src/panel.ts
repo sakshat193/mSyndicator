@@ -88,14 +88,25 @@ function validDetail(value: RunDetail): boolean {
       && Number.isFinite(Date.parse(r.actual_ts)) && Number.isFinite(Date.parse(r.received_at)));
 }
 
-export function runPanel(element: HTMLElement, getNetwork: () => Network | undefined, onClose: () => void) {
+export function runPanel(element: HTMLElement, getNetwork: () => Network | undefined, onClose: () => void,
+  onToggle: (collapsed: boolean) => void) {
   let request: AbortController | undefined;
   let run: RunFrame | undefined;
   let detail: RunDetail | undefined;
   let signature = '';
   const closeButton = element.querySelector<HTMLButtonElement>('[data-close]')!;
+  const toggleButton = element.querySelector<HTMLButtonElement>('[data-toggle]')!;
   const content = element.querySelector<HTMLElement>('[data-content]')!;
   closeButton.addEventListener('click', onClose);
+  toggleButton.addEventListener('click', () => {
+    const collapsed = element.dataset.collapsed === undefined;
+    if (collapsed) element.dataset.collapsed = '';
+    else delete element.dataset.collapsed;
+    element.scrollTop = 0;
+    toggleButton.setAttribute('aria-expanded', String(!collapsed));
+    toggleButton.setAttribute('aria-label', collapsed ? 'Show train details' : 'Hide train details');
+    onToggle(collapsed);
+  });
 
   function render(simTime: number) {
     const network = getNetwork();

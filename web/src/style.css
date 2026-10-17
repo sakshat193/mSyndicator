@@ -28,6 +28,7 @@
   --gutter: var(--space-4);
   --hud-width: min(300px, calc(100vw - var(--gutter) * 2));
   --panel-width: 380px;
+  --panel-bar-height: calc(var(--space-4) * 2 + var(--text-sm) * 1.45 + var(--space-3) + var(--text-lg) * 1.18 + 2px);
 }
 * { box-sizing: border-box; }
 html, body, #app, #map { height: 100%; width: 100%; margin: 0; }
@@ -85,9 +86,19 @@ h2 { font-size: var(--text-md); font-weight: 600; line-height: 1.3; }
 #panel { position: absolute; z-index: 3; top: var(--gutter); bottom: var(--gutter); right: var(--gutter); width: var(--panel-width); padding: var(--space-5); overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: #2b3b4f transparent; }
 .panel-close { position: absolute; top: var(--space-4); right: var(--space-4); width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: var(--glass-border); border-radius: var(--radius-md); background: rgba(140,160,185,.05); color: #b3c3d6; font-size: var(--text-lg); line-height: 1; }
 .panel-close:hover { background: rgba(0,240,255,.09); color: #fff; }
+.panel-toggle { right: calc(var(--space-4) * 3 + var(--space-2)); }
+.panel-toggle svg { width: var(--space-4); height: var(--space-4); }
+.panel-toggle[aria-expanded="false"] svg { transform: rotate(180deg); }
 .panel-header { padding-bottom: var(--space-5); border-bottom: var(--glass-border); }
-.run-date { color: var(--muted); font-size: var(--text-sm); padding-right: var(--space-5); }
+.run-date { color: var(--muted); font-size: var(--text-sm); padding-right: calc(var(--space-4) * 4 + var(--space-3)); }
 .train-name { margin: var(--space-3) 0 var(--space-2); padding-right: var(--space-5); font-size: var(--text-xl); line-height: 1.18; font-weight: 600; letter-spacing: -.035em; overflow-wrap: anywhere; }
+#panel[data-collapsed] { bottom: auto; height: var(--panel-bar-height); max-height: none; padding: var(--space-4); overflow: hidden; }
+#panel[data-collapsed] .panel-header { padding-bottom: 0; border-bottom: 0; }
+#panel[data-collapsed] [data-content] > :not(.panel-header, .panel-message),
+#panel[data-collapsed] .panel-header > :not(.run-date, .train-name) { display: none; }
+#panel[data-collapsed] :is(.run-date, .train-name, .panel-message) { padding-right: calc(var(--space-4) * 4 + var(--space-3)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#panel[data-collapsed] .train-name { margin-bottom: 0; font-size: var(--text-lg); }
+#panel[data-collapsed] .panel-message { margin: 0; }
 .route-name { font-size: var(--text-sm); line-height: 1.6; overflow-wrap: anywhere; }
 .train-metadata { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-4); }
 .evidence { font-size: var(--text-xs); }
@@ -131,7 +142,7 @@ h2 { font-size: var(--text-md); font-weight: 600; line-height: 1.3; }
 .maplibregl-ctrl-attrib a:hover { color: #e3e9ef; }
 body[data-hud="hidden"] :is(.live-status, .search-field, #search-results, #legend, #panel, #hover, .maplibregl-ctrl-group) { display: none !important; }
 @media (min-width: 640px) {
-  body:not([data-hud="hidden"]):has(#panel:not([hidden])) .maplibregl-ctrl-bottom-right { right: calc(var(--panel-width) + var(--gutter)); }
+  body:not([data-hud="hidden"]):has(#panel:not([hidden], [data-collapsed])) .maplibregl-ctrl-bottom-right { right: calc(var(--panel-width) + var(--gutter)); }
 }
 @media (min-width: 640px) and (max-width: 727px) {
   :root { --hud-width: calc(100vw - var(--panel-width) - var(--gutter) * 3); }
@@ -144,12 +155,14 @@ body[data-hud="hidden"] :is(.live-status, .search-field, #search-results, #legen
   :root { --gutter: var(--space-3); --legend-height: 54px; }
   #legend { height: var(--legend-height); }
   #panel { top: auto; left: var(--gutter); width: auto; max-height: 60vh; padding: var(--space-4); }
+  #panel[data-collapsed] { bottom: var(--gutter); }
   .train-name { font-size: var(--text-lg); }
   .panel-header { padding-bottom: var(--space-4); }
   .next-stop { margin: var(--space-4) 0 var(--space-5); }
   body:has(#panel:not([hidden])) #legend { display: none; }
   body:not([data-hud="hidden"]):not(:has(#panel:not([hidden]))) .maplibregl-ctrl-bottom-right { bottom: calc(var(--legend-height) + var(--space-2)); }
   body:not([data-hud="hidden"]):has(#panel:not([hidden])) .maplibregl-ctrl-bottom-right { right: 0; bottom: calc(60vh + var(--gutter)); }
+  body:not([data-hud="hidden"]):has(#panel[data-collapsed]:not([hidden])) .maplibregl-ctrl-bottom-right { bottom: calc(var(--panel-bar-height) + var(--gutter) + var(--space-2)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .live-dot { animation: none; }
