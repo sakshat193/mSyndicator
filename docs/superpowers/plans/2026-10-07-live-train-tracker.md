@@ -1487,7 +1487,11 @@ From the G2 decision (spec §18). `data/params.json` now holds the measured `S.m
 
 ### Task 52 (amendment 2026-10-11): residential relay egress for the VM collector (CP-3 follow-up)
 
-Akamai rejects MMT requests from the VM's IP, while the user's home connection worked through the pilot at the same rate. The collector therefore runs on the VM, and its only source connection goes through the user's PC: a reverse SSH tunnel to an allowlisted CONNECT relay. The dispatcher on the VM still owns spacing, budgets and logging. The relay never forwards to any host except MMT. There is no fingerprint spoofing, no challenge solving and no third-party proxy.
+**Historical design:** Task 53 replaced its CONNECT transport, and Task 78 removed the
+laptop dependency. The IP-rejection explanation below was the inference at the time;
+use the current direct-cloud deployment instructions in `docs/deploy.md`.
+
+At the time, MMT requests from the VM client failed while the user's home connection worked through the pilot at the same rate. This was initially attributed to the VM's IP, so the collector's source connection was sent through the user's PC: a reverse SSH tunnel to an allowlisted CONNECT relay. The dispatcher on the VM still owned spacing, budgets and logging. The relay forwarded only to MMT, without fingerprint spoofing, challenge solving or a third-party proxy.
 
 **Files:** modify `msynd/collect/dispatcher.py`, `compose.yaml`, `docs/deploy.md`, `tests/collect/test_dispatcher.py`, `tests/test_deploy.py`; create `msynd/collect/relay.py`, `compose.relay.yaml`, `tests/collect/test_relay.py`.
 
@@ -1512,6 +1516,9 @@ Akamai rejects MMT requests from the VM's IP, while the user's home connection w
 ---
 
 ### Task 53 (amendment 2026-10-11): the PC's client makes the MMT request (supersedes Task 52's CONNECT path)
+
+**Historical default, now fallback:** Task 78 moved collection directly onto Oracle.
+This client relay remains available for an explicit rollback only.
 
 Through Task 52's tunnel, Akamai accepts TLS from the VM image's client (OpenSSL 3.5) but never answers the request, while the PC's client (the one the pilot used, OpenSSL 3.0) gets 200 at once. The VM's TLS is not tuned to imitate anything. Instead, the PC's own httpx client makes each HTTPS request, so source traffic is exactly what the approved PC pilot sent. The VM dispatcher still owns spacing, budgets, retries and logging, and the relay forwards one request per incoming request, never retrying.
 
@@ -1635,6 +1642,9 @@ Monitor note 2026-10-11 (Tasks 56–58, VM at bac9940):
 - The web `connectLive`/`FrameStore`, run under Node over a tunnel to the VM API, accepted gen 1749 (700 runs, all with paths, 0 rejections).
 
 ### Task 59 (amendment 2026-10-11): relay watchdog (user request)
+
+**Fallback only after Task 78:** normal cloud collection does not run this Windows
+watchdog; the `msynd-relay` task is disabled and retained for rollback.
 
 On 2026-10-11 at 13:49Z the PC relay exited. Its log ends with `^C`; the cause is unknown, and there was no low-memory event. Two things then went wrong:
 
