@@ -511,7 +511,7 @@ it('dims other trains to 30 percent and highlights the selected expanded path wi
   expect(trainAlpha(10, null)).toBe(1);
   expect(trainAlpha(9, 9)).toBe(1);
   expect(trainAlpha(10, 9)).toBe(0.3);
-  const [route, pulse] = selectionLayers(selected, 0);
+  const [route, pulse] = selectionLayers(selected, 0, 900); // Before departure: all ahead.
   expect(route.id).toBe('selection');
   expect(route.props.data).toEqual([selected.points]);
   expect((route.props.data as any[])[0]).toBe(selected.points);
@@ -523,7 +523,7 @@ it('dims other trains to 30 percent and highlights the selected expanded path wi
   expect(trip.path).toEqual(selected.points);
   // Halts repeat a point; zero-length segments would splay the wide glow into rays.
   const halted = { ...selected, points: [selected.points[0], ...selected.points] };
-  expect((selectionLayers(halted, 0)[1].props.data as any[])[0].path).toEqual(selected.points);
+  expect((selectionLayers(halted, 0, 900)[1].props.data as any[])[0].path).toEqual(selected.points);
   expect(trip.timestamps[0]).toBe(0);
   expect(trip.timestamps.every((t: number, i: number) => !i || t > trip.timestamps[i - 1])).toBe(true);
   expect((pulse.props as any).jointRounded).toBe(true);
@@ -532,12 +532,29 @@ it('dims other trains to 30 percent and highlights the selected expanded path wi
   expect(tail).toBeGreaterThan(0);
   expect(tail).toBeLessThan(total);
   expect((pulse.props as any).currentTime).toBe(0); // Origin.
-  const half = selectionLayers(selected, PULSE_MS / 2);
+  const half = selectionLayers(selected, PULSE_MS / 2, 900);
   // The head reaches the destination and the tail drains into it before the next pulse.
   expect((half[1].props as any).currentTime).toBeCloseTo((total + tail) / 2);
-  expect((selectionLayers(selected, PULSE_MS * 3)[1].props as any).currentTime).toBe(0);
+  expect((selectionLayers(selected, PULSE_MS * 3, 900)[1].props as any).currentTime).toBe(0);
   expect(half[0].props.data).toBe(route.props.data);
   expect(half[1].props.data).toBe(pulse.props.data);
+  // The pulse dims behind the train and brightens once it passes it.
+  const color = pulse.props.getColor as Function;
+  const [behind, ahead] = selectionLayers(selected, 0, 1300)[1].props.data as any[];
+  const head = headAt(selected, 1300);
+  expect(behind.path.at(-1)[0]).toBeCloseTo(head[0]);
+  expect(behind.path.at(-1)[1]).toBeCloseTo(head[1]);
+  expect(ahead.path[0]).toEqual(behind.path.at(-1));
+  expect(ahead.timestamps[0]).toBe(behind.timestamps.at(-1));
+  expect([...behind.path, ...ahead.path.slice(1)].length).toBe(trip.path.length + 1);
+  for (const t of [behind, ahead]) expect(t.timestamps.every((x: number, i: number) => !i || x > t.timestamps[i - 1])).toBe(true);
+  expect(ahead.timestamps.at(-1)).toBe(total);
+  expect(color(behind)[3]).toBeLessThan(color(ahead)[3]);
+  expect(color(trip)).toEqual(color(ahead));
+  const [arrived, none] = selectionLayers(selected, 0, 1700)[1].props.data as any[];
+  expect(arrived.path).toEqual(selected.points);
+  expect(color(arrived)).toEqual(color(behind));
+  expect(none).toBeUndefined();
   const layers = trainLayers([selected, other], trails, 1300, 4, () => {}, 9);
   for (const layer of layers.filter(l => l instanceof TripsLayer)) {
     const data = layer.props.data as any[];

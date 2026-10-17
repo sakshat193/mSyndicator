@@ -193,7 +193,7 @@ function draw(tick: number) {
         if (head !== target) settling = true;
         drawnHeads.set(d.run.run_id, head);
       }
-      overlay.setProps({ layers: [background, ...(highlight ? selectionLayers(highlight, tick) : []),
+      overlay.setProps({ layers: [background, ...(highlight ? selectionLayers(highlight, tick, simTime) : []),
         ...trainLayers(displays, trails, simTime, zoom, selectRun, selected, hoverRun, drawnHeads, tick),
         ...(labels ? [labels] : [])] });
     }
