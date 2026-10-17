@@ -2859,10 +2859,12 @@ and other 4xx still count.
 - `breaker_exempt(response)` also returns true for a 2xx response that `classify('status', response)` accepts. The dispatcher
   consults it only for `invalid` outcomes, so this is exactly the parse-rejected case. Mark with `# ponytail:` that a site-wide
   MMT format change no longer pauses the host; the ramp report's usable share is where it would show.
-- [ ] Tests first (test DB): with the collector's `_classify_status`, 25 HTTP 200 JSON answers that fail `parse_status` keep
+- [x] Tests first (test DB): with the collector's `_classify_status`, 25 HTTP 200 JSON answers that fail `parse_status` keep
   the dispatcher `ok` and are logged `invalid`; 200 HTML or captcha still stops the host; 200 non-JSON, 500 and a 400 that is not
   "not running" still trip the breaker; the existing "not running" exemption tests pass.
-- [ ] `uv run pytest -q` green. Commit `task 93: pages that fail validation do not pause the host`.
+  - Two older tests encoded the old rule and were updated: the admission state test trips the breaker with a 200 non-JSON
+    body; the pilot breaker test is parametrized (rejected JSON does not pause, non-JSON still does).
+- [x] `uv run pytest -q` green (926 passed, 1 skipped). Commit `task 93: pages that fail validation do not pause the host`.
 - [ ] Monitor: deploy the collector; breaker trips from invalid answers stop and the poll rate recovers toward ~190/h.
 
 ### Task 94 (amendment 2026-10-18): hide the train panel on every screen size; the route refits (user request)
@@ -2911,10 +2913,10 @@ Oracle Object Storage. Retention (7 daily, 4 weekly), the 15 GB alarm and the `o
   size sum and alarm work as before.
 - `docs/deploy.md`: one-time auth on a machine with a browser, `rclone config create gdrive drive scope=drive.file` (rclone sees
   only the files it creates); copy `rclone.conf` to `/data/rclone/rclone.conf` (dir 700, file 600, root) and set `BACKUP_REMOTE`.
-- [ ] Tests first: the rclone command lines for a weekday and a Sunday (weekly), retention deletes the oldest beyond 7 and 4 without
+- [x] Tests first: the rclone command lines for a weekday and a Sunday (weekly), retention deletes the oldest beyond 7 and 4 without
   trash, the size alarm, a failure keeps two valid local copies, an empty `BACKUP_REMOTE` stays local-only with the new warning;
   compose mounts the rclone dir and not the OCI dir; the Dockerfile installs rclone.
-- [ ] `uv run pytest -q` green. Commit `task 95: off-site backup to Google Drive`.
+- [x] `uv run pytest -q` green (926 passed, 1 skipped). Commit `task 95: off-site backup to Google Drive`.
 - [ ] Monitor: rebuild `msynd:local` on the VM; once the user has authorized Drive, a manual backup uploads and `pg_restore --list`
   reads the downloaded copy.
 
