@@ -2664,6 +2664,64 @@ read-only report that also records recovery yield.
 - [x] Monitor: deploy `web/dist`; check it in the browser. (Deployed 2026-10-17 17:20Z, bundle
   `index-DPwUWbkJ.js`. On 11401 the pulse is faint on Pune → Daund and bright from the train northward.)
 
+
+### Task 84 (amendment 2026-10-17): grid label declutter cached per zoom bucket (navigation fix #1)
+
+**Why:** the user asked for smoother navigation. The perf council (Claude and Codex, measured in the browser) found that crossing a
+half-zoom bucket at z9 and above froze the page for 400–550 ms, twice per zoom click, because each new label was checked against
+every accepted label.
+
+**Files:** `web/src/layers.ts`, `web/src/layers.test.ts`.
+
+- `labelStations` checks a candidate only against accepted boxes that share one of its 128 px grid cells. It caches the result
+  per network and bucket. The output is identical to the full check.
+- [x] Test: 1,500 seeded stations at z10, z11.5 and z13 match a brute-force oracle. A second zoom in the same bucket returns the same array.
+- [x] `npm --prefix web test` green. Commit `task 84: grid label declutter cached per zoom bucket`. (c8a5eab; 187 passed.)
+  Zoom steps now show 60–120 ms long tasks. What remains is deck's TextLayer layout for a new label set and the head
+  loop in `draw` (Task 87).
+
+### Task 85 (amendment 2026-10-17): hover and click pick train heads on the CPU (navigation fix #2)
+
+**Why:** hovering ran deck's GPU picking. Each move stalled on `readPixels`: 41 long tasks, 2.4 s in about 2 s of hovering. It also
+set `settling`, which forced redraws at about 70 Hz while the pointer moved.
+
+**Files:** `web/src/layers.ts`, `web/src/layers.test.ts`, `web/src/main.ts`, `web/src/main.test.ts`.
+
+- `nearestRun(displays, heads, project, x, y, radius = 10)` returns the run whose drawn head (or target head, if it has not been
+  drawn yet) projects nearest to the pointer within `radius` px. On a tie the first one wins.
+- The heads layer is not pickable and `trainLayers` drops its select and hover callbacks. The overlay drops `pickingRadius`, so deck does no picking.
+- `main.ts` handles map events itself. `mousemove` is ignored while `map.isMoving()`. `mouseout` hides the tooltip. `click`
+  selects whatever `nearestRun` finds through `map.project` over `drawnHeads`.
+- `hoverRun` no longer wakes the redraw loop. Tooltip text and size are rewritten only when the hovered run changes, on a new
+  frame and on the 1 s tick. A pointer move only repositions the tooltip.
+- [ ] Tests (monitor wrote these first; they fail before the change): nearest head, radius and tie order. Heads are not pickable.
+  In `main.test.ts`, hover and click go through map events, the tooltip is clamped to the window, a miss, mouseout or moving map
+  hides it, and hovering leaves the idle overlay asleep.
+- [ ] `npm --prefix web test` green. Commit `task 85: hover and click pick train heads on the CPU`.
+- [ ] Monitor: re-measure hover long tasks in the browser.
+
+### Task 86 (amendment 2026-10-17): Gaussian glow for heads, trails and the pulse (user request)
+
+**Why:** the user asked: "give the glow head (not only the pulse, the entire trains and the pulse) gaussian blur, because
+currently it looks like a cropped image clip of a glow, and has boundaries, instead of one unifying blob that can extend
+seamlessly outwards ... It should also reduce the computation costs". Each glow stops at its geometry with about 3 % alpha left
+(`exp(-3.5)`), so dots and strokes show a rim, and the pulse front is a hard cut.
+
+**Files:** `web/src/layers.ts`, `web/src/layers.test.ts`.
+
+- Heads (radial), comets, timetable trails and the pulse (across the width) all use one falloff, `exp(-0.5 (d/σ)²)`, with the
+  geometry edge at 3.5σ, so the edge is below 1/255 of the peak. Overlapping glows add into one blob, and a brighter glow reaches
+  further. Radii and widths grow by √(6.125/3.5) ≈ 1.32 so the 10 % contour stays where it is today. The white core stays.
+- The pulse front fades over a Gaussian lead ahead of `currentTime` (0.1 × trailLength) instead of stopping at a hard cut.
+  Trains keep the cut, which sits under the head blob, so their glow never runs ahead of a train.
+- Cost: in the vertex shader, the glowing trips and the streaks collapse every path segment that lies wholly outside
+  [currentTime − trailLength, currentTime + lead]. Only the visible trail is rasterized; today the whole 10 h trip window is rasterized
+  and most of it discarded per fragment. Not a full-screen blur: that adds passes and would blur the map and labels too.
+- [ ] Tests first: the edge alpha is below 1/255; the shader injects contain the Gaussian, the lead and the segment cull, and keep the
+  picking guards; radii and widths are scaled.
+- [ ] `npm --prefix web test` green. Commit `task 86: gaussian glow for heads, trails and the pulse`.
+- [ ] Monitor: before and after screenshots; zoom GPU frame p50 (55 ms before); deploy.
+
 ---
 
 ## Spec coverage check
