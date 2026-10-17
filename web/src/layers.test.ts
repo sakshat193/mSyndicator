@@ -429,6 +429,32 @@ it('declutters nearby stations by prominence until zoom separates their padded l
   expect(labelStations(nearby, 12).map(s => s.code)).toEqual(['A', 'B']);
 });
 
+it('declutters a dense network exactly like checking every accepted label, once per bucket', () => {
+  let seed = 7;
+  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const dense: Network = { ...labelNetwork, stations: Array.from({ length: 1500 }, (_, i) => ({
+    code: `S${i}`, name: 'X'.repeat(1 + Math.floor(random() * 30)), lon: 72 + random() * 4, lat: 18 + random() * 4 })) };
+  dense.routes = [{ ...network.routes[0], id: 1, stops: dense.stations.map((s, idx) => ({
+    idx, station: s.code, halt: true, dist_km: idx, sched_off: idx })) }];
+  // From zoom 10 every station qualifies; terminals rank first, then station code.
+  const terminal = (s: { code: string }) => Number(s.code === 'S0' || s.code === 'S1499');
+  const order = [...dense.stations].sort((a, b) => terminal(b) - terminal(a) || a.code.localeCompare(b.code));
+  for (const zoom of [10, 11.5, 13]) {
+    const world = 512 * 2 ** zoom, boxes: number[][] = [];
+    const expected = order.filter(s => {
+      const x = (s.lon! + 180) / 360 * world, lat = s.lat! * Math.PI / 180;
+      const y = (1 - Math.log(Math.tan(Math.PI / 4 + lat / 2)) / Math.PI) / 2 * world;
+      const half = s.name!.length * 7 / 2 + 4, box = [x - half, y + 6, x + half, y + 28];
+      if (boxes.some(b => box[0] <= b[2] && box[2] >= b[0] && box[1] <= b[3] && box[3] >= b[1])) return false;
+      boxes.push(box);
+      return true;
+    }).map(s => s.code);
+    const labels = labelStations(dense, zoom);
+    expect(labels.map(s => s.code)).toEqual(expected);
+    expect(labelStations(dense, zoom + 0.25)).toBe(labels); // Same bucket: no re-declutter.
+  }
+});
+
 it('uses half-zoom buckets for label selection', () => {
   expect(labelBucket(7.74)).toBe(7.5);
   expect(labelBucket(8)).toBe(8);

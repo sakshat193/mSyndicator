@@ -314,27 +314,48 @@ export function labelThreshold(zoom: number): number {
   return LABEL_THRESHOLDS.find(([limit]) => zoom < limit)![1];
 }
 
+const labelCache = new WeakMap<Network, Map<number, Network['stations']>>();
+const LABEL_CELL = 128; // px; a candidate only checks accepted boxes sharing one of its cells
+
 export function labelStations(network: Network, zoom: number) {
-  const bucket = labelBucket(zoom), index = indexNetwork(network), threshold = labelThreshold(bucket);
+  const bucket = labelBucket(zoom), index = indexNetwork(network);
+  let cache = labelCache.get(network);
+  if (!cache) labelCache.set(network, cache = new Map());
+  const cached = cache.get(bucket);
+  if (cached) return cached;
+  const threshold = labelThreshold(bucket);
   const candidates = network.stations.filter(s => index.stations.get(s.code)
     && (index.prominence.get(s.code) ?? 0) >= threshold)
     .sort((a, b) => (index.prominence.get(b.code) ?? 0) - (index.prominence.get(a.code) ?? 0)
       || (index.routeCounts.get(b.code) ?? 0) - (index.routeCounts.get(a.code) ?? 0)
       || a.code.localeCompare(b.code));
   const world = 512 * 2 ** bucket;
-  const boxes: [number, number, number, number][] = [];
-  return candidates.filter(s => {
+  const grid = new Map<number, [number, number, number, number][]>();
+  const cells = (box: [number, number, number, number]) => {
+    const keys: number[] = [];
+    for (let cx = Math.floor(box[0] / LABEL_CELL); cx <= Math.floor(box[2] / LABEL_CELL); cx++)
+      for (let cy = Math.floor(box[1] / LABEL_CELL); cy <= Math.floor(box[3] / LABEL_CELL); cy++)
+        keys.push(cx * 65536 + cy);
+    return keys;
+  };
+  const labels = candidates.filter(s => {
     const x = (s.lon! + 180) / 360 * world;
     const lat = Math.max(-85.051129, Math.min(85.051129, s.lat!)) * Math.PI / 180;
     const y = (1 - Math.log(Math.tan(Math.PI / 4 + lat / 2)) / Math.PI) / 2 * world;
     // ponytail: fixed label estimates; use measured glyph bounds if fonts or label layout change.
-    const halfWidth = titleCase(s.name || s.code).length * 7 / 2 + 4;
+    const halfWidth = index.names.get(s.code)!.length * 7 / 2 + 4;
     const box: [number, number, number, number] = [x - halfWidth, y + 6, x + halfWidth, y + 28];
-    if (boxes.some(b => box[0] <= b[2] && box[2] >= b[0] && box[1] <= b[3] && box[3] >= b[1]))
+    const keys = cells(box);
+    if (keys.some(k => grid.get(k)?.some(b => box[0] <= b[2] && box[2] >= b[0] && box[1] <= b[3] && box[3] >= b[1])))
       return false;
-    boxes.push(box);
+    for (const k of keys) {
+      const boxes = grid.get(k);
+      if (boxes) boxes.push(box); else grid.set(k, [box]);
+    }
     return true;
   });
+  cache.set(bucket, labels);
+  return labels;
 }
 
 export function titleCase(name: string): string {
