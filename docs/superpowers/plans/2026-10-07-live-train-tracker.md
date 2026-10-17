@@ -2664,7 +2664,6 @@ read-only report that also records recovery yield.
 - [x] Monitor: deploy `web/dist`; check it in the browser. (Deployed 2026-10-17 17:20Z, bundle
   `index-DPwUWbkJ.js`. On 11401 the pulse is faint on Pune → Daund and bright from the train northward.)
 
-
 ### Task 84 (amendment 2026-10-17): grid label declutter cached per zoom bucket (navigation fix #1)
 
 **Why:** the user asked for smoother navigation. The perf council (Claude and Codex, measured in the browser) found that crossing a
@@ -2721,6 +2720,99 @@ seamlessly outwards ... It should also reduce the computation costs". Each glow 
   picking guards; radii and widths are scaled.
 - [ ] `npm --prefix web test` green. Commit `task 86: gaussian glow for heads, trails and the pulse`.
 - [ ] Monitor: before and after screenshots; zoom GPU frame p50 (55 ms before); deploy.
+
+### Task 87 (amendment 2026-10-17): heads on the sim clock, not the camera clock (navigation fix #3)
+
+**Why:** after Task 84 the CPU profile of a zoom shows the head loop in `draw` (`headAt` and `easeHead` for ~2,600 runs) at 1.76 s
+self time in about 7 s of zooming. `map.on('move')` sets `settling`, so every camera frame recomputes every head, and the heads
+layer's `getPosition` trigger is the frame tick, so every push re-uploads every position.
+
+**Files:** `web/src/main.ts`, `web/src/main.test.ts`.
+
+- Heads are recomputed on their own clock: every 100 ms, or every frame while a head is still easing. Each recompute bumps a heads
+  version, which becomes the heads layer's `getPosition` trigger.
+- Other pushes (the 30 Hz pulse, a zoom change, a new frame, a selection) reuse the current heads: no head loop, no position upload.
+- `map.on('move')` only hides the tooltip. MapboxOverlay already redraws deck on each map render. The draw loop pushes props
+  once per animation frame when the zoom changed since the last push, because trail length, width and opacity depend on zoom.
+- [ ] Tests first in `main.test.ts`: a move without a zoom change pushes nothing; a zoom change pushes with the same heads version;
+  idle heads recompute at 10 Hz and easing heads every frame until they settle; the pulse pushes at 30 Hz with the same version.
+- [ ] `npm --prefix web test` green. Commit `task 87: heads on the sim clock`.
+- [ ] Monitor: frame intervals for zoom clicks and a drag pan against the Task 84 baseline (Mumbai p50/p90/p99 20.9/48.7/76.4 ms,
+  India 27.7/70.1/97.3 ms).
+
+### Task 88 (amendment 2026-10-17): deck canvas at one device pixel, no MSAA (navigation fix #4)
+
+**Why:** zoom is GPU-bound (p50 frame 55 ms). On the user's 1.25 DPR screen deck fills 1.56 × the CSS pixels, with multisampling,
+and the glows are soft anyway.
+
+**Files:** `web/src/main.ts`, `web/src/main.test.ts`.
+
+- The overlay keeps `interleaved: false` and adds `useDevicePixels: 1` and a WebGL context without antialiasing or a preserved
+  drawing buffer (deck 9.4 `deviceProps`). The basemap keeps its own pixel ratio.
+- Skipped: the council's zoom-banded trail window. Task 86's segment cull already limits rasterising to the visible trail; add
+  it only if the re-measure shows trail fill still dominates.
+- [ ] Test first: the overlay is constructed with these props. `npm --prefix web test` green. Commit `task 88: deck canvas at one
+  device pixel without msaa`.
+- [ ] Monitor: zoom frame p50 and screenshots at z5 and z10 (line softness).
+
+### Task 89 (amendment 2026-10-17): delta frames re-upload only the trails that changed (navigation fix #5)
+
+**Why:** each generation `trailData` builds new trail objects for every display, so `dataComparator` fails and deck re-tessellates
+and re-uploads all ~2,600 timetable trails, even when a delta frame changed a few runs. That long task can land mid-gesture.
+
+**Files:** `web/src/layers.ts`, `web/src/layers.test.ts`.
+
+- `trailData` reuses a display's trail objects while the display and the hour base are unchanged (cache keyed by display).
+- The timetable trails split into 16 layers by `run_id % 16`, each with its own `dataComparator`, so a delta re-uploads only the
+  chunks it touches. Selection and picking behave as before.
+- [ ] Tests first: an unchanged display yields the identical trail object; changing one run changes exactly one timetable chunk's data.
+- [ ] `npm --prefix web test` green. Commit `task 89: delta frames re-upload only changed trails`.
+- [ ] Monitor: the long task when a delta frame lands, before and after.
+
+### Task 90 (amendment 2026-10-17): selection without a colour re-upload, and a bounded run lookup (navigation fix #6)
+
+**Why:** selecting or clearing a train changes `updateTriggers.getColor` on the comets, streaks, timetable and heads, so deck
+recomputes every per-vertex colour. Opening the panel calls `/api/run/{id}`, whose prediction lookup (`msynd/api/app.py:255`)
+reads `sim.frame` newest first with no bound, so the client cursor pulls every stored frame (up to 15 min of ~7 MB fulls).
+
+**Files:** `web/src/layers.ts`, `web/src/layers.test.ts`, `msynd/api/app.py`, the `/api/run` tests.
+
+- With a train selected, the four train layers dim through layer `opacity` (× 0.3), with constant colours. The selected train
+  draws on top in its own small layers (trail and head) at full strength.
+- The lookup reads only `gen >= COALESCE((SELECT max(gen) FROM sim.frame WHERE is_full), 0)`, newest first. Results are unchanged.
+- [ ] Tests first: no colour trigger depends on `selected`; the selected layers hold only the selected run; `/api/run` finds a run
+  in a delta after the latest full and ignores frames older than it.
+- [ ] `npm --prefix web test` and `uv run pytest -q` green (DB tests included). Commit `task 90: selection dims by opacity; bounded
+  run lookup`.
+- [ ] Monitor: selection long task before and after; deploy the api (rebuild `msynd:local`, restart api).
+
+### Task 91 (amendment 2026-10-17): selecting a train fits its whole route (user pick 2a)
+
+**Why:** the user asked that selecting a train "pan out (or in) to fit the entire screen e2e with the path" and picked a fit of
+the whole route, origin to destination, capped so that short routes do not zoom in too far.
+
+**Files:** `web/src/main.ts`, `web/src/main.test.ts`.
+
+- `selectRun` replaces `easeTo` with `fitBounds` over the bounding box of `display.points`, padded clear of the panel and the
+  HUD, `maxZoom: 10`, `linear: true`, `duration: 600`. Only a user selection (click or search) moves the camera; new frames never refit.
+  A run without geometry leaves the camera where it is.
+- [ ] Tests first: bounds and padding for a wide and a phone viewport, the zoom cap, no refit on a new generation.
+- [ ] `npm --prefix web test` green. Commit `task 91: selecting a train fits its whole route`.
+- [ ] Monitor: select a long route (12951) and a short one; frame intervals during the fit.
+
+### Task 92 (amendment 2026-10-17): selected route coloured by speed (user pick 3a)
+
+**Why:** the user asked for "the colour representing how fast or slow the train is going" on the selected route and picked
+fixed km/h bands from deep red through amber to white-hot, avoiding the network's cyan, with the pulse on top.
+
+**Files:** `web/src/layers.ts`, `web/src/layers.test.ts`.
+
+- Each gap between consecutive stops gets its average speed from `dist_km` and `eventTimes`, then a band colour: under 30 km/h
+  deep red, 30–60 red, 60–90 amber, 90–110 gold, 110 and over white-hot. A gap with no positive duration keeps today's red.
+- The selected route line in `selectionLayers` uses these colours, cached per display. The pulse layers stay above it, unchanged.
+- [ ] Tests first: band edges, a zero-duration gap, the colours cached per display, no cyan-like colour, the pulse layer last.
+- [ ] `npm --prefix web test` green. Commit `task 92: selected route coloured by speed`.
+- [ ] Monitor: screenshot of a mixed-speed route; deploy.
 
 ---
 
