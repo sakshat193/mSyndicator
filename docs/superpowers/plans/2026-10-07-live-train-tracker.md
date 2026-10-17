@@ -2648,6 +2648,22 @@ read-only report that also records recovery yield.
 - [x] Monitor: deploy `web/dist`; check it in the browser. (Deployed 2026-10-17 17:00Z, previous build in
   `web/dist.old`. Checked on 11401 against the production API: red route, pulse runs Pune → Supaul in 3 s.)
 
+### Task 83 (amendment 2026-10-17): the pulse brightens once it passes the train (user request)
+
+**Why:** the pulse should read as where the train is going; the part already travelled stays quiet.
+
+**Files:** `web/src/layers.ts`, `web/src/layers.test.ts`, `web/src/main.ts`.
+
+- `selectionLayers(display, tick, simTime)` splits the pulse path at the head's distance along the route
+  (interpolated over `display.times`, which matches `headAt`): dim behind (alpha 80), bright ahead (255),
+  one continuous timeline, so the pulse still starts at the origin. Split data is cached by that distance.
+- [x] Tests: split point equals `headAt`; the halves join with continuous rising timestamps; behind is
+  dimmer; before departure everything is ahead; after arrival everything is behind.
+- [x] `npm --prefix web test` green. Commit `task 83: selected-route pulse dims behind the train and
+  brightens ahead`. (7df94f6; 186 passed.)
+- [x] Monitor: deploy `web/dist`; check it in the browser. (Deployed 2026-10-17 17:20Z, bundle
+  `index-DPwUWbkJ.js`. On 11401 the pulse is faint on Pune → Daund and bright from the train northward.)
+
 ---
 
 ## Spec coverage check
