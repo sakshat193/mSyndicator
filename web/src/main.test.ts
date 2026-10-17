@@ -126,6 +126,8 @@ it.each([
   expect(body.dataset).toEqual({ hud: 'shown', ...refraction });
   expect(rendered.setup).toEqual(['worker', 'protocol', 'map']);
   expect(rendered.mapOptions.bounds).toEqual([[68, 6.5], [97.5, 36]]);
+  expect(rendered.options).toEqual({ interleaved: false, useDevicePixels: 1,
+    deviceProps: { webgl: { antialias: false, preserveDrawingBuffer: false } }, layers: [] });
   // Let loadNetwork finish both awaits before driving requestAnimationFrame.
   await Promise.resolve();
   const count = elements.get('#train-count');

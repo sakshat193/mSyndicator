@@ -31,7 +31,8 @@ map.on('error', event => {
   if (!('sourceId' in event) || event.sourceId !== 'india') console.error(event.error);
 });
 map.addControl(new NavigationControl({ showCompass: false }), 'bottom-right');
-const overlay = new MapboxOverlay({ interleaved: false, layers: [] });
+const overlay = new MapboxOverlay({ interleaved: false, useDevicePixels: 1,
+  deviceProps: { webgl: { antialias: false, preserveDrawingBuffer: false } }, layers: [] });
 map.addControl(overlay);
 const store = new FrameStore();
 const disconnect = connectLive(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/live`, store);
