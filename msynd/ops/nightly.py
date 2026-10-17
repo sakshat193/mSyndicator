@@ -102,9 +102,9 @@ def disk_check(path, *, conn=None, usage=shutil.disk_usage):
     return pct, 2 if pct >= 80 else 24
 
 
-def backup(*, database_url=None, bucket=None, directory='/data/backups', now=None,
+def backup(*, database_url=None, remote=None, directory='/data/backups', now=None,
            run=subprocess.run):
-    bucket = os.environ.get('OCI_BUCKET_NAME', '') if bucket is None else bucket
+    remote = os.environ.get('BACKUP_REMOTE', '') if remote is None else remote
     now = now or datetime.now(timezone.utc)
     day = now.astimezone(IST).date()
     directory = Path(directory)
@@ -128,24 +128,22 @@ def backup(*, database_url=None, bucket=None, directory='/data/backups', now=Non
                                 if re.fullmatch(r'local-\d{4}-\d{2}-\d{2}\.dump', p.name))
                 for old in copies[:-2]:
                     old.unlink()
-                if not bucket:
-                    # ponytail: local-only until the user approves OCI credentials; setting the bucket re-enables off-site
-                    log.warning('off-site backup disabled: OCI_BUCKET_NAME empty')
+                if not remote:
+                    # ponytail: local-only until Drive is authorized; setting BACKUP_REMOTE re-enables off-site
+                    log.warning('off-site backup disabled: BACKUP_REMOTE empty')
                     return local
-        oci = ['oci', 'os', 'object']
         for cadence in ('daily', 'weekly') if day.weekday() == 6 else ('daily',):
-            run(oci + ['put', '--bucket-name', bucket, '--name', f'msynd/{cadence}/{day}.dump',
-                       '--file', str(offsite), '--force'], check=True)
-        result = run(oci + ['list', '--bucket-name', bucket, '--prefix', 'msynd/', '--all',
-                            '--output', 'json'], check=True, capture_output=True, text=True)
-        objects = [obj for obj in json.loads(result.stdout)['data']
-                   if re.fullmatch(r'msynd/(daily|weekly)/\d{4}-\d{2}-\d{2}\.dump', obj['name'])]
-        if sum(obj['size'] for obj in objects) > 15_000_000_000:
+            run(['rclone', 'copyto', str(offsite), f'{remote}/{cadence}/{day}.dump'], check=True)
+        result = run(['rclone', 'lsjson', remote, '--recursive', '--files-only'],
+                     check=True, capture_output=True, text=True)
+        objects = [obj for obj in json.loads(result.stdout)
+                   if re.fullmatch(r'(daily|weekly)/\d{4}-\d{2}-\d{2}\.dump', obj['Path'])]
+        if sum(obj['Size'] for obj in objects) > 15_000_000_000:
             log.warning('off-site backup size alarm: exceeds 15 GB')
         for cadence, keep in (('daily', 7), ('weekly', 4)):
-            names = sorted(obj['name'] for obj in objects if obj['name'].startswith(f'msynd/{cadence}/'))
+            names = sorted(obj['Path'] for obj in objects if obj['Path'].startswith(f'{cadence}/'))
             for name in names[:-keep]:
-                run(oci + ['delete', '--bucket-name', bucket, '--name', name, '--force'], check=True)
+                run(['rclone', 'deletefile', '--drive-use-trash=false', f'{remote}/{name}'], check=True)
     except Exception:
         log.exception('backup failed')
         raise

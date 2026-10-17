@@ -118,9 +118,9 @@ services:
     command: ["python", "-c", "import lightgbm, onnxruntime, numba"]
     environment:
       <<: *environment
-      OCI_BUCKET_NAME: ${OCI_BUCKET_NAME:-}
+      BACKUP_REMOTE: ${BACKUP_REMOTE:-}
     volumes:
       - /data:/data
-      - ${OCI_CONFIG_DIR:-/data/oci}:/root/.oci:ro
+      - ${RCLONE_CONFIG_DIR:-/data/rclone}:/root/.config/rclone
 volumes:
   pgdata:

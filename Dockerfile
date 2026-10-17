@@ -3,7 +3,7 @@ FROM ${PYTHON_BASE}
 
 COPY --from=ghcr.io/astral-sh/uv:0.10.12 /uv /usr/local/bin/uv
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgomp1 libstdc++6 postgresql-client \
+    && apt-get install -y --no-install-recommends libgomp1 libstdc++6 postgresql-client rclone \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

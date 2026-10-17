@@ -9,13 +9,19 @@ Point the user's DuckDNS hostname at the VM; maintain its DNS record separately.
 Copy `.env.example` to `.env`, replace the `${...}` hostname/auth placeholders, and `chmod 600 .env`.
 Generate the password hash with `docker run --rm -it caddy:2 caddy hash-password`.
 Use `BASIC_AUTH_HASH='<hash>'` with single quotes in `.env` to preserve bcrypt dollar signs.
-For off-site backups, set `OCI_BUCKET_NAME` and place its config/key under `OCI_CONFIG_DIR` (default `/data/oci`).
-The OCI config's `key_file` must use the container path `/root/.oci/<key-file>`.
+For off-site backups, install rclone on a machine with a browser and run:
+```sh
+rclone config create gdrive drive scope=drive.file
+```
+The `drive.file` scope lets rclone see only files it created. Copy the resulting `rclone.conf`
+to `/data/rclone/rclone.conf` on the VM; root must own the directory (mode 700) and file (mode 600).
+Set `BACKUP_REMOTE=gdrive:msynd-backups` in `.env`; `RCLONE_CONFIG_DIR` defaults to `/data/rclone`.
+Compose mounts the config directory read-write so rclone can save refreshed OAuth tokens.
 These are user secrets; never commit them. Compose supplies DATABASE_URL for each service's network.
 
 The existing db binding `127.0.0.1:55432:5432` and named `pgdata` volume are unchanged.
 Do not move the pilot's database to `/data/pg`; any VM storage migration belongs to the monitor.
-Create `/data/{models,backups,tiles,caddy,caddy-config,oci}` and populate model artifacts/tiles locally.
+Create `/data/{models,backups,tiles,caddy,caddy-config,rclone}` and populate model artifacts/tiles locally.
 The monitor handles approved imports, migrations and restores; this task performs none.
 Models must be registered with paths under `/data/models`; export the network into `data/static`.
 Build the dashboard with `npm --prefix web ci` then `npm --prefix web run build`.
@@ -133,7 +139,7 @@ Daemon logs rotate at 10 MB × 5; ops is one-shot and has no db startup dependen
 Cron has no mail transport here, so each job appends to `/data/logs` (create it owned by the cron user).
 `/etc/logrotate.d/msynd-cron` rotates them: `/data/logs/cron-*.log { weekly rotate 8 compress missingok notifempty copytruncate }`.
 Weekly evaluation runs Monday 02:00 IST (Sunday 20:30 UTC).
-An empty `OCI_BUCKET_NAME` means local-only backups with two retained copies.
+An empty `BACKUP_REMOTE` means local-only backups with two retained copies.
 Local backups retain evidence; when enabled, off-site dumps exclude obs. No raw source export is approved.
 Never use `docker compose down -v`: it deletes the database volume.
 

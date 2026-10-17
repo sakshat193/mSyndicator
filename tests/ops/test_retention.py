@@ -79,13 +79,15 @@ def runner(calls, objects=(), fail=None):
     def run(args, **kwargs):
         calls.append(args)
         assert kwargs['check'] is True
-        if fail and fail(args):
-            raise subprocess.CalledProcessError(1, args)
         if args[0] == 'pg_dump':
             Path(args[args.index('--file') + 1]).write_bytes(b'dump')
-        if 'put' in args:
-            objects.append({'name': args[args.index('--name') + 1], 'size': 4})
-        return subprocess.CompletedProcess(args, 0, json.dumps({'data': list(objects)}) if 'list' in args else '')
+        if fail and fail(args):
+            raise subprocess.CalledProcessError(1, args)
+        if args[:2] == ['rclone', 'copyto']:
+            objects.append({'Path': args[3].removeprefix('gdrive:msynd-backups/'), 'Size': 4})
+        if args[:2] == ['rclone', 'lsjson']:
+            assert kwargs == {'check': True, 'capture_output': True, 'text': True}
+        return subprocess.CompletedProcess(args, 0, json.dumps(objects) if 'lsjson' in args else '')
     return run
 
 
@@ -95,10 +97,12 @@ def test_backup_contents_rotation_and_alarm(tmp_path, caplog):
         (tmp_path / f'local-{date}.dump').write_bytes(b'old')
     unrelated = tmp_path / 'keep.txt'
     unrelated.write_text('keep')
-    objects = [{'name': f'msynd/daily/2026-09-{i:02}.dump', 'size': 2_000_000_000} for i in range(1, 10)]
-    objects += [{'name': f'msynd/weekly/2026-08-{i:02}.dump', 'size': 1} for i in range(1, 6)]
-    objects += [{'name': 'unrelated', 'size': 1}]
-    backup(database_url='test-dsn', bucket='test-bucket', directory=tmp_path, now=NOW, run=runner(calls, objects))
+    objects = [{'Path': f'daily/2026-09-{i:02}.dump', 'Size': 2_000_000_000} for i in range(9, 0, -1)]
+    objects += [{'Path': f'weekly/2026-08-{i:02}.dump', 'Size': 1} for i in range(5, 0, -1)]
+    objects += [{'Path': name, 'Size': 1} for name in (
+        'unrelated', 'msynd/daily/2026-01-01.dump', 'daily/2026-01-01.dump.partial',
+        'daily/nested/2026-01-01.dump', 'daily/not-a-date.dump')]
+    backup(database_url='test-dsn', remote='gdrive:msynd-backups', directory=tmp_path, now=NOW, run=runner(calls, objects))
     dumps = [a for a in calls if a[0] == 'pg_dump']
     assert len(dumps) == 2
     assert '--format=custom' in dumps[0]
@@ -106,50 +110,73 @@ def test_backup_contents_rotation_and_alarm(tmp_path, caplog):
     for args in dumps:
         assert '--schema=ref' in args and '--schema=ml' in args and '--schema=sim' in args
         assert '--exclude-table=sim.frame' in args and '--exclude-table=sim.metric' in args
-    uploads = [a for a in calls if 'put' in a]
-    assert len(uploads) == 1
-    assert 'offsite-' in uploads[0][uploads[0].index('--file') + 1]
+    assert [a for a in calls if 'copyto' in a] == [[
+        'rclone', 'copyto', str(tmp_path / 'offsite-2026-10-08.dump'),
+        'gdrive:msynd-backups/daily/2026-10-08.dump']]
+    assert [a for a in calls if 'lsjson' in a] == [
+        ['rclone', 'lsjson', 'gdrive:msynd-backups', '--recursive', '--files-only']]
     assert len(list(tmp_path.glob('local-*.dump'))) == 2
     assert not list(tmp_path.glob('offsite-*'))
     assert unrelated.exists()
-    deleted = [a[a.index('--name') + 1] for a in calls if 'delete' in a]
-    assert len(deleted) == 4 and 'unrelated' not in deleted
+    assert [a for a in calls if 'deletefile' in a] == [
+        ['rclone', 'deletefile', '--drive-use-trash=false', 'gdrive:msynd-backups/daily/2026-09-01.dump'],
+        ['rclone', 'deletefile', '--drive-use-trash=false', 'gdrive:msynd-backups/daily/2026-09-02.dump'],
+        ['rclone', 'deletefile', '--drive-use-trash=false', 'gdrive:msynd-backups/daily/2026-09-03.dump'],
+        ['rclone', 'deletefile', '--drive-use-trash=false', 'gdrive:msynd-backups/weekly/2026-08-01.dump']]
     assert '15 GB' in caplog.text
 
 
-def test_weekly_backup(tmp_path):
+def test_weekly_backup(tmp_path, monkeypatch):
+    monkeypatch.setenv('BACKUP_REMOTE', 'gdrive:msynd-backups')
     calls = []
-    backup(database_url='test', bucket='test', directory=tmp_path,
-           now=NOW + timedelta(days=3), run=runner(calls))
-    assert len([a for a in calls if 'put' in a]) == 2
-    assert any('msynd/weekly/2026-10-11.dump' in a for a in calls)
+    backup(database_url='test', directory=tmp_path,
+           now=datetime(2026, 10, 10, 21, tzinfo=timezone.utc), run=runner(calls))
+    assert [a for a in calls if a[0] == 'rclone'] == [
+        ['rclone', 'copyto', str(tmp_path / 'offsite-2026-10-11.dump'),
+         'gdrive:msynd-backups/daily/2026-10-11.dump'],
+        ['rclone', 'copyto', str(tmp_path / 'offsite-2026-10-11.dump'),
+         'gdrive:msynd-backups/weekly/2026-10-11.dump'],
+        ['rclone', 'lsjson', 'gdrive:msynd-backups', '--recursive', '--files-only']]
 
 
-@pytest.mark.parametrize('bucket,failure', [('test', 'pg_dump'), ('test', 'put'), ('', 'pg_dump')])
-def test_failed_backup_preserves_two_valid_copies(tmp_path, bucket, failure):
+@pytest.mark.parametrize('size,alarm', [(14_999_999_996, False), (14_999_999_997, True)])
+def test_backup_size_alarm(tmp_path, caplog, size, alarm):
+    objects = [{'Path': 'daily/2026-10-07.dump', 'Size': size},
+               {'Path': 'unrelated', 'Size': 99_000_000_000}]
+    backup(database_url='test', remote='gdrive:msynd-backups', directory=tmp_path, now=NOW,
+           run=runner([], objects))
+    assert ('off-site backup size alarm: exceeds 15 GB' in caplog.text) == alarm
+
+
+@pytest.mark.parametrize('remote,failure', [
+    ('gdrive:msynd-backups', 'pg_dump'), ('gdrive:msynd-backups', 'copyto'), ('', 'pg_dump')])
+def test_failed_backup_preserves_two_valid_copies(tmp_path, caplog, remote, failure):
     for date in ('2026-09-01', '2026-09-02'):
         (tmp_path / f'local-{date}.dump').write_bytes(b'old')
     calls = []
     with pytest.raises(subprocess.CalledProcessError):
-        backup(database_url='test', bucket=bucket, directory=tmp_path, now=NOW,
+        backup(database_url='test', remote=remote, directory=tmp_path, now=NOW,
                run=runner(calls, fail=lambda a: failure in a))
-    assert len(list(tmp_path.glob('local-*.dump'))) == 2
-    assert not any('delete' in a for a in calls)
+    copies = sorted(tmp_path.glob('local-*.dump'))
+    assert [p.read_bytes() for p in copies] == ([b'old', b'dump'] if failure == 'copyto' else [b'old', b'old'])
+    assert not list(tmp_path.glob('*.partial')) and not list(tmp_path.glob('offsite-*'))
+    assert not any('deletefile' in a for a in calls)
+    assert 'backup failed' in caplog.text
 
 
-@pytest.mark.parametrize('bucket,env_bucket', [('', 'test-bucket'), (None, ''), (None, None)])
-def test_backup_empty_bucket_keeps_two_local_copies(tmp_path, monkeypatch, caplog, bucket, env_bucket):
-    if env_bucket is None:
-        monkeypatch.delenv('OCI_BUCKET_NAME', raising=False)
+@pytest.mark.parametrize('remote,env_remote', [('', 'gdrive:msynd-backups'), (None, ''), (None, None)])
+def test_backup_empty_remote_keeps_two_local_copies(tmp_path, monkeypatch, caplog, remote, env_remote):
+    if env_remote is None:
+        monkeypatch.delenv('BACKUP_REMOTE', raising=False)
     else:
-        monkeypatch.setenv('OCI_BUCKET_NAME', env_bucket)
+        monkeypatch.setenv('BACKUP_REMOTE', env_remote)
     for date in ('2026-09-01', '2026-09-02'):
         (tmp_path / f'local-{date}.dump').write_bytes(b'old')
     unrelated = tmp_path / 'keep.txt'
     unrelated.write_text('keep')
     calls = []
 
-    local = backup(database_url='test-dsn', bucket=bucket, directory=tmp_path, now=NOW,
+    local = backup(database_url='test-dsn', remote=remote, directory=tmp_path, now=NOW,
                    run=runner(calls))
 
     assert local == tmp_path / 'local-2026-10-08.dump'
@@ -161,4 +188,4 @@ def test_backup_empty_bucket_keeps_two_local_copies(tmp_path, monkeypatch, caplo
     assert calls[0][0] == 'pg_dump'
     assert '--schema=obs' in calls[0]
     assert caplog.record_tuples == [
-        ('msynd.ops.nightly', logging.WARNING, 'off-site backup disabled: OCI_BUCKET_NAME empty')]
+        ('msynd.ops.nightly', logging.WARNING, 'off-site backup disabled: BACKUP_REMOTE empty')]

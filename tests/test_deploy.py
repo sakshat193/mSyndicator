@@ -89,8 +89,27 @@ def test_commands_and_ops_do_not_start_the_pilot_database(compose):
     assert ops['profiles'] == ['ops']
     assert not ops.get('depends_on')
     assert ops['restart'] == 'no'
+    targets = {volume['target'] for volume in ops['volumes']}
+    assert {'/data', '/root/.config/rclone'} <= targets
+    assert '/root/.oci' not in targets
+    assert 'BACKUP_REMOTE' in ops['environment']
     assert ops['environment']['MSYND_LIVE'] == '0'
-    assert {'/data', '/root/.oci'} <= {v['target'] for v in ops['volumes']}
+
+
+def test_ops_backup_configuration():
+    root = Path(__file__).resolve().parents[1]
+    ops = (root / 'compose.yaml').read_text().split('\n  ops:\n', 1)[1].split('\nvolumes:', 1)[0]
+    assert '      BACKUP_REMOTE: ${BACKUP_REMOTE:-}\n' in ops
+    assert '      - /data:/data\n' in ops
+    assert '      - ${RCLONE_CONFIG_DIR:-/data/rclone}:/root/.config/rclone' in ops.splitlines()
+    assert '/root/.oci' not in ops and 'OCI_' not in ops
+    assert 'BACKUP_REMOTE=\nRCLONE_CONFIG_DIR=/data/rclone\n' in (root / '.env.example').read_text()
+
+
+def test_dockerfile_installs_rclone():
+    dockerfile = (Path(__file__).resolve().parents[1] / 'Dockerfile').read_text()
+    install, = [line for line in dockerfile.splitlines() if 'apt-get install ' in line]
+    assert {'postgresql-client', 'rclone'} <= set(install.split())
 
 
 @pytest.mark.parametrize('budgets, expected', [
