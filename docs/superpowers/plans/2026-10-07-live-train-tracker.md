@@ -2585,12 +2585,12 @@ probe per hour, exactly as Task 75. The host breaker and the dispatcher are unch
   `Job.stop_after_5xx` keeps its name and is still `max(1, COOLDOWN_STREAK - run.bad_streak)`.
 - A 400 "not running" answer cancels the run (Task 54), so it never matters to the streak; do not
   special-case it.
-- [ ] Tests (`load_state`, test DB): 3 consecutive `invalid` (HTTP 200) with the latest 30 min ago → absent
+- [x] Tests (`load_state`, test DB): 3 consecutive `invalid` (HTTP 200) with the latest 30 min ago → absent
   from cohort and harvest; latest 61 min ago → present with `stop_after_5xx == 1`; a mix 503, invalid,
   invalid → absent; an `ok` after them resets; a `transport_error` without status keeps Task 75's rule for
   status-less failures; existing Task 75 tests still pass after the rename.
-- [ ] `uv run pytest -q` green. Commit `task 80: invalid answers count toward the run cooldown`.
-- [ ] Monitor: deploy; after 24 h, no run has more than 3 invalid answers in any hour, and invalid/h drops.
+- [x] `uv run pytest -q` green. Commit `task 80: invalid answers count toward the run cooldown`. (71f4b58; 899 passed, 1 skipped; production load_state 1.05 s, unchanged.)
+- [ ] Monitor: deploy; after 24 h, no run has more than 3 invalid answers in any hour, and invalid/h drops. (Deployed 2026-10-17 16:32Z; rollback image `msynd-collector:pre-t80`. Baseline: ~30 invalid/h on 10-17 00–10Z, 0 since 12Z.)
 
 ### Task 81 (amendment 2026-10-17): ramp-gate report (user decisions 1, 9)
 
