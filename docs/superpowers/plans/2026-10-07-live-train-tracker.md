@@ -2718,10 +2718,14 @@ seamlessly outwards ... It should also reduce the computation costs". Each glow 
 - Cost: in the vertex shader, the glowing trips and the streaks collapse every path segment that lies wholly outside
   [currentTime − trailLength, currentTime + lead]. Only the visible trail is rasterized; today the whole 10 h trip window is rasterized
   and most of it discarded per fragment. Not a full-screen blur: that adds passes and would blur the map and labels too.
-- [ ] Tests first: the edge alpha is below 1/255; the shader injects contain the Gaussian, the lead and the segment cull, and keep the
+- [x] Tests first: the edge alpha is below 1/255; the shader injects contain the Gaussian, the lead and the segment cull, and keep the
   picking guards; radii and widths are scaled.
-- [ ] `npm --prefix web test` green. Commit `task 86: gaussian glow for heads, trails and the pulse`.
-- [ ] Monitor: before and after screenshots; zoom GPU frame p50 (55 ms before); deploy.
+- [x] `npm --prefix web test` green (189). Commit `task 86: gaussian glow for heads, trails and the pulse`.
+- [x] Monitor: before and after screenshots; zoom GPU frame p50 (55 ms before); deploy.
+  (2026-10-18, d199a5d. Codex ran in `.worktrees/task-86` (the `web/src` ACL workaround). Review fix: the first pass dropped GLOW's
+  `(1.0 - age)` tail factor, so the India view ran hot; it is restored (the plan's "linear fade" wording was wrong). Heads show no rim.
+  rAF frames, zoom clicks plus a drag pan, ~2,000 trains: India p50/p90/p99 20.8/69.4/94 ms (max 97-111, was 181), Mumbai
+  14.5/45/66 ms (max 63-77, was 139); a wheel-zoom sweep at Mumbai p50 24.9 ms.)
 
 ### Task 87 (amendment 2026-10-17): heads on the sim clock, not the camera clock (navigation fix #3)
 
