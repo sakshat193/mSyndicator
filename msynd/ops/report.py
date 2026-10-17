@@ -1,6 +1,7 @@
 """Read-only acceptance measurements; live and restore gates remain external."""
 import argparse
-from datetime import datetime, timezone
+import json
+from datetime import date, datetime, timezone
 from pathlib import Path
 from statistics import mean
 
@@ -103,6 +104,65 @@ def invalid(conn, since, until):
             'passes': share < .01 if share is not None else None}
 
 
+def ramp(conn, day):
+    """Ramp gate (spec §18) for harvest attempts started on IST date day."""
+    from msynd.collect.mmt import HOST
+    window = """f.host=%(host)s AND f.purpose='status' AND f.mode='harvest'
+        AND f.started_at >= %(day)s::date::timestamp AT TIME ZONE 'Asia/Kolkata'
+        AND f.started_at < (%(day)s::date+1)::timestamp AT TIME ZONE 'Asia/Kolkata'"""
+    args = {'host': HOST, 'day': day}
+    attempts, challenges = conn.execute(f"""SELECT count(*), count(*) FILTER (WHERE outcome='challenge')
+        FROM obs.fetch f WHERE {window}""", args).fetchone()
+    keys = conn.execute(f"""WITH k AS (
+        SELECT r.id, r.schedule_version_id, t.class,
+               bool_or(f.http_status=400) AND r.lifecycle='cancelled' AS nr, bool_or(f.outcome='ok') AS ok
+        FROM obs.fetch f JOIN obs.run r ON r.id=f.run_id JOIN ref.train t ON t.number=r.train
+        WHERE {window} GROUP BY r.id, t.class)
+        SELECT k.id, k.class, k.nr, k.ok AND EXISTS (SELECT 1 FROM obs.event_rev e
+            WHERE e.run_id=k.id AND e.station=d.station AND e.occ=d.occ AND e.kind='arr')
+        FROM k JOIN LATERAL (SELECT station, occ FROM ref.schedule_stop
+            WHERE version_id=k.schedule_version_id ORDER BY idx DESC LIMIT 1) d ON true""", args).fetchall()
+    usable_ids = [run for run, _, nr, usable in keys if usable and not nr]
+    r_pairs, w_pairs = conn.execute("""WITH u AS (
+        SELECT id, schedule_version_id FROM obs.run WHERE id = ANY(%s)),
+        halts AS (
+        SELECT u.id, s.idx,
+               EXISTS (SELECT 1 FROM obs.event_rev e WHERE e.run_id=u.id AND e.station=s.station
+                   AND e.occ=s.occ AND e.kind='arr') AS arr,
+               EXISTS (SELECT 1 FROM obs.event_rev e WHERE e.run_id=u.id AND e.station=s.station
+                   AND e.occ=s.occ AND e.kind='dep') AS dep
+        FROM u JOIN ref.schedule_stop s ON s.version_id=u.schedule_version_id),
+        seq AS (
+        SELECT arr, dep, lag(dep) OVER w AS prev_dep, lag(idx) OVER w IS NOT NULL AS has_prev,
+               lead(idx) OVER w IS NOT NULL AS has_next
+        FROM halts WINDOW w AS (PARTITION BY id ORDER BY idx))
+        SELECT 100.0*avg((prev_dep AND arr)::int) FILTER (WHERE has_prev),
+               100.0*avg((arr AND dep)::int) FILTER (WHERE has_prev AND has_next)
+        FROM seq""", (usable_ids,)).fetchone()
+
+    def pct(rows):
+        return 100.0 * sum(usable for *_, usable in rows) / len(rows) if rows else None
+
+    due = [row for row in keys if not row[2]]
+    by_class = {}
+    for row in due:
+        by_class.setdefault(row[1], []).append(row)
+    result = {'day': day, 'keys': len(keys), 'not_running': len(keys) - len(due), 'due': len(due),
+              'usable': len(usable_ids), 'usable_pct': pct(due),
+              'r_pairs_pct': None if r_pairs is None else float(r_pairs),
+              'w_pairs_pct': None if w_pairs is None else float(w_pairs),
+              'by_class': {cls: {'n': len(rows), 'usable_pct': pct(rows)}
+                           for cls, rows in sorted(by_class.items())},
+              'attempts': attempts, 'challenges': challenges}
+    rules = {'due': len(due) >= 300, 'usable': (result['usable_pct'] or 0) >= 80,
+             'r_pairs': (result['r_pairs_pct'] or 0) >= 90, 'w_pairs': (result['w_pairs_pct'] or 0) >= 90,
+             'classes': all(c['usable_pct'] >= 70 for c in result['by_class'].values() if c['n'] >= 30),
+             'challenges': challenges == 0}
+    result['failing'] = [name for name, ok in rules.items() if not ok]
+    result['passes'] = not result['failing']
+    return result
+
+
 def _value(value):
     if value is None:
         return 'unavailable'
@@ -165,11 +225,22 @@ def _timestamp(value):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('report', choices=('a1', 'a2', 'a5', 'a8', 'invalid', 'phase2'))
-    parser.add_argument('--since', required=True, type=_timestamp)
-    parser.add_argument('--until', required=True, type=_timestamp)
-    parser.add_argument('--out', required=True, type=Path)
+    parser.add_argument('report', choices=('a1', 'a2', 'a5', 'a8', 'invalid', 'phase2', 'ramp'))
+    parser.add_argument('--since', type=_timestamp)
+    parser.add_argument('--until', type=_timestamp)
+    parser.add_argument('--out', type=Path)
+    parser.add_argument('--day', type=lambda value: date.fromisoformat(value).isoformat(),
+                        help='ramp only: IST date of harvest attempts')
     args = parser.parse_args(argv)
+    if args.report == 'ramp':
+        if args.day is None:
+            parser.error('ramp requires --day')
+        with connect() as conn:
+            conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')
+            print(json.dumps(ramp(conn, args.day), indent=2))
+        return
+    if None in (args.since, args.until, args.out):
+        parser.error('--since, --until and --out are required')
     if args.since >= args.until:
         parser.error('--since must be earlier than --until')
     names = ('a2', 'a5', 'a8', 'invalid') if args.report == 'phase2' else (args.report,)

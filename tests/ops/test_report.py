@@ -125,3 +125,112 @@ def test_cli_writes_phase2_without_claiming_external_gates(db, tmp_path, monkeyp
 def test_cli_rejects_ambiguous_or_reversed_time(args):
     with pytest.raises(SystemExit):
         report.main(args)
+
+
+DAY = '2026-10-15'
+IST_DAY = datetime(2026, 10, 14, 18, 30, tzinfo=timezone.utc)  # 2026-10-15 00:00 IST
+HALTS = [('A', None, 0, 0), ('B', 100, 105, 200), ('C', 200, None, 400)]
+
+
+def _runs(db, n, train='12951', cls='SF'):
+    first = make_run(db, train=train, start='2026-10-14', halts=HALTS)
+    db.execute('UPDATE ref.train SET class=%s WHERE number=%s', (cls, train))
+    return [first] + [db.execute("""INSERT INTO obs.run(train,start_date,schedule_version_id,route_version_id)
+        SELECT train,start_date-%s,schedule_version_id,route_version_id FROM obs.run WHERE id=%s
+        RETURNING id""", (i, first)).fetchone()[0] for i in range(1, n)]
+
+
+def _harvest(db, run, outcome='ok', status=200, at=IST_DAY + timedelta(hours=1)):
+    from msynd.collect.mmt import HOST
+    return insert_fetch(db, host=HOST, mode='harvest', run_id=run, started_at=at,
+                        received_at=at, outcome=outcome, http_status=status)
+
+
+def _events(db, run, kinds=(('A', 'dep'), ('B', 'arr'), ('B', 'dep'), ('C', 'arr'))):
+    for station, kind in kinds:
+        insert_event(db, run, station, 1, kind, IST_DAY, IST_DAY)
+
+
+@pytest.mark.db
+def test_ramp_not_running_keys_leave_denominator(db):
+    ok, cancelled, other_400 = _runs(db, 3)
+    _harvest(db, ok)
+    _events(db, ok)
+    _harvest(db, cancelled, outcome='invalid', status=400)
+    db.execute("UPDATE obs.run SET lifecycle='cancelled' WHERE id=%s", (cancelled,))
+    _harvest(db, other_400, outcome='invalid', status=400)  # a 400 that did not cancel the run stays due
+    result = report.ramp(db, DAY)
+    assert (result['keys'], result['not_running'], result['due'], result['usable']) == (3, 1, 2, 1)
+    assert result['usable_pct'] == 50.
+    assert result['by_class'] == {'SF': {'n': 2, 'usable_pct': 50.}}
+
+
+@pytest.mark.db
+def test_ramp_pairs_on_three_halt_route(db):
+    run, = _runs(db, 1)
+    _harvest(db, run)
+    _events(db, run, (('A', 'dep'), ('B', 'arr'), ('C', 'arr')))  # B departure missing
+    result = report.ramp(db, DAY)
+    assert result['usable'] == 1
+    assert result['r_pairs_pct'] == 50.  # A→B present, B→C lacks dep B
+    assert result['w_pairs_pct'] == 0.   # B has arr but no dep
+
+
+@pytest.mark.db
+def test_ramp_ist_day_boundary(db):
+    before, inside = _runs(db, 2)
+    _harvest(db, before, at=IST_DAY - timedelta(seconds=1))
+    _harvest(db, inside, at=IST_DAY)
+    _harvest(db, inside, outcome='transport_error', status=None, at=IST_DAY + timedelta(hours=23, minutes=59))
+    _harvest(db, before, at=IST_DAY + timedelta(days=1))
+    result = report.ramp(db, DAY)
+    assert (result['keys'], result['attempts']) == (1, 2)
+
+
+@pytest.mark.db
+def test_ramp_class_rule_needs_thirty_runs(db):
+    for run in _runs(db, 29, train='00001', cls='PASS'):
+        _harvest(db, run)  # ok answers, no destination arrival → unusable
+    assert 'classes' not in report.ramp(db, DAY)['failing']
+    extra, = _runs(db, 1, train='00002', cls='PASS')
+    _harvest(db, extra)
+    result = report.ramp(db, DAY)
+    assert result['by_class']['PASS'] == {'n': 30, 'usable_pct': 0.}
+    assert 'classes' in result['failing']
+
+
+@pytest.mark.db
+def test_ramp_passing_batch_and_one_challenge(db):
+    for run in _runs(db, 300):
+        _harvest(db, run)
+        _events(db, run)
+    result = report.ramp(db, DAY)
+    assert (result['due'], result['usable_pct'], result['r_pairs_pct'], result['w_pairs_pct']) == (300, 100., 100., 100.)
+    assert (result['passes'], result['failing']) == (True, [])
+    _harvest(db, None, outcome='challenge', status=403)
+    result = report.ramp(db, DAY)
+    assert (result['challenges'], result['passes'], result['failing']) == (1, False, ['challenges'])
+
+
+@pytest.mark.db
+def test_ramp_empty_day_fails_every_measured_rule(db):
+    result = report.ramp(db, DAY)
+    assert result['keys'] == 0 and result['usable_pct'] is None and result['passes'] is False
+    assert result['failing'] == ['due', 'usable', 'r_pairs', 'w_pairs']
+
+
+@pytest.mark.db
+def test_cli_ramp_prints_json(db, capsys, monkeypatch):
+    import json
+    from contextlib import contextmanager
+
+    @contextmanager
+    def connection():
+        yield db
+
+    monkeypatch.setattr(report, 'connect', connection)
+    report.main(['ramp', '--day', DAY])  # main sets the read-only transaction first, so no seeded rows
+    out = json.loads(capsys.readouterr().out)
+    assert (out['day'], out['keys'], out['passes']) == (DAY, 0, False)
+    with pytest.raises(SystemExit):
+        report.main(['ramp'])
