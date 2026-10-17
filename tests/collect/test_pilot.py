@@ -330,7 +330,11 @@ def test_rotation_bounds_cohort_and_prioritizes_new_trains(db_url, tmp_path, cle
 
 
 @pytest.mark.db
-def test_semantic_invalids_count_toward_dispatcher_breaker(db_url, tmp_path, clean_pilot_log):
+@pytest.mark.parametrize("body,paused", [
+    pytest.param(b'{"data": {}}', False, id="semantic-invalid-json"),
+    pytest.param(b"not JSON", True, id="non-json"),
+])
+def test_invalid_body_controls_dispatcher_breaker_pause(db_url, tmp_path, clean_pilot_log, body, paused):
     from msynd.collect.pilot import PilotRun, run_pilot
 
     async def run():
@@ -340,12 +344,14 @@ def test_semantic_invalids_count_toward_dispatcher_breaker(db_url, tmp_path, cle
 
         def handle(request):
             starts.append(clock.t)
-            return httpx.Response(200, json={"data": {}})
+            return httpx.Response(200, content=body)
 
         d = Dispatcher(HOST, .2, lambda: connect(db_url), httpx.MockTransport(handle), clock=clock)
         candidates = [PilotRun(f"{i:05}", date(2026, 10, 8), {("A", 1, "dep"): clock.base}) for i in range(16)]
         await run_pilot(MmtClient(d), days=800/86400, metadata=tmp_path / "pilot.json", candidates=lambda now: candidates)
-        assert max(b-a for a, b in zip(starts, starts[1:])) >= 600
+        assert len(starts) >= 21
+        # With 16 candidates, requests 20 and 21 precede any run's third invalid and cooldown.
+        assert (starts[20] - starts[19] >= 600) is paused
 
     asyncio.run(run())
 

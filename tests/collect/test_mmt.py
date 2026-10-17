@@ -78,6 +78,87 @@ def test_not_running_breaker_exemption_keeps_invalid_fetch_log(db_url, status, c
     asyncio.run(run())
 
 
+@pytest.mark.db
+@pytest.mark.parametrize('status,body,outcome,exempt', [
+    (200, b'{"data": {}}', 'invalid', True),
+    (200, b'not JSON', 'invalid', False),
+    (500, b'{"data": {}}', 'transport_error', False),
+])
+def test_status_validation_breaker_exemption_keeps_fetch_log(db_url, status, body, outcome, exempt):
+    from msynd.collect.__main__ import _classify_status
+    from msynd.collect.mmt import HOST, MmtClient
+
+    async def run():
+        clock = FakeClock()
+        d = Dispatcher(HOST, .2, lambda: connect(db_url), httpx.MockTransport(lambda r:
+            httpx.Response(status, content=body)), clock=clock)
+        client = MmtClient(d)
+        d.classify = _classify_status
+        await d.start()
+        try:
+            pause_until = d.pause_until
+            states, ids = [], []
+            for _ in range(25):
+                result = await client.train_running('12951', date(2026, 10, 7), max_attempts=1)
+                assert result.outcome == outcome and result.status == status
+                ids.append(result.fetch_id)
+                states.append(d.state)
+            assert states[:19] == ['ok'] * 19
+            if exempt:
+                assert states == ['ok'] * 25
+                assert d.pause_until == pause_until
+            else:
+                assert states[19] == 'breaker'
+                assert d.pause_until > pause_until
+            assert d.conn.execute('select http_status,outcome from obs.fetch where id=any(%s) order by id',
+                                  (ids,)).fetchall() == [(status, outcome)] * 25
+        finally:
+            await d.close()
+    asyncio.run(run())
+
+
+@pytest.mark.db
+@pytest.mark.parametrize('body', [b'<html>login</html>', b'{"captcha": true}'])
+def test_status_challenge_still_stops_host(db_url, body):
+    from msynd.collect.__main__ import _classify_status
+    from msynd.collect.dispatcher import HostStopped
+    from msynd.collect.mmt import HOST, MmtClient
+
+    async def run():
+        d = Dispatcher(HOST, .2, lambda: connect(db_url), httpx.MockTransport(lambda r:
+            httpx.Response(200, content=body)), clock=FakeClock())
+        client = MmtClient(d)
+        d.classify = _classify_status
+        await d.start()
+        try:
+            for _ in range(2):
+                with pytest.raises(HostStopped):
+                    await client.train_running('12951', date(2026, 10, 7))
+            assert d.state == 'stopped'
+            assert d.conn.execute('select http_status,outcome from obs.fetch where host=%s order by id desc limit 1',
+                                  (HOST,)).fetchone() == (200, 'challenge')
+        finally:
+            await d.close()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('status,body,headers,want', [
+    (200, b'{"data": {}}', {}, True),
+    (299, b'{}', {}, True),
+    (300, b'{}', {}, False),
+    (200, b'not JSON', {}, False),
+    (200, b'<html>login</html>', {}, False),
+    (200, b'{}', {'Content-Type': 'text/html'}, False),
+    (200, b'{"captcha": true}', {}, False),
+    (500, b'{}', {}, False),
+    (400, b'{"success":false,"error":{"errorCode":1001}}', {}, True),
+])
+def test_breaker_exempt(status, body, headers, want):
+    from msynd.collect.mmt import breaker_exempt
+
+    assert breaker_exempt(httpx.Response(status, content=body, headers=headers)) is want
+
+
 def test_factory_requires_live_flag(monkeypatch):
     from msynd.collect.mmt import MmtClient
 

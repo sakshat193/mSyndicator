@@ -313,6 +313,8 @@ def test_loop_records_dispatcher_start_and_final_request_state(collector_url, tm
             assert conn.execute('SELECT value FROM sim.metric WHERE name=%s ORDER BY ts',
                                 ('dispatcher_state:' + HOST,)).fetchall() == [(expected[0],)]
         starts.append(clock.t)
+        if initial == 'ok' and response == 'invalid':
+            return httpx.Response(200, content=b'not JSON')
         return httpx.Response(403, content=b'captcha') if response == 'challenge' else httpx.Response(200, json={})
     d = Dispatcher(HOST, .2, lambda: connect(collector_url), httpx.MockTransport(handle), clock=clock)
     d.state = initial

@@ -21,7 +21,9 @@ def not_running(body: bytes) -> bool:
 
 
 def breaker_exempt(response) -> bool:
-    return response.status_code == 400 and not_running(response.content)
+    # ponytail: a site-wide MMT format change no longer pauses the host; watch the ramp report's usable share.
+    return (response.status_code == 400 and not_running(response.content)
+            or classify('status', response) == 'ok')
 
 
 def classify(purpose, response) -> str:
