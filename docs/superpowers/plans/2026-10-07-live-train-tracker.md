@@ -2511,6 +2511,110 @@ User authorized replacing the laptop relay, superseding the earlier deployment r
   image imports and direct source probes pass. Full Python suite: 869 passed, 1 skipped
   (2026-10-17; `MSYND_TEST_DSN` uses `127.0.0.1` because Windows `localhost` stalled).
   Web: 186 passed. A full-day soak and VM reboot are not claimed.
+- [x] Monitor follow-up (2026-10-17): the PC relay's still-running session-0 tree (uv.exe 8400, started 10-15)
+  was killed elevated at 13:38Z; VM :18080 is free and the task stays Disabled. VM reboot test at
+  14:00:25Z: SSH back in 35 s, all five services healthy without intervention, iptables and crontab
+  intact, MMT fetches resumed 14:01Z with OpenSSL 3.0.22. Direct-path ok latency p50 ≈ 0.85 s
+  (relay ≈ 1.15 s), p95 3–5 s; transport errors 0–3/h; zero challenges.
+
+### Monitor decisions (2026-10-17, user)
+
+The user chose on the "Monitor status (2026-10-16)" list: **1c 2a 3a 4A 5a 6a 7a 8a 9 build**, with D and E
+left to the monitor.
+1. Ramp-gate denominator excludes keys whose answer was MMT 400 "not running" (1001/1002). Follow-up
+   Task 79 also stops spending attempts on runs MMT has recently said do not operate on that weekday.
+2. PASS leaves harvest (Task 79). Polling scope is unchanged.
+3. Harvest stays at 512 until one IST batch passes the gate under rules 1–2, then 1,500, then 3,700, each
+   step re-checked by the Task 81 report.
+4. Invalid answers count toward the per-run cooldown (Task 80); the host breaker is unchanged.
+5. The Bookworm/OpenSSL 3.0 collector is kept. Ceiling: a source-side TLS policy change or the Bookworm
+   base ageing out sends collection back to the relay rollback.
+6. Reboot test done (above).
+7. Cron output goes to `/data/logs/cron-{nightly,weekly}.log` with logrotate (monitor ops, 10-17).
+8. Off-site backup: pending the user's choice between the OCI bucket path (8a) and Google Drive.
+9. Ramp-gate / recovery-yield report CLI: Task 81.
+- D (monitor's lean): CP-3 waits for the first batch that passes under rules 1–2. The Phase 4 seven-day
+  live window counts from the laptop-independent switch (2026-10-16 17:53Z) and is reviewed on 10-24.
+  A7 follows Phase 4.
+- E: no action; the first trainable weekly evaluate is still Mon 2026-11-02.
+
+### Task 79 (amendment 2026-10-17): admission skips PASS harvest and known non-operating weekdays (user decisions 1c, 2a)
+
+**Why (monitor, 10-15 batch):** 195 of 490 harvest keys got MMT 400 "not running", including 121 of 124
+PASS runs; the GTFS inventory lists runs that do not operate. Harvesting PASS yields 0.8 % usable data
+for about 25 % of the harvest budget.
+
+**Plan change (spec §7.2 admission, §18 "Training data"):**
+- Harvest admits only runs whose `ref.train.class` is not `PASS`. Polling scope is unchanged.
+- Both the poll cohort and harvest skip run (T, D) when, among runs of train T with start dates
+  D−7, D−14, D−21 and D−28, the most recent one that got an MMT answer (an `ok` status fetch, or an
+  HTTP 400 status fetch on a run whose lifecycle is `cancelled`) got the 400 "not running" answer.
+  With no such answer in that window the run is admitted as today, so a skipped weekday is re-probed
+  at least every fifth week.
+
+**Files:** `msynd/collect/__main__.py` (`load_state` only), `tests/collect/test_admission.py` (or the
+existing `load_state` test module).
+
+- Evidence comes from `obs.run` and `obs.fetch` only (status bodies may be pruned, so do not parse bodies).
+- `# ponytail:` comment on the skip: weekly-pattern inference only; skipped runs still appear as timetable
+  runs in the engine; upgrade to a running-days table if recovery-yield shows misses.
+- [ ] Tests on the test DB:
+  - a PASS run is absent from harvest and still present in the poll cohort; a non-PASS run is in harvest;
+  - prior same-weekday run at D−7 cancelled with a 400 fetch → D is absent from cohort and harvest;
+  - the same, but a newer same-weekday answer (D−7 ok, D−14 cancelled) → D is admitted;
+  - the only 400 answer at D−35 → admitted; a 400 at D−6 (other weekday) → admitted;
+  - a cancelled run without any 400 fetch (exception cancellation) does not trigger the skip.
+- [ ] `uv run pytest -q` green. Commit `task 79: skip pass harvest and known non-operating weekdays`.
+- [ ] Monitor: rebuild `msynd-collector:local`, restart the collector, and compare the next IST batch's
+  400 share and harvest attempts.
+
+### Task 80 (amendment 2026-10-17): invalid answers count toward the per-run cooldown (user decision 4A)
+
+**Why (monitor):** a run whose MMT page fails validation (e.g. non-monotone event times) stays in the
+cohort and is re-polled every 120 s: about 30 invalid answers an hour on 10-17 00–10Z, and the 10-13
+18–23Z breaker storm.
+
+**Plan change (spec §7.1 retries, §7.2 admission; extends Task 75):** the per-run streak counts the most
+recent consecutive completed MMT status attempts that are HTTP ≥ 500 **or** outcome `invalid`. A streak
+of 3 holds the run out of polling, harvest and recovery for 1 h after the latest such attempt, then one
+probe per hour, exactly as Task 75. The host breaker and the dispatcher are unchanged.
+
+**Files:** `msynd/collect/admission.py`, `msynd/collect/__main__.py`, their tests.
+
+- Rename to match the meaning: `streak_5xx` → `bad_streak`, `COOLDOWN_5XX` → `COOLDOWN_STREAK`.
+  `Job.stop_after_5xx` keeps its name and is still `max(1, COOLDOWN_STREAK - run.bad_streak)`.
+- A 400 "not running" answer cancels the run (Task 54), so it never matters to the streak; do not
+  special-case it.
+- [ ] Tests (`load_state`, test DB): 3 consecutive `invalid` (HTTP 200) with the latest 30 min ago → absent
+  from cohort and harvest; latest 61 min ago → present with `stop_after_5xx == 1`; a mix 503, invalid,
+  invalid → absent; an `ok` after them resets; a `transport_error` without status keeps Task 75's rule for
+  status-less failures; existing Task 75 tests still pass after the rename.
+- [ ] `uv run pytest -q` green. Commit `task 80: invalid answers count toward the run cooldown`.
+- [ ] Monitor: deploy; after 24 h, no run has more than 3 invalid answers in any hour, and invalid/h drops.
+
+### Task 81 (amendment 2026-10-17): ramp-gate report (user decisions 1, 9)
+
+**Why:** the ramp gate (spec §18 "Training data") has been measured with ad hoc SQL. The user approved a
+read-only report that also records recovery yield.
+
+**Files:** `msynd/ops/report.py` (new function and subcommand), `tests/ops/test_report.py`.
+
+- `python -m msynd.ops.report ramp --day YYYY-MM-DD` (IST date of harvest `started_at`) prints JSON:
+  - `keys`: distinct runs with ≥ 1 harvest attempt that day; `not_running`: those whose harvest answer
+    was HTTP 400 on a run now `cancelled`; `due` = keys − not_running;
+  - `usable`: due keys with an `ok` harvest answer and an actual arrival event (`obs.event_rev`, kind `arr`)
+    at the destination halt; `usable_pct`;
+  - `r_pairs_pct` (consecutive halts with dep at A and arr at B present) and `w_pairs_pct`
+    (intermediate halts with arr and dep present), over usable keys;
+  - `by_class`: `{class: {n, usable_pct}}` from `ref.train.class`;
+  - `attempts`, `challenges` (harvest fetches with outcome `challenge`);
+  - `passes`: due ≥ 300, usable ≥ 80 %, both pair shares ≥ 90 %, no class with n ≥ 30 below 70 %,
+    zero challenges; plus `failing` (the rules that failed).
+- Read-only: one connection, no writes, no HTTP.
+- [ ] Tests on the test DB with a synthetic day: the 400 keys leave the denominator; the class threshold only
+  applies at n ≥ 30; one challenge fails the gate; R/W pair counting on a 3-halt route; the IST day boundary.
+- [ ] `uv run pytest -q` green. Commit `task 81: ramp gate report`.
+- [ ] Monitor: run it on the VM for 10-13…10-17 and record the results here.
 
 ---
 
