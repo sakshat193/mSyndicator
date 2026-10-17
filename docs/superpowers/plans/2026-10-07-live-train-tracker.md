@@ -2693,11 +2693,13 @@ set `settling`, which forced redraws at about 70 Hz while the pointer moved.
   selects whatever `nearestRun` finds through `map.project` over `drawnHeads`.
 - `hoverRun` no longer wakes the redraw loop. Tooltip text and size are rewritten only when the hovered run changes, on a new
   frame and on the 1 s tick. A pointer move only repositions the tooltip.
-- [ ] Tests (monitor wrote these first; they fail before the change): nearest head, radius and tie order. Heads are not pickable.
+- [x] Tests (monitor wrote these first; they fail before the change): nearest head, radius and tie order. Heads are not pickable.
   In `main.test.ts`, hover and click go through map events, the tooltip is clamped to the window, a miss, mouseout or moving map
   hides it, and hovering leaves the idle overlay asleep.
-- [ ] `npm --prefix web test` green. Commit `task 85: hover and click pick train heads on the CPU`.
-- [ ] Monitor: re-measure hover long tasks in the browser.
+- [x] `npm --prefix web test` green. Commit `task 85: hover and click pick train heads on the CPU`. (92670a7; 188 passed.
+  Codex implemented it in `.worktrees/task-85`: `web/` is owned by an old sandbox account and lacks the current sandbox SIDs.)
+- [x] Monitor: re-measure hover long tasks in the browser. (2 s sweep over Mumbai/Pune, 134 moves: 0 long tasks, down from
+  41 / 2.4 s; frame p50 7 ms. Hover shows 12162 and a click opens its panel.)
 
 ### Task 86 (amendment 2026-10-17): Gaussian glow for heads, trails and the pulse (user request)
 
