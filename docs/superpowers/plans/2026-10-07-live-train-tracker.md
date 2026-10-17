@@ -2759,9 +2759,12 @@ and the glows are soft anyway.
   drawing buffer (deck 9.4 `deviceProps`). The basemap keeps its own pixel ratio.
 - Skipped: the council's zoom-banded trail window. Task 86's segment cull already limits rasterising to the visible trail; add
   it only if the re-measure shows trail fill still dominates.
-- [ ] Test first: the overlay is constructed with these props. `npm --prefix web test` green. Commit `task 88: deck canvas at one
+- [x] Test first: the overlay is constructed with these props. `npm --prefix web test` green (189). Commit `task 88: deck canvas at one
   device pixel without msaa`.
-- [ ] Monitor: zoom frame p50 and screenshots at z5 and z10 (line softness).
+- [x] Monitor: zoom frame p50 and screenshots at z5 and z10 (line softness). Done 2026-10-17 (headless DPR 1, so only the MSAA
+  drop is measured): India p50/p90/p99/max 13.9/34.9/48.7/56 and 13.8/34.9/48.8/55 ms (Task 87: 20.7/62.2/69.7/76 and
+  27.3/55.8/69.4/71); Mumbai 13.8/34.7/48.6/49 and 13.8/34.6/48.6/77 (Task 87: 13.9/34.8/41.7/48). Deck canvas 1400x900,
+  antialias and preserveDrawingBuffer false. No visible softening at either zoom; the Gaussian glow hides the aliasing.
 
 ### Task 89 (amendment 2026-10-17): delta frames re-upload only the trails that changed (navigation fix #5)
 
