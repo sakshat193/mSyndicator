@@ -62,6 +62,10 @@ const drawnHeads = new Map<number, ReturnType<typeof headAt>>();
 let trails: ReturnType<typeof trailData> = { base: 0, comets: [], streaks: [], timetable: [] };
 let generation = -1;
 let lastDraw = -Infinity;
+let lastHeads = -Infinity;
+let lastZoom = -1;
+let headsVersion = 0;
+let redraw = false;
 let settling = false;
 let lastStatus = -Infinity;
 let animation: number;
@@ -84,7 +88,7 @@ function clearSelection() {
   panelRun = undefined;
   highlight = undefined;
   panel.close();
-  settling = true;
+  redraw = true;
 }
 
 function selectRun(run: RunFrame) {
@@ -94,7 +98,7 @@ function selectRun(run: RunFrame) {
   selected = run.run_id;
   panelRun = run;
   highlight = display;
-  settling = true;
+  redraw = true;
   tooltip.hidden = true;
   hovered = undefined;
   void panel.show(run, liveTime());
@@ -134,7 +138,7 @@ const closeSearch = initSearch(document.querySelector<HTMLInputElement>('#search
 window.addEventListener('keydown', event => {
   if (event.key === 'Escape') { closeSearch(); clearSelection(); hoverRun(null, 0, 0); }
 });
-map.on('move', () => { settling = true; hoverRun(null, 0, 0); });
+map.on('move', () => hoverRun(null, 0, 0));
 map.on('mousemove', event => {
   const { x, y } = event.point;
   hoverRun(map.isMoving() ? null : nearestRun(displays, drawnHeads, p => map.project(p), x, y), x, y);
@@ -186,20 +190,12 @@ function draw(tick: number) {
         if (panelRun !== run) { panelRun = run; void panel.show(run, simTime); }
       }
       renderHover(true);
-      settling = true;
+      redraw = true;
     }
-    // Live motion is far below a pixel per frame, so redraw at ~70 Hz only while a head is
-    // still visibly easing, ~30 Hz for a selected route's pulse and 10 Hz otherwise;
-    // each deck redraw costs ~14-20 ms on an iGPU.
-    if (tick - lastDraw >= (settling ? 12 : highlight ? 33 : 100)) {
-      const dt = tick - lastDraw;
-      lastDraw = tick;
-      const zoom = map.getZoom();
-      const bucket = labelBucket(zoom);
-      if (bucket !== labelZoom) {
-        labelZoom = bucket;
-        labels = stationLabelLayer(labelStations(network, bucket), bucket);
-      }
+    const zoom = map.getZoom();
+    if (settling || tick - lastHeads >= 100) {
+      const dt = tick - lastHeads;
+      lastHeads = tick;
       const eps = 0.05 * 360 / (512 * 2 ** zoom); // 0.05 px in degrees
       settling = false;
       for (const d of displays) {
@@ -208,8 +204,20 @@ function draw(tick: number) {
         if (head !== target) settling = true;
         drawnHeads.set(d.run.run_id, head);
       }
+      headsVersion++;
+      redraw = true;
+    }
+    if (redraw || zoom !== lastZoom || (highlight && tick - lastDraw >= 33)) {
+      lastDraw = tick;
+      lastZoom = zoom;
+      redraw = false;
+      const bucket = labelBucket(zoom);
+      if (bucket !== labelZoom) {
+        labelZoom = bucket;
+        labels = stationLabelLayer(labelStations(network, bucket), bucket);
+      }
       overlay.setProps({ layers: [background, ...(highlight ? selectionLayers(highlight, tick, simTime) : []),
-        ...trainLayers(displays, trails, simTime, zoom, selected, drawnHeads, tick),
+        ...trainLayers(displays, trails, simTime, zoom, selected, drawnHeads, headsVersion),
         ...(labels ? [labels] : [])] });
     }
   }

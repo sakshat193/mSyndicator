@@ -524,7 +524,7 @@ export function selectionLayers(display: Display, tick: number, simTime: number)
 
 export function trainLayers(displays: Display[], trails: Trails, simTime: number,
                             zoom: number, selected: number | null = null,
-                            heads?: ReadonlyMap<number, Point>, redraw?: number) {
+                            heads?: ReadonlyMap<number, Point>, headsVersion?: number) {
   const length = trailLength(zoom);
   // Dense India-wide views stay thin and dim; zoomed-in trails widen and brighten.
   const k = Math.min(1, Math.max(0, (zoom - 4) / 4));
@@ -548,6 +548,6 @@ export function trainLayers(displays: Display[], trails: Trails, simTime: number
     getRadius: d => (d.run.state === 'schedule_only' ? 4.5 : 5.5) * GLOW_SCALE, radiusScale: 0.6 + 0.4 * k,
     opacity: 0.45 + 0.55 * k, radiusUnits: 'pixels',
     getFillColor: d => [...d.color, 230 * trainAlpha(d.run.run_id, selected)] as [number, number, number, number],
-    updateTriggers: { getPosition: redraw, getFillColor: selected }, parameters: ADDITIVE,
+    updateTriggers: { getPosition: headsVersion, getFillColor: selected }, parameters: ADDITIVE,
     pickable: false })];
 }

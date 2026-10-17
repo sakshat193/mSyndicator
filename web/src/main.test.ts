@@ -306,15 +306,17 @@ it.each([
   draw!(1512);
   expect(labels()).toBe(atSeven);
   rendered.zoom = 7.74;
-  draw!(1612);
+  draw!(1524);
   const atSevenHalf = labels();
-  expect(atSevenHalf).not.toBe(atSeven);
+  expect.soft(atSevenHalf).not.toBe(atSeven);
   rendered.zoom = 7.99;
-  draw!(1712);
+  draw!(1536);
   expect(labels()).toBe(atSevenHalf);
+  const beforePan = rendered.draws;
   rendered.listeners['map:move']();
-  draw!(1724);
-  expect(labels()).toBe(atSevenHalf); // Panning reuses the layer and its decluttered data.
+  draw!(1548);
+  expect.soft(rendered.draws).toBe(beforePan);
+  expect.soft(labels()).toBe(atSevenHalf); // Panning reuses the layer and its decluttered data.
   const counted = Array.from({ length: 1831 }, (_, i) => ({ ...run, run_id: i + 100,
     state: i < 5 ? (i === 4 ? 'stale' : 'observed') : 'schedule_only' }));
   Socket.current.receive({ gen: 8, ts: 3601, is_full: true, versions: {}, base_ts: 1000,
@@ -352,8 +354,10 @@ it.each([
   expect(heads().props.data).toBe(sameHeads);
   expect(heads().props.updateTriggers.getFillColor).toBe(sameHeadColors);
   expect(heads().props.updateTriggers.getPosition).not.toBe(beforeRedraw);
+  const beforeSelection = heads().props.updateTriggers.getPosition;
   pointer('click', point(9));
   draw!(3462);
+  expect.soft(heads().props.updateTriggers.getPosition).toBe(beforeSelection);
   const pulse = () => rendered.layers.find(l => l.id === 'selection-pulse');
   const firstPulse = pulse();
   const selectedDraws = rendered.draws;
@@ -363,6 +367,107 @@ it.each([
   expect(rendered.draws).toBe(selectedDraws + 1);
   expect(pulse().props.currentTime).toBeGreaterThan(firstPulse.props.currentTime);
   expect(pulse().props.data).toBe(firstPulse.props.data);
+  expect.soft(heads().props.updateTriggers.getPosition).toBe(beforeSelection);
+
+  rendered.listeners.keydown({ key: 'Escape' });
+  draw!(4000);
+  const headAt = vi.spyOn(await import('./layers'), 'headAt');
+  const easeHead = vi.spyOn(await import('./layers'), 'easeHead');
+  const version = () => heads().props.updateTriggers.getPosition;
+  const idleVersion = version(), idleDraws = rendered.draws;
+  for (const tick of [4001, 4016, 4099]) draw!(tick);
+  expect(rendered.draws).toBe(idleDraws);
+  expect(headAt).not.toHaveBeenCalled();
+  draw!(4100);
+  expect(rendered.draws).toBe(idleDraws + 1);
+  expect.soft(version()).toBe(idleVersion + 1);
+  expect(headAt).toHaveBeenCalledTimes(2);
+  expect(easeHead).toHaveBeenCalledTimes(2);
+
+  const movingVersion = version(), movingDraws = rendered.draws;
+  headAt.mockClear(); easeHead.mockClear();
+  pointer('mousemove', point());
+  expect(hover.hidden).toBe(false);
+  rendered.listeners['map:move']();
+  expect(hover.hidden).toBe(true);
+  draw!(4116);
+  expect.soft(rendered.draws).toBe(movingDraws);
+  expect.soft(version()).toBe(movingVersion);
+  expect.soft(headAt).not.toHaveBeenCalled();
+  expect.soft(easeHead).not.toHaveBeenCalled();
+
+  headAt.mockClear(); easeHead.mockClear();
+  rendered.zoom = 8.1;
+  rendered.listeners['map:move']();
+  rendered.listeners['map:move']();
+  const zoomDraws = rendered.draws;
+  draw!(4132);
+  expect(rendered.draws).toBe(zoomDraws + 1);
+  expect.soft(version()).toBe(movingVersion);
+  expect.soft(headAt).not.toHaveBeenCalled();
+  expect.soft(easeHead).not.toHaveBeenCalled();
+  draw!(4148);
+  expect(rendered.draws).toBe(zoomDraws + 1);
+  draw!(4200);
+  expect.soft(version()).toBe(movingVersion + 1);
+
+  const frameVersion = version(), frameDraws = rendered.draws;
+  Socket.current.receive({ gen: 12, ts: 1600, is_full: false, versions: {}, base_ts: null,
+    runs: {}, tombstones: [] });
+  headAt.mockClear(); easeHead.mockClear();
+  draw!(4208);
+  expect.soft(rendered.draws).toBe(frameDraws + 1);
+  expect.soft(version()).toBe(frameVersion);
+  expect.soft(headAt).not.toHaveBeenCalled();
+  expect.soft(easeHead).not.toHaveBeenCalled();
+
+  pointer('click', point());
+  headAt.mockClear(); easeHead.mockClear();
+  draw!(4224);
+  expect.soft(version()).toBe(frameVersion);
+  const pulseDraws = rendered.draws, pulseTime = pulse().props.currentTime;
+  draw!(4256);
+  expect.soft(rendered.draws).toBe(pulseDraws);
+  draw!(4257);
+  expect(rendered.draws).toBe(pulseDraws + 1);
+  expect(pulse().props.currentTime).toBeGreaterThan(pulseTime);
+  expect.soft(version()).toBe(frameVersion);
+  draw!(4290);
+  expect(rendered.draws).toBe(pulseDraws + 2);
+  expect.soft(version()).toBe(frameVersion);
+  expect.soft(headAt).not.toHaveBeenCalled();
+  expect.soft(easeHead).not.toHaveBeenCalled();
+
+  rendered.listeners.keydown({ key: 'Escape' });
+  draw!(4500);
+  simTime = 1900;
+  draw!(4600);
+  const easingHead = head(), easingVersion = version();
+  expect(easingHead[0]).toBeCloseTo(71 + 0.5 * (1 - Math.exp(-100 / 250)));
+  draw!(4604);
+  expect.soft(version()).toBe(easingVersion + 1);
+  expect.soft(head()[0]).toBeCloseTo(easingHead[0] + (71.5 - easingHead[0]) * (1 - Math.exp(-4 / 250)), 8);
+  let tick = 4604;
+  while (head()[0] !== 71.5 && tick < 8604) {
+    const previous = head()[0], previousVersion = version();
+    draw!(tick += 16);
+    expect(head()[0]).toBeGreaterThan(previous);
+    expect(head()[0]).toBeLessThanOrEqual(71.5);
+    expect(version()).not.toBe(previousVersion);
+  }
+  expect(head()).toEqual([71.5, 21.5]);
+  const settledVersion = version(), settledDraws = rendered.draws;
+  headAt.mockClear(); easeHead.mockClear();
+  draw!(tick + 1);
+  draw!(tick + 99);
+  expect(rendered.draws).toBe(settledDraws);
+  expect(headAt).not.toHaveBeenCalled();
+  expect(easeHead).not.toHaveBeenCalled();
+  draw!(tick + 100);
+  expect(rendered.draws).toBe(settledDraws + 1);
+  expect.soft(version()).toBe(settledVersion + 1);
+  expect(headAt).toHaveBeenCalledTimes(2);
+  expect(easeHead).toHaveBeenCalledTimes(2);
   rendered.listeners.pagehide();
   expect(clearInterval).toHaveBeenCalledWith(7);
   expect(toggle.listeners.click).toBeUndefined();
