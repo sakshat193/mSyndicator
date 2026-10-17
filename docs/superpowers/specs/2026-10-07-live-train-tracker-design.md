@@ -329,7 +329,7 @@ The nightly bias (§12) corrects persistent leg-level error, keyed by (model, ha
                  │ caddy: TLS, basic auth, static web + PMTiles                                   │
                  └────────────────────────────────────────────────────────────────────────────────┘
  Kaggle (gated G1/G6) ◀── weekly export ──▶ candidate models + metrics ──▶ promotion on VM
- Oracle Object Storage ◀── nightly pg_dump + model artifacts (off-site backup)
+ Google Drive (rclone) ◀── nightly pg_dump + model artifacts (off-site backup)
 ```
 
 | Service | Entrypoint | Owns |
@@ -580,6 +580,8 @@ None of these is relied on for delivery. Durable state is in `obs.dirty_run` and
     - extreme delays are allowed; a delay > 24 h is flagged in a metric but kept
   - `challenge`: a CAPTCHA, JS challenge or login wall. **Stop that host** until manual restart, and alert on `/api/health`.
 - **Circuit breaker.** If non-`ok` outcomes exceed 20 % of ≥ 20 requests in 5 min, pause the host for 10 min.
+  - Exempt (still logged `invalid`): MMT 400 "not running" (Task 54), and since 2026-10-18 (user) an MMT 2xx JSON page that
+    fails validation; it still counts toward the per-run cooldown (Task 80).
 - **User agent.** `m-syndicator/<ver> (personal research)`.
 
 ### 7.2 Admission: what to fetch next
@@ -953,7 +955,8 @@ A burst larger than that (a model change, a restart) is excluded from A6 and mea
 
 3. **Backup.** `pg_dump -Fc` of `ref`, `obs` (fetch bodies excluded), `ml` and `sim.forecast_issue`, plus active model files.
    - Saved to `/data/backups` (2 kept).
-   - Also uploaded to **Oracle Object Storage** (separate from the VM disk) with the OCI CLI: 7 daily and 4 weekly copies.
+   - Also uploaded to **Google Drive** (separate from the VM disk) with rclone: 7 daily and 4 weekly copies (user, 2026-10-18;
+     was Oracle Object Storage).
    - A size alarm fires if the off-site set exceeds 15 GB.
 4. **Static export.** Re-export the static network file if a version changed.
 
@@ -1053,7 +1056,7 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
   - History completeness against expected operated runs reported.
 
 ### Phase 2 — Collector (≈ 1–2 weeks)
-- Dispatcher, lock, validation, session handling, lifecycle, dirty set, pending markers, admission with fairness, boards (per G2), exceptions, retention, nightly backup to Object Storage.
+- Dispatcher, lock, validation, session handling, lifecycle, dirty set, pending markers, admission with fairness, boards (per G2), exceptions, retention, nightly off-site backup.
 - Until the engine exists, priority = age only.
 - **Exit**, after 7 continuous days covering the weekly pattern:
   - A5 verified from the fetch log.
@@ -1131,7 +1134,7 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
 - **Coupling:** a gated experiment (C1, then C2).
 - **Performance:** Numba plus a profile gate. Rust only for a measured kernel bottleneck.
 - **Models:** LightGBM on the VM always. A neural candidate on Kaggle only if G1/G6 pass and it wins the promotion test.
-- **Backup:** off-site to Oracle Object Storage. Kaggle is not a backup.
+- **Backup:** off-site to Google Drive via rclone (user, 2026-10-18; was Oracle Object Storage). Kaggle is not a backup.
 - **Phase 0 outcomes:** *to be appended here (G1–G8 results and decisions).*
   - **G7 (2026-10-07): pass.** All 13 cases plus both A4 sensitivity variants within A8 tolerance at N = 10k and 100k (`docs/gates/G7.md`). A7 accepted: P10/P50/P90 error ≤ 0.49 min against a 2 min limit, so passes stay in conditioning. A second pass chains from the previous pass (remainder anchored at Pᵢ; formula in G7.md).
 - **Implementation decisions (2026-10-08, user):**
@@ -1187,7 +1190,7 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
 | 12 Frame delivery | `gen` frame log, full plus delta, resync, tombstones; runs addressed by run id; all-halt quantiles from all N; encoding specified (§9.5, §10) |
 | 13 Replay honesty | Zones labelled "reconstructed"; fresh-load fallback (§11) |
 | 14 Promotion vs acceptance | Issued forecasts; as-of horizon buckets; bootstrap CIs; prospective untouched acceptance; literature reframed (§2, §8.6) |
-| 15 Storage and recovery | Per-table retention, measured budget, off-site Object Storage backup, restore drill, no PAYG claim (§12, §13) |
+| 15 Storage and recovery | Per-table retention, measured budget, off-site Google Drive backup, restore drill, no PAYG claim (§12, §13) |
 | 16 Data use | G1 gate; Kaggle export conditional (§15) |
 
 **Second review (v2 → v2.1)**

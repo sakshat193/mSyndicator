@@ -2842,6 +2842,78 @@ fixed km/h bands from deep red through amber to white-hot, avoiding the network'
 - [x] Monitor: 12951 shows deep-red/red/amber/gold/white-hot gaps (Ratlam–Nagda red, Nagda–Kota gold); selecting 12951 at
   1400x900 p50 13.8–20.7 / p90 41.7–48.7 / max 56–83 ms over three runs (Task 91: 13.9 / 41.7 / 55–56); deployed.
 
+### Task 93 (amendment 2026-10-18): a page that fails validation does not pause the host (user pick: breaker option a)
+
+**Why (monitor):** on 10-17 18–20Z, 27–31 % of harvest answers were HTTP 200 JSON that `parse_status` rejects (non-monotone
+event times; all runs from 10-12…15). Each one counted toward the host breaker, which paused MMT for 10 min at a time
+(19:33–19:42Z, again at 19:43Z) and live polling with it: 66 polls in the 19Z hour against ~190/h before. The user chose to
+exempt these answers. Data quality is unchanged: they stay `invalid` and never become labels.
+
+**Plan change (spec §7.1 circuit breaker):** an MMT answer that is `invalid` only because `parse_status` rejected a 2xx JSON
+body is left out of the host breaker window, like the 400 "not running" answer (Task 54). It is still logged `invalid` with its
+body and still counts toward the per-run cooldown (Task 80). Challenges, 429, 5xx, transport errors, empty bodies, non-JSON 2xx
+and other 4xx still count.
+
+**Files:** `msynd/collect/mmt.py`, `tests/collect/test_mmt.py` (`tests/collect/test_dispatcher.py` only if needed).
+
+- `breaker_exempt(response)` also returns true for a 2xx response that `classify('status', response)` accepts. The dispatcher
+  consults it only for `invalid` outcomes, so this is exactly the parse-rejected case. Mark with `# ponytail:` that a site-wide
+  MMT format change no longer pauses the host; the ramp report's usable share is where it would show.
+- [ ] Tests first (test DB): with the collector's `_classify_status`, 25 HTTP 200 JSON answers that fail `parse_status` keep
+  the dispatcher `ok` and are logged `invalid`; 200 HTML or captcha still stops the host; 200 non-JSON, 500 and a 400 that is not
+  "not running" still trip the breaker; the existing "not running" exemption tests pass.
+- [ ] `uv run pytest -q` green. Commit `task 93: pages that fail validation do not pause the host`.
+- [ ] Monitor: deploy the collector; breaker trips from invalid answers stop and the poll rate recovers toward ~190/h.
+
+### Task 94 (amendment 2026-10-18): hide the train panel on every screen size; the route refits (user request)
+
+**Why:** the user asked: "need to fix phone, show an option to hide the panel across all devices to improve responsiveness (obv
+when the panel hides, u pan in more)". On a 390×844 phone the expanded panel leaves about 124 px of map for the fitted route.
+
+**Files:** `web/index.html`, `web/src/panel.ts`, `web/src/main.ts`, `web/src/style.css`, `web/src/panel.test.ts`,
+`web/src/main.test.ts`.
+
+- A hide/show button beside the close button (`aria-expanded`; labels "Hide train details" / "Show train details"). Hidden: the
+  panel collapses to a fixed-height bar with the train number and date and the name on one line (ellipsis); the next stop and the
+  stop list are not shown. Close still clears the selection.
+- The choice stays for later selections until toggled back (page memory only).
+- The bar keeps the panel's place: the top-right card on desktop, the bottom of the screen on phone (< 640 px). The map controls
+  go where they are with no panel open, clear of the bar.
+- Toggling refits the selected route with Task 91's `fitBounds` options. While collapsed the padding reserves the bar's own rect:
+  phone bottom = innerHeight − bar.top + 16; desktop top = max(live.bottom, bar.bottom) + 16 and no right reservation. Expanded
+  keeps Task 91's padding, including the phone 60vh reservation. No fit without a display.
+- [ ] Tests first: the button toggles the state, label and `aria-expanded`; the state survives close and a new selection; the
+  collapsed padding on desktop and phone; a toggle calls `fitBounds` again with the new padding; the expanded cases are unchanged.
+- [ ] `npm --prefix web test` green and the build passes. Commit `task 94: hide the train panel; the route refits`.
+- [ ] Monitor: screenshots at desktop and 390×844 in both states; deploy.
+
+### Task 95 (amendment 2026-10-18): off-site backup to Google Drive with rclone (user decision 8: "Just the google drive")
+
+**Why:** off-site backup has been local-only since Task 77; the OCI credentials were never approved, and the image never had the
+OCI CLI. The user chose Google Drive only. The off-site dump (ref, ml and sim without frame and metric; no obs) is a few MB
+today; the local dumps with obs are about 33 MB.
+
+**Plan change (spec §12 nightly backup, §18 backup):** the off-site copy goes to a Google Drive folder through rclone instead of
+Oracle Object Storage. Retention (7 daily, 4 weekly), the 15 GB alarm and the `obs` exclusion are unchanged.
+
+**Files:** `Dockerfile`, `compose.yaml`, `.env.example`, `msynd/ops/nightly.py`, `docs/deploy.md`, `tests/ops/test_retention.py`,
+`tests/test_deploy.py`.
+
+- The image installs Debian's `rclone`. `BACKUP_REMOTE` (for example `gdrive:msynd-backups`) replaces `OCI_BUCKET_NAME`; empty
+  means local-only as today, and the warning names the new variable. The ops service mounts `${RCLONE_CONFIG_DIR:-/data/rclone}`
+  read-write at `/root/.config/rclone` (rclone rewrites a refreshed OAuth token) and drops the `/root/.oci` mount and `OCI_*`.
+- Upload with `rclone copyto <offsite> <remote>/<cadence>/<day>.dump`, list with `rclone lsjson <remote> --recursive --files-only`,
+  prune with `rclone deletefile --drive-use-trash=false <remote>/<path>` so pruned copies leave the Drive quota. Names, retention,
+  size sum and alarm work as before.
+- `docs/deploy.md`: one-time auth on a machine with a browser, `rclone config create gdrive drive scope=drive.file` (rclone sees
+  only the files it creates); copy `rclone.conf` to `/data/rclone/rclone.conf` (dir 700, file 600, root) and set `BACKUP_REMOTE`.
+- [ ] Tests first: the rclone command lines for a weekday and a Sunday (weekly), retention deletes the oldest beyond 7 and 4 without
+  trash, the size alarm, a failure keeps two valid local copies, an empty `BACKUP_REMOTE` stays local-only with the new warning;
+  compose mounts the rclone dir and not the OCI dir; the Dockerfile installs rclone.
+- [ ] `uv run pytest -q` green. Commit `task 95: off-site backup to Google Drive`.
+- [ ] Monitor: rebuild `msynd:local` on the VM; once the user has authorized Drive, a manual backup uploads and `pg_restore --list`
+  reads the downloaded copy.
+
 ---
 
 ## Spec coverage check
