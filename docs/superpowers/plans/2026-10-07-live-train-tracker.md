@@ -2837,9 +2837,10 @@ fixed km/h bands from deep red through amber to white-hot, avoiding the network'
 - Each gap between consecutive stops gets its average speed from `dist_km` and `eventTimes`, then a band colour: under 30 km/h
   deep red, 30–60 red, 60–90 amber, 90–110 gold, 110 and over white-hot. A gap with no positive duration keeps today's red.
 - The selected route line in `selectionLayers` uses these colours, cached per display. The pulse layers stay above it, unchanged.
-- [ ] Tests first: band edges, a zero-duration gap, the colours cached per display, no cyan-like colour, the pulse layer last.
-- [ ] `npm --prefix web test` green. Commit `task 92: selected route coloured by speed`.
-- [ ] Monitor: screenshot of a mixed-speed route; deploy.
+- [x] Tests first: band edges, a zero-duration gap, the colours cached per display, no cyan-like colour, the pulse layer last.
+- [x] `npm --prefix web test` green (201). Commit `task 92: selected route coloured by speed` (2a1acea).
+- [x] Monitor: 12951 shows deep-red/red/amber/gold/white-hot gaps (Ratlam–Nagda red, Nagda–Kota gold); selecting 12951 at
+  1400x900 p50 13.8–20.7 / p90 41.7–48.7 / max 56–83 ms over three runs (Task 91: 13.9 / 41.7 / 55–56); deployed.
 
 ---
 
