@@ -2565,8 +2565,9 @@ existing `load_state` test module).
   - the only 400 answer at D−35 → admitted; a 400 at D−6 (other weekday) → admitted;
   - a cancelled run without any 400 fetch (exception cancellation) does not trigger the skip.
 - [x] `uv run pytest -q` green. Commit `task 79: skip pass harvest and known non-operating weekdays`. (dabd856; 883 passed, 1 skipped. Monitor perf fix: the first draft used a correlated subquery, 96.5 s per load_state on production; the set-based anti-join takes 1.06 s vs 0.90 s before, harvest candidates 4,266 → 3,360.)
-- [ ] Monitor: rebuild `msynd-collector:local`, restart the collector, and compare the next IST batch's
+- [x] Monitor: rebuild `msynd-collector:local`, restart the collector, and compare the next IST batch's
   400 share and harvest attempts. (Deployed 2026-10-17 ~15:45Z at dabd856; rollback image `msynd-collector:pre-t79`. Baseline IST 10-12…10-17: harvest 400 share 49.8, 28.6, 20.5, 39.8, 43.5, 21.4 %; PASS keys 114, 83, 54, 124, 124, 56 of 416–490. First batch under Task 79: IST 10-18.)
+  IST 10-18: 400 share 8.0 % (34 of 427 keys), PASS keys 0, 512 attempts, 0 challenges.
 
 ### Task 80 (amendment 2026-10-17): invalid answers count toward the per-run cooldown (user decision 4A)
 
@@ -2590,7 +2591,9 @@ probe per hour, exactly as Task 75. The host breaker and the dispatcher are unch
   invalid → absent; an `ok` after them resets; a `transport_error` without status keeps Task 75's rule for
   status-less failures; existing Task 75 tests still pass after the rename.
 - [x] `uv run pytest -q` green. Commit `task 80: invalid answers count toward the run cooldown`. (71f4b58; 899 passed, 1 skipped; production load_state 1.05 s, unchanged.)
-- [ ] Monitor: deploy; after 24 h, no run has more than 3 invalid answers in any hour, and invalid/h drops. (Deployed 2026-10-17 16:32Z; rollback image `msynd-collector:pre-t80`. Baseline: ~30 invalid/h on 10-17 00–10Z, 0 since 12Z.)
+- [x] Monitor: deploy; after 24 h, no run has more than 3 invalid answers in any hour, and invalid/h drops. (Deployed 2026-10-17 16:32Z; rollback image `msynd-collector:pre-t80`. Baseline: ~30 invalid/h on 10-17 00–10Z, 0 since 12Z.)
+  24 h check, 10-18 16:48Z: the worst run had 3 invalid answers in an hour and none had more; poll invalid answers fell to
+  15 in 24 h (0–7/h); the IST 10-18 harvest batch's 162 invalid answers were capped at 3 per run.
 
 ### Task 81 (amendment 2026-10-17): ramp-gate report (user decisions 1, 9)
 
@@ -2626,9 +2629,13 @@ read-only report that also records recovery yield.
   | 10-15 | 490 | 195 | 295 | 89.5 | 98.9 | 99.2 | due |
   | 10-16 | 460 | 200 | 260 | 84.6 | 98.3 | 98.5 | due |
   | 10-17 | 416 | 89 | 327 | 87.8 | 98.8 | 98.9 | — |
+  | 10-18 | 427 | 34 | 393 | 87.5 | 98.3 | 98.6 | — |
 
   Classes with n ≥ 30: EXP 83.7–87.2 %, SF 88.9–97.0 %. These days predate Task 79, so the ramp (decision 3a)
   waits for IST 10-18, the first batch with PASS out of the harvest.
+  IST 10-18 passes (EXP 85.4 %, SF 92.5 %, UNKNOWN 86.7 %, 0 challenges), so harvest goes to 1,500 from IST 10-19: a one-off
+  VM timer `msynd-ramp-1500` sets `MMT_HARVEST_BUDGET=1500` and recreates the collector at 18:30:30Z 10-18 (log
+  `/data/logs/ramp-1500.log`, `.env` backup `.env.bak-20261019-ramp`). 3,700 waits for IST 10-19 to pass.
 
 ### Task 82 (amendment 2026-10-17): red selected route with a travelling pulse (user request)
 
