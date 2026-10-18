@@ -2865,7 +2865,10 @@ and other 4xx still count.
   - Two older tests encoded the old rule and were updated: the admission state test trips the breaker with a 200 non-JSON
     body; the pilot breaker test is parametrized (rejected JSON does not pause, non-JSON still does).
 - [x] `uv run pytest -q` green (926 passed, 1 skipped). Commit `task 93: pages that fail validation do not pause the host`.
-- [ ] Monitor: deploy the collector; breaker trips from invalid answers stop and the poll rate recovers toward ~190/h.
+- [x] Monitor: deploy the collector; breaker trips from invalid answers stop and the poll rate recovers toward ~190/h.
+  (Deployed 2026-10-17 20:55Z; rollback image `msynd-collector:pre-t93`. Breaker heartbeats/h: 4, 12, 14 at 18-20Z, then 0
+  in every hour 21Z-02Z 10-18; the last one was 20:54:06Z. MMT poll ok/h: 139, 65, 56, then 174-181. 14 rejected harvest
+  answers at 21Z did not trip it. 0 restarts overnight; no transport errors or challenges after the deploy.)
 
 ### Task 94 (amendment 2026-10-18): hide the train panel on every screen size; the route refits (user request)
 
