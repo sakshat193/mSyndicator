@@ -2920,8 +2920,12 @@ Oracle Object Storage. Retention (7 daily, 4 weekly), the 15 GB alarm and the `o
   trash, the size alarm, a failure keeps two valid local copies, an empty `BACKUP_REMOTE` stays local-only with the new warning;
   compose mounts the rclone dir and not the OCI dir; the Dockerfile installs rclone.
 - [x] `uv run pytest -q` green (926 passed, 1 skipped). Commit `task 95: off-site backup to Google Drive`.
-- [ ] Monitor: rebuild `msynd:local` on the VM; once the user has authorized Drive, a manual backup uploads and `pg_restore --list`
+- [x] Monitor: rebuild `msynd:local` on the VM; once the user has authorized Drive, a manual backup uploads and `pg_restore --list`
   reads the downloaded copy.
+  (2026-10-18: `msynd:local` rebuilt with rclone v1.60.1; rollback image `msynd:pre-t95`. The user authorized Drive with
+  `scope=drive.file`; the config is root-only (600) at `/data/rclone/rclone.conf`, and `.env` sets
+  `BACKUP_REMOTE=gdrive:msynd-backups`. A manual backup at 03:35Z took 48 s and uploaded `daily/` and `weekly/2026-10-18.dump`
+  (8.6 MB each; 10-18 is a Sunday). The downloaded copy lists 79 TOC entries, with data for 10 ref, 2 ml and 1 sim tables.)
 
 ---
 
