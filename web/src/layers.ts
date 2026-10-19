@@ -37,7 +37,8 @@ const ADDITIVE = { blend: true, blendColorOperation: 'add', blendColorSrcFactor:
   blendColorDstFactor: 'one', blendAlphaOperation: 'add', blendAlphaSrcFactor: 'one',
   blendAlphaDstFactor: 'one', depthWriteEnabled: false } as const;
 const GLOW_SCALE = Math.sqrt(6.125 / 3.5);
-const DIM = 0.1, SELECTED_GLOW = 1.6;
+// deck.gl applies opacity^(1/2.2), so 0.01 draws at ~12 % alpha.
+const DIM = 0.01, SELECTED_GLOW = 1.6;
 // Gaussian cross-section: thin white-hot core, soft hue halo; the halo narrows down the tail.
 const GLOW = `if (picking.isActive < 0.5) {
   float age = clamp((trips.currentTime - vTime) / trips.trailLength, 0.0, 1.0);

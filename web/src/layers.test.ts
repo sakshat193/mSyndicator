@@ -6,7 +6,7 @@ import { indexNetwork, networkLayer, displayRun, trailData, trainLayers,
   nearestRun, dataComparator, glyphShift, glyphMetrics, padGlyphAlpha, type Network } from './layers';
 
 const GLOW_SCALE = Math.sqrt(6.125 / 3.5);
-const DIM = 0.1, SELECTED_GLOW = 1.6;
+const DIM = 0.01, SELECTED_GLOW = 1.6;
 const timetableIds = Array.from({ length: 16 }, (_, c) => `timetable-${c}`);
 
 function packQuantiles(quantiles: (number | null)[][]): Uint8Array {

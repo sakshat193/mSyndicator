@@ -249,7 +249,7 @@ it.each([
   draw!(1192);
   expect(rendered.draws).toBe(draws + 1); // Selection wakes the idle overlay.
   expect(rendered.layers[0].id).toBe('network');
-  expect(rendered.layers[0].props.opacity).toBe(0.1);
+  expect(rendered.layers[0].props.opacity).toBe(0.01);
   expect(rendered.layers[0].props.data).toBe(network.props.data);
   const selectedHead = rendered.layers.find(l => l.id === 'selected-head');
   expect(selectedHead).toBeDefined();
@@ -316,7 +316,7 @@ it.each([
   expect(fetch).toHaveBeenCalledWith('/api/run/42', expect.any(Object));
   draw!(1228);
   expect(panel.hidden).toBe(false);
-  expect(rendered.layers[0].props.opacity).toBe(0.1);
+  expect(rendered.layers[0].props.opacity).toBe(0.01);
   expect(rendered.layers.some(l => l.id === 'selection')).toBe(false);
   expect(rendered.fits).toHaveLength(fitsBeforePending);
   expect(rendered.ease).toHaveLength(easeBeforePending);
