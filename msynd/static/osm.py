@@ -17,6 +17,7 @@ ESCAPE = re.compile(r"%([0-9a-fA-F]{1,6})%")
 # ponytail: 15 m is the detail geometry; the web derives a 75 m overview and uses this only past z10
 # in the viewport's region (Task 98), as a whole-network 15 m costs +60 % India-zoom frame time.
 SIMPLIFY_M = 15
+LINK_M = 15
 
 
 def decode(value):
@@ -59,6 +60,7 @@ def node_ref(value):
 
 def parse_opl(path):
     points, graph, stations, ends = {}, {}, {}, set()
+    service = set()
     skipped = {"malformed": 0, "non_finite": 0, "out_of_bbox": 0}
     with Path(path).open("rb") as stream:
         for raw in stream:
@@ -93,6 +95,8 @@ def parse_opl(path):
                                 raise ValueError("malformed")
                             locations[node] = location
                     points.update(locations)
+                    if tags.get("service"):
+                        service.update(tuple(sorted((a[0], b[0]))) for a, b in zip(refs, refs[1:]))
                     previous = None
                     for node, location in refs:
                         if location is None:
@@ -113,7 +117,7 @@ def parse_opl(path):
             except (ValueError, KeyError) as error:
                 reason = str(error)
                 skipped[reason if reason in skipped else "malformed"] += 1
-    return points, graph, ends, stations, skipped
+    return points, graph, ends, stations, skipped, service
 
 
 def distance(a, b):
@@ -144,7 +148,7 @@ def normalise(name):
                    if word not in {"junction", "jn", "halt", "station"})
 
 
-def anchor_stations(stations, osm_stations, points, graph):
+def anchor_stations(stations, osm_stations, points, graph, service):
     station_points = {node: record[0] for node, record in osm_stations.items()}
     names = {node: normalise(record[1].get("name", "")) for node, record in osm_stations.items()}
     refs = defaultdict(list)
@@ -185,13 +189,13 @@ def anchor_stations(stations, osm_stations, points, graph):
             length2 = dx * dx + dy * dy
             fraction = min(1, max(0, -(x * dx + y * dy) / length2)) if length2 else 0
             metres2 = (x + fraction * dx) ** 2 + (y + fraction * dy) ** 2
-            candidate = (metres2, a, b, fraction)
+            candidate = ((a, b) in service, metres2, a, b, fraction)
             if metres2 <= 1000 * 1000 and (best is None or candidate < best):
                 best = candidate
         if best is None:
             counts["no_anchor"] += 1
         else:
-            _, a, b, fraction = best
+            is_service, _, a, b, fraction = best
             if fraction == 0 or fraction == 1:
                 node = a if fraction == 0 else b
             else:
@@ -202,9 +206,59 @@ def anchor_stations(stations, osm_stations, points, graph):
                 del graph[a][b], graph[b][a]
                 graph[node] = {a: distance(points[a], foot), b: distance(foot, points[b])}
                 graph[a][node], graph[b][node] = graph[node][a], graph[node][b]
+                if is_service:
+                    service.update((tuple(sorted((a, node))), tuple(sorted((node, b)))))
             counts[tier] += 1
             anchors[code] = (node, {"ref": 1., "name": .5, "coord": .3}[tier], own)
     return anchors, counts
+
+
+def link_parallel(points, graph):
+    # ponytail: 315k links double refresh runtime; thin to one link per node if that matters.
+    cell = LINK_M / 80000
+    grid, bearings = defaultdict(list), {}
+    for node, edges in graph.items():
+        if not edges:
+            continue
+        lon, lat = points[node]
+        grid[math.floor(lon / cell), math.floor(lat / cell)].append(node)
+        neighbors = iter(edges)
+        a, b = (node, next(neighbors)) if len(edges) == 1 else (next(neighbors), next(neighbors))
+        bearings[node] = math.atan2(points[b][1] - points[a][1],
+                                   (points[b][0] - points[a][0]) * math.cos(math.radians(lat))) % math.pi
+    links = []
+    for n, bearing in bearings.items():
+        lon, lat = points[n]
+        x, y = math.floor(lon / cell), math.floor(lat / cell)
+        for gx in range(x - 1, x + 2):
+            for gy in range(y - 1, y + 2):
+                for m in grid.get((gx, gy), ()):
+                    if m <= n or m in graph[n]:
+                        continue
+                    dx = (points[m][0] - lon) * 111195.08 * math.cos(math.radians((points[m][1] + lat) / 2))
+                    dy = (points[m][1] - lat) * 111195.08
+                    metres2 = dx * dx + dy * dy
+                    angle = abs(bearing - bearings[m])
+                    if metres2 > LINK_M * LINK_M or min(angle, math.pi - angle) > math.radians(20):
+                        continue
+                    limit = max(3 * math.sqrt(metres2) / 1000, .05)
+                    queue, costs = [(0., n)], {n: 0.}
+                    while queue:
+                        km, node = heapq.heappop(queue)
+                        if km != costs[node]:
+                            continue
+                        if node == m:
+                            break
+                        for neighbor, weight in graph[node].items():
+                            candidate = km + weight
+                            if candidate <= limit and candidate < costs.get(neighbor, math.inf):
+                                costs[neighbor] = candidate
+                                heapq.heappush(queue, (candidate, neighbor))
+                    else:
+                        links.append((n, m, distance(points[n], points[m])))
+    for n, m, km in links:
+        graph[n][m] = graph[m][n] = km
+    return len(links)
 
 
 def contract(graph, points, keep):
@@ -285,12 +339,13 @@ def simplify(points):
 
 def refresh(conn, opl):
     started = time.monotonic()
-    points, graph, ends, osm_stations, skipped = parse_opl(opl)
+    points, graph, ends, osm_stations, skipped, service = parse_opl(opl)
     stations = conn.execute("select code,name,lat,lon from ref.station where lat is not null and lon is not null").fetchall()
-    anchors, station_counts = anchor_stations(stations, osm_stations, points, graph)
+    anchors, station_counts = anchor_stations(stations, osm_stations, points, graph, service)
+    links = link_parallel(points, graph)
     graph = contract(graph, points, ends | {value[0] for value in anchors.values()})
     points = {node: points[node] for node in graph}
-    del osm_stations, ends
+    del osm_stations, ends, service
     targets = conn.execute("""
         select s.stn_lo,s.stn_hi,
                percentile_cont(0.5) within group (order by abs(b.dist_km-a.dist_km))
@@ -318,7 +373,8 @@ def refresh(conn, opl):
             failures["no_path"] += 1
             continue
         path, km = result
-        if abs(km - target) > max(.1 * target, 1):
+        if abs(km - target) > max(.1 * target, 1) and not (
+                km < target and km <= 1.25 * distance(points[a[0]], points[b[0]])):
             failures["length"] += 1
             continue
         curve = simplify(path)
@@ -343,7 +399,7 @@ def refresh(conn, opl):
             cursor.executemany("insert into ref.station_osm(code,lon,lat) values (%s,%s,%s)", station_rows)
     return {"stations": station_counts, "segments": confidence_counts, "failures": failures,
             "snapped": len(snapped), "move_m": {"p50": deciles[4] if deciles else None, "p90": deciles[8] if deciles else None},
-            "vertices": vertices, "runtime_s": time.monotonic() - started, "skipped": skipped}
+            "vertices": vertices, "runtime_s": time.monotonic() - started, "skipped": skipped, "links": links}
 
 
 def main():

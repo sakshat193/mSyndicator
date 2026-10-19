@@ -49,7 +49,7 @@ def test_parse_opl(tmp_path):
         "w5 Trailway=rail Nn1x80y20,n8x99y20\n"
         "w6 Trailway=rail Nn1x80y20,nope\n"
     ))
-    points, graph, ends, stations, skipped = osm.parse_opl(path)
+    points, graph, ends, stations, skipped, service = osm.parse_opl(path)
     assert points[1] == (80, 20)
     assert set(graph[1]) == {2}
     assert set(graph[2]) == {1}
@@ -60,6 +60,98 @@ def test_parse_opl(tmp_path):
         "name": "Alpha Junction", "name:hi": "ना", "railway": "station", "ref": "AA;AX",
     })
     assert skipped == {"malformed": 4, "non_finite": 2, "out_of_bbox": 3}
+    assert service == set()
+
+
+def test_parse_opl_service_edges(tmp_path):
+    path = opl_file(tmp_path, ways=(
+        "w1 Trailway=rail,service=siding Nn3x80.02y20,n2x80.01y20,n1x80y20\n"
+        "w2 Trailway=narrow_gauge,service=yard Nn3x80.02y20,n4x80.03y20\n"
+        "w3 Trailway=rail,service= Nn4x80.03y20,n5x80.04y20\n"
+        "w4 Trailway=rail Nn5x80.04y20,n6x80.05y20\n"
+        "w5 Trailway=road,service=spur Nn6x80.05y20,n7x80.06y20\n"
+        "w6 Trailway=rail,service=crossover Nn6x80.05y20,n9,n10x80.1y20,n11x80.11y20\n"
+        "w7 Trailway=rail,service=siding Nn11x80.11y20,n12xinfy20\n"
+        "w8 Trailway=rail,service=spur Nn12x80.12y20,n12x80.12y20,n13x80.13y20\n"
+    ))
+    _, _, _, _, _, service = osm.parse_opl(path)
+    assert service == {(1, 2), (2, 3), (3, 4), (6, 9), (9, 10), (10, 11), (12, 12), (12, 13)}
+
+
+@pytest.mark.parametrize("main_lat,foot_lat", [(20.00054, 20.00054), (20.02, 20.00018)])
+def test_anchors_prefer_main_line_and_preserve_split_service_edges(tmp_path, main_lat, foot_lat):
+    path = opl_file(tmp_path, ways=(
+        "w1 Trailway=rail,service=siding Nn1x80y20.00018,n2x80.01y20.00018\n"
+        f"w2 Trailway=rail Nn3x80y{main_lat},n4x80.01y{main_lat}\n"
+    ))
+    points, graph, _, stations, _, service = osm.parse_opl(path)
+    anchors, counts = osm.anchor_stations([
+        ("AA", "", 20, 80.004), ("BB", "", 20, 80.006),
+    ], stations, points, graph, service)
+    assert counts == {"ref": 0, "name": 0, "coord": 2, "no_anchor": 0}
+    for code, lon in (("AA", 80.004), ("BB", 80.006)):
+        node = anchors[code][0]
+        assert points[node] == pytest.approx((lon, foot_lat))
+        assert anchors[code][1] == .3
+        for neighbor in graph[node]:
+            assert (tuple(sorted((node, neighbor))) in service) is (foot_lat == 20.00018)
+
+
+@pytest.mark.parametrize("points,paths,expected", [
+    ([(80, 20), (80.01, 20), (80, 20.000054), (80.01, 20.000054)],
+     [(1, 2), (3, 4)], {(1, 3), (2, 4)}),
+    ([(80, 20), (80.01, 20), (80, 20.000054), (80.01, 20.000054), (80, 20.000108), (80.01, 20.000108)],
+     [(1, 2), (3, 4), (5, 6)], {(1, 3), (1, 5), (3, 5), (2, 4), (2, 6), (4, 6)}),
+    ([(80, 20), (80.01, 20), (80, 20.000054), (80, 20.01)],
+     [(1, 2), (3, 4)], set()),
+    ([(80, 20), (80.00005, 20), (80.0001, 20)], [(1, 2, 3)], set()),
+    ([(80, 20), (80.001, 20), (80.001, 20.000054), (80, 20.000054)],
+     [(1, 2, 3, 4)], {(1, 4)}),
+    ([(80, 20), (80.0001, 20), (80.0001, 20.000054), (80, 20.000054)],
+     [(1, 2, 3, 4)], set()),
+    ([(80, 20), (80.01, 20), (80, 20.00014), (80.01, 20.00014)],
+     [(1, 2), (3, 4)], set()),
+    ([(80, 36.99), (80, 37), (80.00016, 36.99), (80.00016, 37)],
+     [(1, 2), (3, 4)], {(1, 3), (2, 4)}),
+])
+def test_link_parallel(tmp_path, points, paths, expected):
+    ways = "".join(f"w{i} Trailway=rail N" + ",".join(
+        f"n{node}x{points[node-1][0]}y{points[node-1][1]}" for node in path) + "\n"
+        for i, path in enumerate(paths, 1))
+    points, graph, _, _, _, _ = osm.parse_opl(opl_file(tmp_path, ways=ways))
+    before = {(a, b) for a in graph for b in graph[a] if a < b}
+    assert osm.link_parallel(points, graph) == len(expected)
+    assert {(a, b) for a in graph for b in graph[a] if a < b} - before == expected
+    for a, b in expected:
+        assert graph[a][b] == graph[b][a]
+        assert 0 < graph[a][b] <= .015
+
+
+@pytest.mark.db
+def test_refresh_links_station_feet_on_unconnected_double_line(db, tmp_path):
+    route(db, target=.02, points=((80.004, 20), (80.0041, 20.000054)))
+    report = osm.refresh(db, opl_file(tmp_path, ways=(
+        "w1 Trailway=rail Nn1x80y20,n2x80.01y20\n"
+        "w2 Trailway=rail Nn3x80y20.000054,n4x80.01y20.000054\n"
+    )))
+    assert json.loads(stored(db)[0][2]) == [[80.004, 20], [80.0041, 20.00005]]
+    assert stored(db)[0][3] == .3
+    assert type(report["links"]) is int and report["links"] == 3
+    assert report["failures"] == {"no_anchor": 0, "no_path": 0, "length": 0}
+
+
+@pytest.mark.db
+@pytest.mark.parametrize("points,accepted", [([POINTS[0], POINTS[-1]], True), (POINTS, False)])
+def test_short_paths_must_be_direct(db, tmp_path, points, accepted):
+    route(db, target=30)
+    report = osm.refresh(db, opl_file(tmp_path, points=points, stations=(
+        "n100 Trailway=station,ref=AA x80 y20\n"
+        "n101 Trailway=station,name=Beta x80.1 y20.1\n"
+    )))
+    assert bool(stored(db)) is accepted
+    assert report["failures"] == {"no_anchor": 0, "no_path": 0, "length": int(not accepted)}
+    if accepted:
+        assert stored(db)[0][3] == .5
 
 
 @pytest.mark.db
@@ -73,6 +165,7 @@ def test_path_follows_rails_not_chord(db, tmp_path):
     assert report["segments"] == {"1.0": 0, "0.5": 0, "0.3": 1}
     assert report["vertices"] == 3 and report["runtime_s"] >= 0
     assert report["failures"] == {"no_anchor": 0, "no_path": 0, "length": 0}
+    assert type(report["links"]) is int and report["links"] == 0
 
 
 @pytest.mark.db
@@ -184,7 +277,7 @@ def test_contraction_keeps_junctions_way_ends_and_anchors(tmp_path):
         "w2 Trailway=rail Nn4x80.06y20,n7x80.06y20.02\n"
         "w3 Trailway=rail Nn6x80.1y20,n8x80.12y20\n"
     ))
-    points, graph, ends, _, _ = osm.parse_opl(path)
+    points, graph, ends, _, _, _ = osm.parse_opl(path)
     contracted = osm.contract(graph, points, ends | {3})
     assert set(contracted) == {1, 3, 4, 6, 7, 8}
     found = osm.astar(contracted, points, 1, 8, 20)
@@ -245,10 +338,10 @@ def test_simplify_keeps_small_curves_and_drops_noise():
 
 
 def test_anchor_splits_raw_edges_before_contraction(tmp_path):
-    points, graph, ends, stations, _ = osm.parse_opl(opl_file(tmp_path, points=[(80, 20), (80.02, 20)]))
+    points, graph, ends, stations, _, service = osm.parse_opl(opl_file(tmp_path, points=[(80, 20), (80.02, 20)]))
     anchors, counts = osm.anchor_stations([
         ("AA", "", 20.002, 80.005), ("BB", "", 19.998, 80.015), ("CC", "", 20, 80),
-    ], stations, points, graph)
+    ], stations, points, graph, service)
     a, b = anchors["AA"][0], anchors["BB"][0]
     assert a < 0 and b < 0 and a != b and anchors["CC"][0] == 1
     assert points[a] == pytest.approx((80.005, 20))
@@ -260,13 +353,13 @@ def test_anchor_splits_raw_edges_before_contraction(tmp_path):
 
 
 def test_anchor_edge_ties_matched_point_and_radius(tmp_path):
-    points, graph, _, stations, _ = osm.parse_opl(opl_file(tmp_path, ways=(
+    points, graph, _, stations, _, service = osm.parse_opl(opl_file(tmp_path, ways=(
         "w2 Trailway=rail Nn3x80y20,n4x80.02y20\n"
         "w1 Trailway=rail Nn1x80y20,n2x80.02y20\n"
     ), stations="n100 Trailway=station,ref=AA x80.01 y20\n"))
     anchors, counts = osm.anchor_stations([
         ("AA", "", 20.03, 80.01), ("BB", "", 20.01, 80.01),
-    ], stations, points, graph)
+    ], stations, points, graph, service)
     assert counts == {"ref": 1, "name": 0, "coord": 0, "no_anchor": 1}
     node = anchors["AA"][0]
     assert points[node] == pytest.approx((80.01, 20))
@@ -284,7 +377,7 @@ def test_station_osm_bbox_checks(db, lon, lat):
 def test_station_osm_only_has_accepted_endpoints(db, tmp_path):
     route(db)
     make_run(db, train="2", halts=[("AA", None, 0, 0), ("CC", 30, None, 100)])
-    db.execute("update ref.station set lon=80.001,lat=20 where code='CC'")
+    db.execute("update ref.station set lon=80.1,lat=20.09 where code='CC'")
     build_segments(db)
     report = osm.refresh(db, opl_file(tmp_path))
     assert report["snapped"] == 2
