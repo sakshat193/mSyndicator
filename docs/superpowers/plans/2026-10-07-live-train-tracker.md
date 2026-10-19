@@ -3057,6 +3057,44 @@ any other.
 
 ---
 
+### Task 98 (amendment 2026-10-19): fine geometry past z10 (zoom LOD, user request)
+
+**Why:** the user asked for smoother curves ("why these jagged lines?"). Task 96 measured that a whole-network 15 m polyline
+costs +60 % India-zoom frame time, and the monitor's high-zoom A/B (z11 ↔ z12.5 at Delhi, Mumbai and Kolkata, rAF p50 75 m
+41.6–48.4 ms, 15 m 62.5–69.4 ms) shows the cost is total trail vertices whatever the viewport. So swapping the whole network
+at z10 would regress too; the fine geometry has to be culled to the area in view.
+
+**Files:** `msynd/static/osm.py`, `tests/static/test_osm.py`, `web/src/layers.ts`, `web/src/layers.test.ts`, `web/src/main.ts`,
+`web/src/main.test.ts`.
+
+- Server: `SIMPLIFY_M = 15`. The `# ponytail:` note says the web derives the 75 m overview and swaps in this geometry past z10
+  (Task 98). Test: `simplify` keeps a 20 m bump and drops a 10 m bump.
+- Web, `layers.ts`: `simplify(points, metres)` is a Douglas–Peucker that mirrors `osm.simplify` (local equirectangular about the
+  first point, iterative, endpoints kept). `overview(network)` returns the network with each polyline simplified at
+  `OVERVIEW_M` = 75; segments without a polyline and all other fields are unchanged.
+- Web, `main.ts`: the fetched network is `fine`; `network` is `overview(fine)` and serves the panel, hover and the India view as
+  now. Detail mode starts at zoom ≥ `DETAIL_ZOOM` = 10 and ends below 9.5.
+  - In detail mode, `region` is the viewport bounds grown by one viewport on each side (3 × 3). When the viewport leaves it, the
+    region is recomputed and the displays rebuilt; leaving detail mode drops the region and rebuilds.
+  - On a rebuild, every run is decoded against `network` as now. A run whose coarse path has a consecutive-point bbox meeting
+    the region is decoded against `fine` instead (kept coarse if that fails). The decode cache is per network.
+  - Trails are built from the region's runs plus the selected run; off-region trails are culled (they cannot be in view).
+    Heads, the count, picking, hover and `fitSelection` keep all displays.
+  - The background is `networkLayer(fine)` in detail mode, `networkLayer(network)` otherwise; the selection highlight uses the
+    current display.
+  - `trainLayers` skips `selected-trail` when the selected run has no trail (today `find(...)!`).
+  - `# ponytail:` on the region: a whole-route bbox test, a spatial index if rebuilds show in profiles.
+- [ ] Tests first: `simplify` (the Python fixtures at 75 m; a straight line keeps its ends); `overview`; `trainLayers` with a
+  selected run that has no trail; in `main.test.ts` a curved polyline draws simplified at z4, fine at z11 (network and trail),
+  still fine at z9.7, coarse at z9.4; a run outside the region keeps its head but has no trail; leaving the region rebuilds.
+- [ ] `uv run pytest -q` (osm tests) and `npm --prefix web test` green. Commit `task 98: fine geometry past z10`.
+- [ ] Monitor: deploy web/dist first (it works with the 75 m file), then rebuild the image (rollback `msynd:pre-t98`) and rerun
+  the OSM refresh and export on the VM (rollback: delete the new network file). Measure gz size, heap, India-zoom frames
+  (budget: within 10 % of 34.7 ms p50), z11 ↔ z12.5 frames against the A/B above, the hitch at the z10 crossing, and
+  screenshots at z11–13 at Tharban, Gaya and Tripal Halt.
+
+---
+
 ## Spec coverage check
 
 | Spec section | Task(s) |
