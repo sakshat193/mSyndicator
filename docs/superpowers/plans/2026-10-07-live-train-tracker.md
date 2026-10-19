@@ -3178,12 +3178,19 @@ fine regional trails, the smoothness itself.
 - `main.ts`: in detail mode the background is `networkLayer(fine, selected, region)`, and the overview stays mounted and
   hidden as now. Outside detail mode there is no `network-fine` layer. A new region re-tessellates only its subset.
 - `# ponytail:` on the filter: a per-path bbox test on each region change; a spatial index if it shows in profiles.
-- [ ] Tests first: with a region, a fine path outside it is not in the background's data and one crossing it is. The data is
+- [x] Tests first: with a region, a fine path outside it is not in the background's data and one crossing it is. The data is
   the same reference across draws in one region and changes with the region. A selection dims the regional layer. At z4
   there is no `network-fine` layer (adjust Task 98's "both layers present" test to this).
-- [ ] `npm --prefix web test` green, build passes. Commit `task 100: fine background only in the region`.
-- [ ] Monitor: z11 ↔ z12.5 frames (target: p50 at the coarse-background figure, ~35 ms), the crossing hitch, India frames,
+- [x] `npm --prefix web test` green (212), build passes. Commit `task 100: fine background only in the region` (e15201f).
+- [x] Monitor: z11 ↔ z12.5 frames (target: p50 at the coarse-background figure, ~35 ms), the crossing hitch, India frames,
   a z12 screenshot, then deploy web/dist (keep `web/dist.old`, restart caddy).
+
+**Result (2026-10-19, 15 m file, 144 Hz display):** z11 ↔ z12.5 p50 27.7–27.9 ms (was 42.1–48.5), p99 90–118 (was
+118–138), past the target: the regional background is cheaper than the India-wide coarse one (34.6–41.6 in the same run).
+India p50/p90 34.7/41.7–41.8, unchanged. Crossing worst frame over two runs: Delhi 410–472 (first entry, includes the
+one-time per-path bbox pass), Mumbai 250–313, Kolkata 271–299 (was 244–381). Screenshots `reports/t100-{sirpur,gayajn,
+kangra}.png`: background fills each new region. Deployed: bundle index-DVnxGxbf.js, `web/dist.old` = Tasks 98–99 build
+(index-Blk5cjAR.js); VM repo e15201f3.
 
 ---
 
