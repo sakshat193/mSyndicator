@@ -2630,12 +2630,16 @@ read-only report that also records recovery yield.
   | 10-16 | 460 | 200 | 260 | 84.6 | 98.3 | 98.5 | due |
   | 10-17 | 416 | 89 | 327 | 87.8 | 98.8 | 98.9 | — |
   | 10-18 | 427 | 34 | 393 | 87.5 | 98.3 | 98.6 | — |
+  | 10-19 | 1229 | 162 | 1067 | 88.2 | 99.3 | 99.5 | — |
 
   Classes with n ≥ 30: EXP 83.7–87.2 %, SF 88.9–97.0 %. These days predate Task 79, so the ramp (decision 3a)
   waits for IST 10-18, the first batch with PASS out of the harvest.
   IST 10-18 passes (EXP 85.4 %, SF 92.5 %, UNKNOWN 86.7 %, 0 challenges), so harvest goes to 1,500 from IST 10-19: a one-off
   VM timer `msynd-ramp-1500` sets `MMT_HARVEST_BUDGET=1500` and recreates the collector at 18:30:30Z 10-18 (log
   `/data/logs/ramp-1500.log`, `.env` backup `.env.bak-20261019-ramp`). 3,700 waits for IST 10-19 to pass.
+  IST 10-19 ran 1,500 attempts on 1,229 keys in 18:30–21:24Z (~520/h; polling held 176–184/h, 0 breaker) and passes
+  (EXP 86.1 %, SF 89.7 %, UNKNOWN 93.6 %, 0 challenges). Timer `msynd-ramp-3700` sets 3,700 at 18:30:30Z 10-19 (log
+  `/data/logs/ramp-3700.log`, backup `.env.bak-20261020-ramp`); poll stays 7,500 (total 11,200 ≤ 13,200).
 
 ### Task 82 (amendment 2026-10-17): red selected route with a travelling pulse (user request)
 
