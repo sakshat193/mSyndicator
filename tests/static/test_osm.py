@@ -237,10 +237,10 @@ def test_two_stations_split_one_edge(db, tmp_path):
 
 
 def test_simplify_keeps_small_curves_and_drops_noise():
-    assert osm.simplify([(80, 20), (80.01, 20.00027), (80.02, 20)]) == [
-        [80, 20], [80.01, 20.00027], [80.02, 20],
+    assert osm.simplify([(80, 20), (80.01, 20.0009), (80.02, 20)]) == [
+        [80, 20], [80.01, 20.0009], [80.02, 20],
     ]
-    assert osm.simplify([(80, 20), (80.01, 20.00009), (80.02, 20)]) == [[80, 20], [80.02, 20]]
+    assert osm.simplify([(80, 20), (80.01, 20.00045), (80.02, 20)]) == [[80, 20], [80.02, 20]]
     assert osm.simplify([(80 + i*.001, 20) for i in range(101)]) == [[80, 20], [80.1, 20]]
 
 

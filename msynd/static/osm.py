@@ -14,8 +14,9 @@ from msynd.static.gtfs import haversine
 
 
 ESCAPE = re.compile(r"%([0-9a-fA-F]{1,6})%")
-# ponytail: one tolerance for all zooms; add a coarse low-zoom LOD if vertex counts hurt.
-SIMPLIFY_M = 15
+# ponytail: India-zoom frame time: 15 m +60 %, 30 m +20-41 %, 75 m none;
+# smoother curves need a zoom LOD (a fine polyline only past ~z10).
+SIMPLIFY_M = 75
 
 
 def decode(value):
