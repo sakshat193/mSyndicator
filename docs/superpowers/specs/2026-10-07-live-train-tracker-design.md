@@ -633,13 +633,19 @@ This is the honest baseline. Boards (if G2 shows they keep actual times) and unc
 ### 7.6 Static import
 - **Schedule versions.** GTFS is converted into schedule versions, deduplicated by content hash. NTES `TrainServiceSchedule` refreshes, done through the dispatcher at low priority, add newer versions.
 - **Station coordinates** come from GTFS, with gaps filled from datameet.
-- **OSM geometry**, for drawing only:
-  1. Map each station to an OSM node: by `ref=` tag, otherwise the nearest node within 1.5 km with a fuzzy name match.
-  2. Take the shortest path between consecutive route stations.
-  3. Score confidence:
-     - 1.0: both stations matched by `ref` **and** path length within ±10 % of the timetable km
-     - 0.5: name-matched within tolerance
-     - 0: anything else, drawn as a straight dashed line
+- **OSM geometry**, for drawing only (`msynd.static.osm`; refresh steps in `docs/deploy.md`):
+  1. Locate each station: its OSM station node by `ref`/`railway:ref` within 5 km, otherwise the nearest node within 1.5 km
+     with a fuzzy name match (ratio ≥ 0.8), otherwise the station's own coordinate.
+  2. Snap that point to the nearest track within 1 km. Main-line edges win over `service=*` edges (sidings, yards, spurs)
+     whenever one is within 1 km. A station with no track within 1 km gets no geometry.
+  3. Link parallel tracks so a path can change tracks: nodes ≤ 15 m apart with bearings within 20° get an edge unless the
+     track already joins them within max(3 × the gap, 50 m).
+  4. Take the shortest path between consecutive route stations. Accept it if its length is within max(10 %, 1 km) of the
+     timetable km, or if it is shorter than that and at most 1.25 × the straight line (an overstated timetable km).
+  5. Simplify accepted paths to 15 m.
+  6. Confidence = the lower of the two stations' tiers from step 1: 1.0 `ref`, 0.5 name, 0.3 coordinate. A segment with no
+     accepted path has confidence 0 and no polyline. In the export, such a segment longer than 20 km borrows a polyline
+     stitched from neighbouring segments (path ≤ 1.2 × its timetable km), marked `derived` and drawn only in train trails.
 - **Not used for prediction in v1:** OSM attributes (track count, electrification, maxspeed).
 - **Overrides.** Manual fixes go in `data/segment_overrides.csv`, versioned in git.
 
@@ -894,13 +900,20 @@ A burst larger than that (a model change, a restart) is excluded from A6 and mea
 - MapLibre with a self-hosted Protomaps PMTiles extract of India in a dark style.
 
 **Layers**
-- **Network** (`PathLayer`). Geometry with confidence < 0.9 is drawn dashed.
-- **Trains** (`TripsLayer`). K streaks per run, `trailLength` = 10 simulated minutes.
-  - Colour = median delay (teal → amber → red).
-  - Opacity ≈ boost / K, so a tight cloud reads as solid and a wide one as faint.
-- **Train heads** (`ScatterplotLayer`).
-  - Ring style shows the evidence state: solid = `observed`, hollow = `stale`, dotted = `schedule_only`.
-  - A pulse means *surprise*.
+- **Network** (`PathLayer`). A faint background, drawn the same whatever the confidence. A segment without a polyline is a
+  straight line up to 150 km and hidden beyond; `derived` polylines are not drawn here.
+  - **Zoom detail.** The network file carries the 15 m geometry. Below z10 the browser draws a 75 m simplification of it.
+    From z10 (until below z9.5), once the map settles, the 15 m geometry is drawn for a region of the viewport grown by one
+    viewport on each side, and trails in that region use it too. The region is rebuilt only after the view leaves it.
+- **Trains** (`TripsLayer`, additive glow). Colour = median delay (teal → amber → red).
+  - A bright comet per run along its display path, plus 8 of the K streaks as faint thin lines. A `schedule_only` run
+    draws a timetable trail instead.
+  - Trail length is 9 simulated hours at z4, halving per zoom level, at least 45 min. India-wide views are thinner and
+    dimmer; zoomed-in views widen and brighten.
+- **Train heads** (`ScatterplotLayer`, glow dots in the delay colour). `schedule_only` heads are smaller.
+- **Selection.** Every other layer, the network included, dims to opacity 0.01. The selected trail and head draw at full
+  opacity and 1.6 × size, over the route coloured by speed with a pulse running from origin to destination every 3 s.
+- **Station labels** (`TextLayer`), decluttered on a screen grid, denser as you zoom in.
 
 **Timeline.** Pause, 0.25×, 1×, 10×, 60×, 300×, 1000×. The range is −24 h to +6 h, with a LIVE button. In LIVE mode `simTime = now − 15 s`.
 
