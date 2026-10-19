@@ -2938,6 +2938,67 @@ Oracle Object Storage. Retention (7 daily, 4 weekly), the 15 GB alarm and the `o
   `BACKUP_REMOTE=gdrive:msynd-backups`. A manual backup at 03:35Z took 48 s and uploaded `daily/` and `weekly/2026-10-18.dump`
   (8.6 MB each; 10-18 is a Sunday). The downloaded copy lists 79 TOC entries, with data for 10 ref, 2 ml and 1 sim tables.)
 
+### Task 96 (amendment 2026-10-19): stations sit on the track; no spurs, fewer chords, smoother curves (user report: "weird impossible railway tracks… whay these jagged lines? … Why can't they be smooth?")
+
+**Why (monitor, 2026-10-19, live `network-af87af0ce6e9`):**
+- 6,540 of 15,949 segments (41 %) have no polyline and draw as straight chords (median 6.4 km, p95 15.9 km); 90 % of the
+  10,743 routes touch at least one. Failures in the Task 37 refresh: `length` 4,409, `no_path` 2,069, `no_anchor` 502.
+- 87 % of routes have at least one hairpin (> 150° turn). Of the unique OSM-polyline hairpins, 4,916 sit at the first or last
+  track vertex and only 305 inside. The polyline runs `[our station, path…, our station]` from the nearest track *vertex*, so
+  when that vertex lies behind the station, or our coordinate lies off the track, the trail spikes out and back (Tharban, Tripal
+  Halt). Our station coordinate is a median ~0.3 km off the track (> 1 km for 16 %), which makes the V notches at stations (Gaya).
+- `length`: targets are whole km (98 %) and the km includes both station stubs, so ±10 % rejects most short hops.
+- Jagged curves: Douglas–Peucker at 75 m is ~4 px at z13, and each stop pattern is simplified on its own, so overlapping
+  segments fray into parallel strands.
+- Not the cause: Task 88's DPR 1 and no MSAA (deck's path shader still anti-aliases its edges). Left as is; measure separately.
+
+**Plan change (spec §7.6, drawing only):** each anchored station gets a point on the track, the foot of its matched point on
+the nearest rail edge. Polylines run foot to foot, and the exported station dot moves to the foot. Prediction keeps the timetable
+km and `ref.station` coordinates.
+
+**Files:** create `msynd/db/migrations/0008_station_osm.sql`; modify `msynd/static/osm.py`, `msynd/static/export.py`,
+`tests/static/test_osm.py`, `tests/static/test_export.py`, `tests/db/test_schema.py`. No web change.
+
+- **Storage (0008):** `ref.station_osm(code text primary key, lon double precision not null, lat double precision not null)`
+  with checks lon 68–98 and lat 6–37; no foreign key, like `ref.segment_osm`. `refresh` replaces it in the same transaction as
+  `ref.segment_osm` (lock both, delete both, insert both).
+- **Snap (`anchor_stations`):** tiers and the matched point are unchanged. The anchor is the nearest point on a raw rail edge
+  within 1 km of the matched point (local equirectangular metres around the matched point), not the nearest vertex.
+  - Candidates are the edges incident to rail nodes within 2 km. `# ponytail:` an edge with both ends > 2 km away is missed;
+    add an edge grid if `no_anchor` shows it.
+  - A foot inside an edge splits it: a new negative node id joins both ends in both directions with haversine km, and goes
+    into the points and the grid, so a later station on the same edge sees the pieces. A foot at an end reuses that node.
+  - Ties go to the smaller distance, then the smaller (node, node) pair, so runs are deterministic.
+- **Routing:** A* between the two snapped nodes. The km is the on-track path only (no stubs). Accept when
+  |km − target| ≤ max(0.1 × target, 1 km); prune at g + h > max(1.3 × target, target + 1 km). Both stations on the same node
+  count as `no_path`.
+- **Geometry:** the polyline is `simplify(path)`; its ends are the two feet. Douglas–Peucker at 15 m (~0.8 px at z13) as a module
+  constant; keep the `# ponytail:` note (one tolerance for all zooms; a low-zoom LOD if vertex counts hurt). Rounding stays 5 dp.
+- **Station points:** a station that ends at least one accepted segment gets its foot, rounded like the polyline, in
+  `ref.station_osm`. The report adds `snapped` (that count) and the p50/p90 move in metres from our coordinate.
+- **Export:** `stations` read `coalesce(station_osm, station)` lon/lat, so chords, Task 61 chains and the 15 km isolated-origin
+  snap all use the track point, and every polyline starts exactly on its station dot.
+- [ ] Tests first (synthetic OPL in `tmp_path`, test DB):
+  - a station beside the middle of a long edge: the polyline starts at the foot, not at a vertex or our coordinate, and has no
+    turn back (replaces `test_geometry_uses_our_station_coordinates`);
+  - a station whose nearest vertex lies 0.5 km behind it along the track gets no spur;
+  - two stations on one edge both split it, and the segment between them routes;
+  - whole-km floor: target 3 accepts 3.9 km and rejects 4.1 km; large targets keep ±10 % (rework `test_path_length_tolerance`;
+    `test_length_includes_station_anchor_stubs` becomes "stubs are not counted");
+  - `simplify` keeps a 30 m bump, drops a 10 m bump, and a dense straight run still collapses to its endpoints;
+  - `ref.station_osm` rows are written only for stations with an accepted segment, replaced on refresh, rolled back with
+    `ref.segment_osm` on a write failure, and checked by the bbox constraints;
+  - export: the station list and the chord and chain endpoints use the snapped point when present, our coordinate otherwise;
+  - the migration list in `test_migrations_are_idempotent` includes `0008_station_osm.sql`.
+- [ ] `uv run pytest -q` green. Commit `task 96: stations on the track, foot-to-foot polylines`.
+- [ ] Monitor, on the VM: rebuild the image (rollback `msynd:pre-t96`), migrate, OSM refresh and re-export; compare the report,
+  vertices, runtime and RSS with Task 37, and the gz size. Rerun the blast counts (chord share, hairpins, spurs). Browser heap
+  and fps against Tasks 88/89; screenshots at z11–12 at Tharban, Tripal Halt and Jawalamukhi Road, Sirpur Town and Gaya.
+  - Budget: if the network gz passes ~10 MB or the India p50 frame time regresses > 20 %, raise the tolerance to 30 m and rerun.
+  - Rollback: delete the new network file; the API serves the newest by mtime.
+  - Watch for snaps onto dead-end sidings or yards (residual hairpins); excluding `service=siding|yard|spur` from snap
+    candidates is the follow-up if they show.
+
 ---
 
 ## Spec coverage check
@@ -2960,7 +3021,7 @@ Oracle Object Storage. Retention (7 daily, 4 weekly), the 15 GB alarm and the `o
 | §7.3 Lifecycle | 20, 21 |
 | §7.4 Parsing | 8, 10 |
 | §7.5 Backfill | none approved; RSTGCN one-off import 42 |
-| §7.6 Static | 4, 5, 37 |
+| §7.6 Static | 4, 5, 37, 96 |
 | §8 Learning | 26–30, 38, 39, 41–43 |
 | §9 Engine | 13–17, 19, 27, 31, 32 |
 | §10 API | 34 |
