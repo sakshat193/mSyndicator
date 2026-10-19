@@ -3030,6 +3030,11 @@ any other.
   the network also draws at opacity × `DIM`. Its data and the cached per-network instance are unchanged (a dimmed clone, no
   attribute rebuild). Tests first in `web/src/layers.test.ts` (and `main.test.ts` if the wiring is tested there). Commit
   `task 97: the network dims with the other trains`.
+- [ ] DIM 0.01 (monitor, 2026-10-19): after f86d477 the India view was still a bright web. deck.gl gamma-corrects layer
+  `opacity` (the shader gets opacity^(1/2.2); measured, one network path at alpha 36 writes 36 at opacity 1 and 13 at 0.1), so
+  DIM 0.1 kept ~35 % alpha and overlapping additive trails still summed to white. Screenshots at 0.1, 0.03 and 0.01 (India and
+  z8): 0.01 (~12 % alpha) lets the selected train stand clear while the rest stays a faint context web. DIM = 0.01 with a
+  one-line comment on the gamma; tests follow the constant. Commit `task 97: dim to 0.01 (deck.gl opacity gamma)`.
 
 ---
 
