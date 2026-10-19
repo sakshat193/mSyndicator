@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { TripsLayer } from '@deck.gl/geo-layers';
 import { ScatterplotLayer, TextLayer } from '@deck.gl/layers';
-import { indexNetwork, networkLayer, displayRun, trailData, trainLayers,
+import { indexNetwork, networkLayer, displayRun, trailData, trainLayers, simplify, overview,
   delayColor, speedColor, trailLength, easeHead, headAt, labelBucket, labelStations, stationLabelLayer, selectionLayers, PULSE_MS,
   nearestRun, dataComparator, glyphShift, glyphMetrics, padGlyphAlpha, type Network } from './layers';
 
@@ -26,6 +26,30 @@ const network: Network = {
     { idx: 1, station: 'B', halt: true, dist_km: 100, sched_off: 10 },
   ], segments: [] }],
 };
+
+it('simplifies metre-scale curves like OSM while keeping straight-line endpoints', () => {
+  const curve: [number, number][] = [[80, 20], [80.01, 20.0009], [80.02, 20]];
+  expect(simplify(curve, 75)).toEqual(curve);
+  expect(simplify([[80, 20], [80.01, 20.00045], [80.02, 20]], 75)).toEqual([[80, 20], [80.02, 20]]);
+  expect(simplify(Array.from({ length: 101 }, (_, i) => [80 + i * .001, 20]), 75))
+    .toEqual([[80, 20], [80.1, 20]]);
+  expect(simplify([[80, 20], [80.00045, 20.01], [80, 20.02]], 75)).toEqual([[80, 20], [80, 20.02]]);
+  expect(simplify([[80, 20], [80.01, 20], [80, 20]], 75)).toEqual([[80, 20], [80.01, 20], [80, 20]]);
+});
+
+it('derives a 75 m overview without changing fine geometry or copying stations, routes or missing polylines', () => {
+  const curve: [number, number][] = [[80, 20], [80.01, 20.00045], [80.02, 20]];
+  const fine = { ...network, segments: [{ ...network.segments[0], polyline: curve }, network.segments[1]] };
+  const coarse = overview(fine);
+  expect(coarse).not.toBe(fine);
+  expect(coarse.stations).toBe(fine.stations);
+  expect(coarse.routes).toBe(fine.routes);
+  expect(coarse.segments[0]).toEqual({ ...fine.segments[0], polyline: [[80, 20], [80.02, 20]] });
+  expect(coarse.segments[0]).not.toBe(fine.segments[0]);
+  expect(coarse.segments[1]).toBe(fine.segments[1]);
+  expect(fine.segments[0].polyline).toEqual(curve);
+  expect(curve).toHaveLength(3);
+});
 
 it('indexes stations, routes and stops with the same results as linear lookup', () => {
   const index = indexNetwork(network);
@@ -780,6 +804,15 @@ it.each(['observed', 'stale', 'schedule_only'])('overlays only the selected %s c
     for (const selected of [null, 999])
       expect(trainLayers(displays, trails, 4900, zoom, selected, heads, 7).map(l => l.id)).toEqual(base.map(l => l.id));
   }
+});
+
+it.each(['observed', 'stale', 'schedule_only'])('overlays only the selected %s head when its trail is culled', state => {
+  const display = displayRun({ ...runFixture(), state }, network, 1300)!;
+  const trails = trailData([], 1300);
+  const base = trainLayers([display], trails, 1300, 11);
+  const layers = trainLayers([display], trails, 1300, 11, 9);
+  expect(layers.map(l => l.id)).toEqual([...base.map(l => l.id), 'selected-head']);
+  expect(layers.at(-1)!.props.data).toEqual([display]);
 });
 
 it.each(['observed', 'stale'])('keeps %s glow and eight streaks separate from the delay-coloured timetable core', state => {

@@ -14,9 +14,9 @@ from msynd.static.gtfs import haversine
 
 
 ESCAPE = re.compile(r"%([0-9a-fA-F]{1,6})%")
-# ponytail: India-zoom frame time: 15 m +60 %, 30 m +20-41 %, 75 m none;
-# smoother curves need a zoom LOD (a fine polyline only past ~z10).
-SIMPLIFY_M = 75
+# ponytail: 15 m is the detail geometry; the web derives a 75 m overview and uses this only past z10
+# in the viewport's region (Task 98), as a whole-network 15 m costs +60 % India-zoom frame time.
+SIMPLIFY_M = 15
 
 
 def decode(value):

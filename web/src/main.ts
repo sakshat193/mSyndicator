@@ -7,7 +7,7 @@ import '@fontsource-variable/inter';
 import './style.css';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { connectLive, FrameStore, type RunFrame } from './frames';
-import { displayRun, headAt, easeHead, nearestRun, indexNetwork, networkLayer, trailData, trainLayers,
+import { displayRun, headAt, easeHead, nearestRun, indexNetwork, overview, DETAIL_ZOOM, networkLayer, trailData, trainLayers,
   labelBucket, labelStations, stationLabelLayer, selectionLayers, delayColor, type Network } from './layers';
 import { liveTime } from './timeline';
 import { hoverText, runPanel } from './panel';
@@ -49,7 +49,10 @@ const hoverEvidence = tooltip.querySelector<HTMLElement>('[data-hover-evidence]'
 const istClock = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata',
   hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 let network: Network | undefined;
-let background: ReturnType<typeof networkLayer> | undefined;
+let fine: Network | undefined;
+// ponytail: cached route bboxes reject misses before per-pair checks; add a spatial index if bbox hits dominate rebuilds.
+let region: [number, number, number, number] | undefined;
+const regional = new Set<number>();
 let labels: ReturnType<typeof stationLabelLayer> | undefined;
 let labelZoom = -1;
 let selected: number | null = null;
@@ -58,9 +61,11 @@ let highlight: NonNullable<ReturnType<typeof displayRun>> | undefined;
 let hovered: { id: number; x: number; y: number } | undefined;
 let hoverWidth = 0, hoverHeight = 0;
 let displays: NonNullable<ReturnType<typeof displayRun>>[] = [];
-const decoded = new WeakMap<RunFrame, ReturnType<typeof displayRun>>();
+const decoded = new WeakMap<Network, WeakMap<RunFrame, ReturnType<typeof displayRun>>>();
+const bboxes = new WeakMap<NonNullable<ReturnType<typeof displayRun>>, [number, number, number, number]>();
 const drawnHeads = new Map<number, ReturnType<typeof headAt>>();
 let trails: ReturnType<typeof trailData> = { base: 0, comets: [], streaks: [], timetable: [] };
+let trailSelection: number | null = null;
 let generation = -1;
 let lastDraw = -Infinity;
 let lastHeads = -Infinity;
@@ -185,26 +190,60 @@ async function loadNetwork() {
     const data = await response.json();
     if (!Array.isArray(data.stations) || !Array.isArray(data.segments) || !Array.isArray(data.routes))
       throw new Error('Invalid network');
+    const coarse = overview(data);
     indexNetwork(data);
-    background = networkLayer(data);
-    network = data;
+    indexNetwork(coarse);
+    fine = data;
+    network = coarse;
   } catch (error) {
     status.textContent = `Network unavailable: ${error instanceof Error ? error.message : 'request failed'}`;
   }
 }
 void loadNetwork();
 
+function decodeRun(run: RunFrame, network: Network, simTime: number) {
+  let cache = decoded.get(network);
+  if (!cache) decoded.set(network, cache = new WeakMap());
+  if (!cache.has(run)) cache.set(run, displayRun(run, network, simTime));
+  return cache.get(run);
+}
+
 function draw(tick: number) {
   const simTime = liveTime();
-  if (network && background) {
-    if (generation !== store.gen) {
+  if (network && fine) {
+    const zoom = map.getZoom();
+    let rebuild = generation !== store.gen;
+    if (region && zoom < DETAIL_ZOOM - 0.5) { region = undefined; rebuild = true; }
+    else if (!map.isMoving() && (zoom >= DETAIL_ZOOM || region)) {
+      const bounds = map.getBounds(), west = bounds.getWest(), south = bounds.getSouth(),
+        east = bounds.getEast(), north = bounds.getNorth();
+      if (!region || west < region[0] || south < region[1] || east > region[2] || north > region[3]) {
+        region = [west - (east - west), south - (north - south), east + (east - west), north + (north - south)];
+        rebuild = true;
+      }
+    }
+    if (rebuild) {
       generation = store.gen;
+      regional.clear();
       displays = Object.values(store.runs).flatMap(run => {
-        if (!decoded.has(run)) decoded.set(run, displayRun(run, network!, simTime));
-        const display = decoded.get(run);
-        return display ? [display] : [];
+        const display = decodeRun(run, network!, simTime);
+        if (!display) return [];
+        let bbox = bboxes.get(display);
+        if (region && !bbox) {
+          bbox = [Infinity, Infinity, -Infinity, -Infinity];
+          for (const [lon, lat] of display.points) {
+            bbox[0] = Math.min(bbox[0], lon); bbox[1] = Math.min(bbox[1], lat);
+            bbox[2] = Math.max(bbox[2], lon); bbox[3] = Math.max(bbox[3], lat);
+          }
+          bboxes.set(display, bbox);
+        }
+        const near = region && bbox![0] <= region[2] && bbox![2] >= region[0]
+          && bbox![1] <= region[3] && bbox![3] >= region[1] && display.points.some((p, i, points) => i > 0
+          && Math.min(p[0], points[i - 1][0]) <= region![2] && Math.max(p[0], points[i - 1][0]) >= region![0]
+          && Math.min(p[1], points[i - 1][1]) <= region![3] && Math.max(p[1], points[i - 1][1]) >= region![1]);
+        if (near) regional.add(run.run_id);
+        return [near ? decodeRun(run, fine!, simTime) ?? display : display];
       });
-      trails = trailData(displays, simTime);
       const ids = new Set(displays.map(d => d.run.run_id));
       for (const id of drawnHeads.keys()) if (!ids.has(id)) drawnHeads.delete(id);
       const chosen = displays.find(d => d.run.run_id === selected);
@@ -220,7 +259,10 @@ function draw(tick: number) {
       renderHover(true);
       redraw = true;
     }
-    const zoom = map.getZoom();
+    if (rebuild || (region && trailSelection !== selected)) {
+      trailSelection = selected;
+      trails = trailData(displays.filter(d => !region || regional.has(d.run.run_id) || d.run.run_id === selected), simTime);
+    }
     if (settling || tick - lastHeads >= 100) {
       const dt = tick - lastHeads;
       lastHeads = tick;
@@ -244,7 +286,10 @@ function draw(tick: number) {
         labelZoom = bucket;
         labels = stationLabelLayer(labelStations(network, bucket), bucket);
       }
-      overlay.setProps({ layers: [networkLayer(network, selected), ...(highlight ? selectionLayers(highlight, tick, simTime) : []),
+      const background = networkLayer(network, selected);
+      overlay.setProps({ layers: [region ? background.clone({ visible: false }) : background,
+        networkLayer(fine, selected).clone({ id: 'network-fine', visible: !!region }),
+        ...(highlight ? selectionLayers(highlight, tick, simTime) : []),
         ...trainLayers(displays, trails, simTime, zoom, selected, drawnHeads, headsVersion),
         ...(labels ? [labels] : [])] });
     }

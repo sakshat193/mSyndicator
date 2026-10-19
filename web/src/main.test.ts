@@ -1,10 +1,12 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { encode } from '@msgpack/msgpack';
 import type { Frame, RunFrame } from './frames';
+import type { Network } from './layers';
 import './layers';
 
 const rendered = vi.hoisted(() => ({ layers: [] as any[], options: {} as any,
-  draws: 0, zoom: 4, moving: false, mapOptions: {} as any, setup: [] as string[],
+  draws: 0, zoom: 4, moving: false, bounds: [79.9, 19.9, 80.1, 20.1], boundsReads: 0,
+  mapOptions: {} as any, setup: [] as string[],
   ease: [] as any[], fits: [] as any[], listeners: {} as Record<string, Function>,
   selectSearch: undefined as ((run: RunFrame) => void) | undefined }));
 vi.mock('./search', async importOriginal => {
@@ -18,6 +20,11 @@ vi.mock('maplibre-gl', () => ({
   Map: class {
     constructor(options: unknown) { rendered.mapOptions = options; rendered.setup.push('map'); }
     addControl() {} remove() {} getZoom() { return rendered.zoom; }
+    getBounds() {
+      rendered.boundsReads++;
+      const [west, south, east, north] = rendered.bounds;
+      return { getWest: () => west, getSouth: () => south, getEast: () => east, getNorth: () => north };
+    }
     on(name: string, callback: Function) { rendered.listeners[`map:${name}`] = callback; }
     easeTo(options: unknown) { rendered.ease.push(options); }
     fitBounds(bounds: unknown, options: unknown) { rendered.fits.push({ bounds, options }); }
@@ -53,6 +60,9 @@ it.each([
   let simTime = 1600;
   rendered.draws = 0;
   rendered.zoom = 4;
+  rendered.moving = false;
+  rendered.bounds = [79.9, 19.9, 80.1, 20.1];
+  rendered.boundsReads = 0;
   rendered.setup = [];
   rendered.ease = [];
   rendered.fits = [];
@@ -105,6 +115,21 @@ it.each([
   vi.stubGlobal('WebSocket', Socket);
   vi.spyOn(Date, 'now').mockImplementation(() => (simTime + 15) * 1000);
   let healthRequests = 0;
+  const curves: [number, number][][] = [
+    [[80, 20], [80.01, 20.00018], [80.02, 20]],
+    [[85, 25], [85.01, 25.00018], [85.02, 25]],
+    [[78, 20], [79, 20.00018], [82, 20]],
+    [[79, 19], [79, 22], [82, 22]],
+  ];
+  const detail: Network = {
+    stations: curves.flatMap((p, i) => [p[0], p.at(-1)!].map(([lon, lat], s) => ({ code: `D${i}${s}`, lon, lat }))),
+    segments: curves.map((polyline, i) => ({ id: i + 17, stn_lo: `D${i}0`, stn_hi: `D${i}1`,
+      polyline, derived: false, confidence: 1 })),
+    routes: curves.map((_, i) => ({ id: i + 17, train: `0001${i}`, name: 'Curve', class: 'EXP', stops: [
+      { idx: 0, station: `D${i}0`, halt: true, dist_km: 0, sched_off: 0 },
+      { idx: 1, station: `D${i}1`, halt: true, dist_km: 100, sched_off: 10 },
+    ], segments: [{ idx: 0, segment_id: i + 17, forward: true }] })),
+  };
   const fetch = vi.fn(async (url: string) => {
     if (url === '/api/health') {
       if (++healthRequests === 1) throw new Error('Health unavailable');
@@ -116,12 +141,12 @@ it.each([
     }
     return url.startsWith('/api/run/') ? { ok: false, status: 503 } :
     ({ ok: true, json: async () => ({
-    stations: [{ code: 'A', lon: 70, lat: 20 }, { code: 'B', lon: 72, lat: 22 }],
-    segments: [{ id: 1, stn_lo: 'A', stn_hi: 'B', polyline: null, derived: false, confidence: 0 }],
+    stations: [{ code: 'A', lon: 70, lat: 20 }, { code: 'B', lon: 72, lat: 22 }, ...detail.stations],
+    segments: [{ id: 1, stn_lo: 'A', stn_hi: 'B', polyline: null, derived: false, confidence: 0 }, ...detail.segments],
     routes: [{ id: 7, train: '00001', name: 'Express', class: 'EXP', stops: [
       { idx: 0, station: 'A', halt: true, dist_km: 0, sched_off: 0 },
       { idx: 1, station: 'B', halt: true, dist_km: 100, sched_off: 10 },
-    ], segments: [] }],
+    ], segments: [] }, ...detail.routes],
   }) });
   });
   vi.stubGlobal('fetch', fetch);
@@ -226,7 +251,7 @@ it.each([
     runs: {}, tombstones: [9] });
   draw!(500);
   expect(rendered.layers[0]).toBe(network);
-  expect(rendered.layers.slice(1).every(layer => layer.props.data.length === 0)).toBe(true);
+  expect(rendered.layers.filter(layer => !layer.id.startsWith('network')).every(layer => layer.props.data.length === 0)).toBe(true);
   expect(statusWrites).toBe(2);
   draw!(1150);
   expect(statusWrites).toBe(3);
@@ -350,6 +375,7 @@ it.each([
   draw!(1548);
   expect.soft(rendered.draws).toBe(beforePan);
   expect.soft(labels()).toBe(atSevenHalf); // Panning reuses the layer and its decluttered data.
+  expect(rendered.boundsReads).toBe(0);
   const counted = Array.from({ length: 1831 }, (_, i) => ({ ...run, run_id: i + 100,
     state: i < 5 ? (i === 4 ? 'stale' : 'observed') : 'schedule_only' }));
   Socket.current.receive({ gen: 8, ts: 3601, is_full: true, versions: {}, base_ts: 1000,
@@ -605,6 +631,118 @@ it.each([
   expect(rendered.fits).toHaveLength(fits);
   panelToggle.listeners.click?.();
   expect.soft(rendered.fits).toHaveLength(fits);
+  rendered.listeners.keydown({ key: 'Escape' });
+  const detailRuns = curves.map((_, i) => ({ ...run, run_id: i + 19, versions: { route: i + 17 },
+    state: i === 1 ? 'schedule_only' : 'observed' }));
+  Socket.current.receive({ gen: 16, ts: 1900, is_full: true, versions: {}, base_ts: 1000,
+    runs: Object.fromEntries(detailRuns.map(r => [r.run_id, r])), tombstones: [] });
+  const decode = vi.spyOn(await import('./layers'), 'displayRun');
+  rendered.zoom = 4;
+  draw!(11000);
+  const comets = () => rendered.layers.find(l => l.id === 'comets').props.data;
+  const timetableTrails = () => rendered.layers.filter(l => l.id.startsWith('timetable-')).flatMap(l => l.props.data);
+  const backgrounds = () => rendered.layers.filter(l => l.id.startsWith('network'));
+  const fineBackground = () => rendered.layers.find(l => l.id === 'network-fine');
+  const backgroundData = backgrounds().map(l => l.props.data);
+  expect.soft(backgrounds().map(l => [l.id, l.props.visible])).toEqual([['network', true], ['network-fine', false]]);
+  const coarsePath = [curves[0][0], curves[0][2]];
+  expect(rendered.layers[0].props.data[0]).toEqual(coarsePath);
+  expect(comets().find((t: any) => t.runId === 19).path).toEqual(coarsePath);
+  expect(heads().props.data).toHaveLength(4);
+  expect(timetableTrails()).toHaveLength(1);
+  const coarseHeads = heads().props.data, boundsReads = rendered.boundsReads;
+  const coarseNetwork = decode.mock.calls[0][1];
+  const outsidePairs = vi.spyOn(coarseHeads[1].points, 'some');
+  rendered.zoom = 9.7;
+  draw!(11100);
+  expect(heads().props.data).toBe(coarseHeads);
+  expect(rendered.boundsReads).toBe(boundsReads);
+  rendered.zoom = 10;
+  rendered.moving = true;
+  decode.mockClear();
+  draw!(11200);
+  rendered.zoom = 11;
+  draw!(11216);
+  expect.soft(heads().props.data).toBe(coarseHeads);
+  expect.soft(comets()).toHaveLength(3);
+  expect.soft(rendered.boundsReads).toBe(boundsReads);
+  expect.soft(backgrounds().map(l => [l.id, l.props.visible])).toEqual([['network', true], ['network-fine', false]]);
+  expect.soft(decode).not.toHaveBeenCalled();
+  rendered.moving = false;
+  draw!(11232);
+  expect.soft(backgrounds().map(l => [l.id, l.props.visible])).toEqual([['network', false], ['network-fine', true]]);
+  expect.soft(fineBackground()?.props.data[0]).toEqual(curves[0]);
+  expect.soft(outsidePairs).not.toHaveBeenCalled();
+  expect(decode.mock.calls.filter(([r, n]) => r.run_id === 20 && n !== coarseNetwork)).toEqual([]);
+  expect(comets().map((t: any) => t.runId)).toEqual([19, 21]);
+  expect(comets()[0].path).toEqual(curves[0]);
+  expect(timetableTrails()).toEqual([]);
+  expect(heads().props.data).toHaveLength(4);
+  expect(heads().props.data.find((d: any) => d.run.run_id === 20).points).toEqual([curves[1][0], curves[1][2]]);
+  const fineHeads = heads().props.data, fineTrails = comets();
+  rendered.zoom = 11;
+  draw!(11300);
+  expect(heads().props.data).toBe(fineHeads);
+  expect(comets()).toBe(fineTrails);
+  backgrounds().forEach((l, i) => expect.soft(l.props.data).toBe(backgroundData[i]));
+  rendered.zoom = 9.7;
+  draw!(11400);
+  expect.soft(fineBackground()?.props.visible).toBe(true);
+  expect(heads().props.data).toBe(fineHeads);
+  rendered.zoom = 9.4;
+  rendered.moving = true;
+  draw!(11500);
+  expect.soft(backgrounds().map(l => [l.id, l.props.visible])).toEqual([['network', true], ['network-fine', false]]);
+  expect(rendered.layers[0].props.data[0]).toEqual(coarsePath);
+  expect(heads().props.data.find((d: any) => d.run.run_id === 19)).toBe(coarseHeads[0]);
+  expect(comets()).toHaveLength(3);
+  expect(timetableTrails()).toHaveLength(1);
+  rendered.moving = false;
+  rendered.zoom = 11;
+  reads.mockClear();
+  draw!(11600);
+  expect(reads).not.toHaveBeenCalled();
+  expect(heads().props.data[0]).toBe(fineHeads[0]);
+  rendered.bounds = [80.05, 19.95, 80.15, 20.05];
+  const withinRegion = heads().props.data, withinTrails = comets();
+  draw!(11700);
+  expect(heads().props.data).toBe(withinRegion);
+  expect(comets()).toBe(withinTrails);
+  rendered.bounds = [80.2, 19.95, 80.31, 20.05];
+  rendered.moving = true;
+  const beforePanBounds = rendered.boundsReads;
+  draw!(11800);
+  expect.soft(heads().props.data).toBe(withinRegion);
+  expect.soft(comets()).toBe(withinTrails);
+  expect.soft(rendered.boundsReads).toBe(beforePanBounds);
+  rendered.moving = false;
+  draw!(11808);
+  expect(heads().props.data).not.toBe(withinRegion);
+  expect(comets().map((t: any) => t.runId)).toEqual([21]);
+  rendered.selectSearch!(detailRuns[0]);
+  draw!(11816);
+  expect.soft(fineBackground()?.props.opacity).toBe(0.01);
+  backgrounds().forEach((l, i) => expect(l.props.data).toBe(backgroundData[i]));
+  expect(comets().map((t: any) => t.runId)).toEqual([19, 21]);
+  expect(rendered.layers.find(l => l.id === 'selection').props.data[0]).toEqual(coarsePath);
+  expect(rendered.fits.at(-1).bounds).toEqual([[80, 20], [80.02, 20]]);
+  expect(panel.hidden).toBe(false);
+  rendered.listeners.keydown({ key: 'Escape' });
+  draw!(11832);
+  expect.soft(fineBackground()?.props.opacity).toBe(1);
+  expect(comets().map((t: any) => t.runId)).toEqual([21]);
+  rendered.bounds = [84.9, 24.9, 85.1, 25.1];
+  draw!(12000);
+  expect(comets()).toEqual([]);
+  expect(timetableTrails()[0].path).toEqual(curves[1]);
+  expect(heads().props.data).toHaveLength(4);
+  expect(elements.get('#train-count').textContent).toBe('4 trains');
+  pointer('mousemove', point(19));
+  expect(hover.hidden).toBe(false);
+  rendered.selectSearch!(detailRuns[0]);
+  draw!(12016);
+  expect(comets().map((t: any) => t.runId)).toEqual([19]);
+  expect(rendered.layers.find(l => l.id === 'selected-head').props.data[0].run.run_id).toBe(19);
   rendered.listeners.pagehide();
   expect(clearInterval).toHaveBeenCalledWith(7);
   expect(toggle.listeners.click).toBeUndefined();

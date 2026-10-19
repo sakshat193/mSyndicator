@@ -97,6 +97,35 @@ const trailCache = new WeakMap<Display, { base: number; core: Trail; streaks: Tr
 const timetableCache = new WeakMap<Trails, Trail[][]>();
 let previousTimetable: Trail[][] = [];
 
+const OVERVIEW_M = 75;
+export const DETAIL_ZOOM = 10;
+
+export function simplify(points: Point[], metres: number): Point[] {
+  if (points.length < 3) return points;
+  const origin = points[0], scale = Math.cos((origin[1] + points.at(-1)![1]) / 2 * Math.PI / 180);
+  const projected = points.map(([lon, lat]) => [(lon - origin[0]) * 111195.08 * scale, (lat - origin[1]) * 111195.08]);
+  const keep = new Set([0, points.length - 1]), pending: [number, number][] = [[0, points.length - 1]];
+  while (pending.length) {
+    const [first, last] = pending.pop()!;
+    const [x, y] = projected[first], dx = projected[last][0] - x, dy = projected[last][1] - y;
+    const length2 = dx * dx + dy * dy;
+    let farthest = metres * metres, selected = -1;
+    for (let i = first + 1; i < last; i++) {
+      const px = projected[i][0] - x, py = projected[i][1] - y;
+      const fraction = length2 ? Math.min(1, Math.max(0, (px * dx + py * dy) / length2)) : 0;
+      const deviation = (px - fraction * dx) ** 2 + (py - fraction * dy) ** 2;
+      if (deviation > farthest) { farthest = deviation; selected = i; }
+    }
+    if (selected !== -1) { keep.add(selected); pending.push([first, selected], [selected, last]); }
+  }
+  return [...keep].sort((a, b) => a - b).map(i => points[i]);
+}
+
+export function overview(network: Network): Network {
+  return { ...network, segments: network.segments.map(s => s.polyline
+    ? { ...s, polyline: simplify(s.polyline, OVERVIEW_M) } : s) };
+}
+
 export function indexNetwork(network: Network): NetworkIndex {
   const existing = indices.get(network);
   if (existing) return existing;
@@ -576,10 +605,10 @@ export function trainLayers(displays: Display[], trails: Trails, simTime: number
   const display = displays.find(d => d.run.run_id === selected);
   if (display) {
     const scheduled = display.run.state === 'schedule_only';
-    const trail = (scheduled ? trails.timetable : trails.comets).find(t => t.runId === selected)!;
-    layers.push((scheduled ? timetable[display.run.run_id % 16] : comets).clone({
-      id: 'selected-trail', data: [trail], opacity: 1, widthScale: SELECTED_GLOW }),
-    dots.clone({ id: 'selected-head', data: [display], opacity: 1, radiusScale: SELECTED_GLOW }));
+    const trail = (scheduled ? trails.timetable : trails.comets).find(t => t.runId === selected);
+    if (trail) layers.push((scheduled ? timetable[display.run.run_id % 16] : comets).clone({
+      id: 'selected-trail', data: [trail], opacity: 1, widthScale: SELECTED_GLOW }));
+    layers.push(dots.clone({ id: 'selected-head', data: [display], opacity: 1, radiusScale: SELECTED_GLOW }));
   }
   return layers;
 }
