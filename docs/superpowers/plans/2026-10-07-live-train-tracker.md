@@ -2978,7 +2978,7 @@ km and `ref.station` coordinates.
   `ref.station_osm`. The report adds `snapped` (that count) and the p50/p90 move in metres from our coordinate.
 - **Export:** `stations` read `coalesce(station_osm, station)` lon/lat, so chords, Task 61 chains and the 15 km isolated-origin
   snap all use the track point, and every polyline starts exactly on its station dot.
-- [ ] Tests first (synthetic OPL in `tmp_path`, test DB):
+- [x] Tests first (synthetic OPL in `tmp_path`, test DB):
   - a station beside the middle of a long edge: the polyline starts at the foot, not at a vertex or our coordinate, and has no
     turn back (replaces `test_geometry_uses_our_station_coordinates`);
   - a station whose nearest vertex lies 0.5 km behind it along the track gets no spur;
@@ -2990,19 +2990,32 @@ km and `ref.station` coordinates.
     `ref.segment_osm` on a write failure, and checked by the bbox constraints;
   - export: the station list and the chord and chain endpoints use the snapped point when present, our coordinate otherwise;
   - the migration list in `test_migrations_are_idempotent` includes `0008_station_osm.sql`.
-- [ ] `uv run pytest -q` green. Commit `task 96: stations on the track, foot-to-foot polylines`.
-- [ ] Monitor, on the VM: rebuild the image (rollback `msynd:pre-t96`), migrate, OSM refresh and re-export; compare the report,
+- [x] `uv run pytest -q` green (942 passed, 1 skipped). Commit `task 96: stations on the track, foot-to-foot polylines`.
+- [x] Monitor, on the VM: rebuild the image (rollback `msynd:pre-t96`), migrate, OSM refresh and re-export; compare the report,
   vertices, runtime and RSS with Task 37, and the gz size. Rerun the blast counts (chord share, hairpins, spurs). Browser heap
   and fps against Tasks 88/89; screenshots at z11–12 at Tharban, Tripal Halt and Jawalamukhi Road, Sirpur Town and Gaya.
   - Budget: if the network gz passes ~10 MB or the India p50 frame time regresses > 20 %, raise the tolerance to 30 m and rerun.
   - Rollback: delete the new network file; the API serves the newest by mtime.
   - Watch for snaps onto dead-end sidings or yards (residual hairpins); excluding `service=siding|yard|spur` from snap
     candidates is the follow-up if they show.
-- [ ] Budget follow-up (monitor, 2026-10-19): India zoom p50 frame time, same network re-simplified: old 34.7 ms, 75 m 34.7,
+  (2026-10-19, after the 75 m follow-up: `msynd:local` rebuilt (rollback `msynd:pre-t96`, DB dump
+  `/data/backups/pre-t96-segment_osm.dump`), 0008 migrated, live `network-809975913a4b.json.gz`, 5,362,214 bytes. Stations:
+  ref 7,699, name 103, coord 704, no_anchor 44; snapped 7,813, move p50 78 m, p90 1,306 m. Segments at 1.0 / 0.5 / 0.3:
+  11,964 / 147 / 945; failures no_anchor 1,348, no_path 2,329, length 1,059. Vertices 168,445 (was 158,567), 33.7 s, max RSS
+  595 MB. Blast, old → new: spurs > 200 m 2,513 → 597, > 1 km 453 → 76; routes with a hairpin 87 % → 60 %; reversals
+  126,360 → 28,779; chord route-km 8.4 % → 5.2 %; unique OSM hairpins at an anchor 4,916 → 587, interior 305 → 217.
+  Screenshots `reports/t96-{tharban,tripal,sirpur,gaya,lunsu}.png`: the Tripal Halt fan and the Lunsu spur are gone, Gaya and
+  Dehri follow the track. Chords left: Bhokar–Hadgaon Road (and a parallel pair toward Himayatnagar), Sirpur Town
+  MKDI–SRUR and SRUR–SKZR, Kangra Mandir–Samloti. Siding snaps not yet checked.)
+- [x] Budget follow-up (monitor, 2026-10-19): India zoom p50 frame time, same network re-simplified: old 34.7 ms, 75 m 34.7,
   30 m 41.8–48.9 (+20–41 %), 15 m 55.5–56 (+60 %). The cost is vertices, not the 578 extra routes, and the 30 m fallback still
   breaks the budget, so `SIMPLIFY_M` goes back to 75 m. The snap fixes stay. The `# ponytail:` note gains the measurement:
   smoother curves need a zoom LOD (a fine polyline only past ~z10). Tests: `simplify` keeps a 100 m bump and drops a 50 m bump.
   Commit `task 96: simplify at 75 m (frame budget)`; rerun refresh and export on the VM.
+  (2026-10-19: 01e2d05, 114 targeted tests with the DB. Full suite at a43fcd3: 940 passed, 1 skipped, 2 failed, both
+  timing flakes that pass on rerun (`tests/api` and `test_relay.py` in full: 48 passed): `test_health_metrics_and_search`
+  saw `last_frame.age` −0.54 s, though both ends read the test DB's `clock_timestamp()`, so its clock stepped back; and
+  relay `absolute` under the 11-minute run. Only `osm.py` changed since the 942-pass run. India p50 34.7 ms, as before.)
 
 ---
 
@@ -3020,21 +3033,27 @@ any other.
   colours, data and triggers unchanged (Task 90).
 - `selected-trail` draws at opacity 1 and `widthScale` `SELECTED_GLOW` = 1.6 at every zoom; `selected-head` at opacity 1 and
   `radiusScale` 1.6. Everything else is cloned from the source layer as now. Both are module constants.
-- [ ] Tests first: rework "selection changes only opacity" to × `DIM`; the selected trail (comet and timetable) and head have
+- [x] Tests first: rework "selection changes only opacity" to × `DIM`; the selected trail (comet and timetable) and head have
   opacity 1 and scale 1.6 at zoom 4, 6 and 8, other props as the source layer.
-- [ ] `npm --prefix web test` green. Commit `task 97: a selected train outshines the rest`.
-- [ ] Monitor: screenshots of a selected train at India zoom and z8 before and after; frame times with a selection; deploy
+- [x] `npm --prefix web test` green (202). Commit `task 97: a selected train outshines the rest`.
+- [x] Monitor: screenshots of a selected train at India zoom and z8 before and after; frame times with a selection; deploy
   web/dist (keep `web/dist.old`, restart caddy).
-- [ ] Follow-up (monitor, 2026-10-19): after 91fd712 the India view still looked bright. Isolating layers showed the trains do
+  (2026-10-19, after all three commits: `reports/t97-{before,after}-{india,z8}.png` with 17631 selected; before, the network
+  and the other trails form a bright web, after, 17631 stands clear over a faint one. rAF ms with 17631 selected, India zoom
+  4.42 ↔ 6, two interleaved runs each, before (01e2d05) p50 48.7 / 48.7, p90 62.5 / 55.7, p99 76.5 / 69.4; after (a43fcd3)
+  48.6 / 48.7, 56.2 / 55.7, 70.2 / 62.9, so no cost. Deployed `index-ISQSpKxx.js`; `web/dist.old` is the 10-17 build; caddy
+  healthy, 401 unauthenticated. VM repo at a43fcd3; no image rebuild (web only).)
+- [x] Follow-up (monitor, 2026-10-19): after 91fd712 the India view still looked bright. Isolating layers showed the trains do
   dim; the cyan web is the static `network` layer (15,895 paths, alpha 36), which ignores the selection. With a train selected
   the network also draws at opacity × `DIM`. Its data and the cached per-network instance are unchanged (a dimmed clone, no
   attribute rebuild). Tests first in `web/src/layers.test.ts` (and `main.test.ts` if the wiring is tested there). Commit
-  `task 97: the network dims with the other trains`.
-- [ ] DIM 0.01 (monitor, 2026-10-19): after f86d477 the India view was still a bright web. deck.gl gamma-corrects layer
+  `task 97: the network dims with the other trains`. (f86d477, 205 web tests.)
+- [x] DIM 0.01 (monitor, 2026-10-19): after f86d477 the India view was still a bright web. deck.gl gamma-corrects layer
   `opacity` (the shader gets opacity^(1/2.2); measured, one network path at alpha 36 writes 36 at opacity 1 and 13 at 0.1), so
   DIM 0.1 kept ~35 % alpha and overlapping additive trails still summed to white. Screenshots at 0.1, 0.03 and 0.01 (India and
   z8): 0.01 (~12 % alpha) lets the selected train stand clear while the rest stays a faint context web. DIM = 0.01 with a
   one-line comment on the gamma; tests follow the constant. Commit `task 97: dim to 0.01 (deck.gl opacity gamma)`.
+  (a43fcd3, 205 web tests, build passes.)
 
 ---
 
