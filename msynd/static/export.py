@@ -100,7 +100,10 @@ def segment_geometry(network):
 
 def export_network(conn, out_dir, overrides_file=OVERRIDES):
     network = {
-        "stations": records(conn, "select code,name,lat,lon,zone from ref.station order by code"),
+        "stations": records(conn, """
+            select s.code,s.name,coalesce(o.lat,s.lat) as lat,coalesce(o.lon,s.lon) as lon,s.zone
+            from ref.station s left join ref.station_osm o on o.code=s.code order by s.code
+        """),
         "segments": records(conn, "select id,stn_lo,stn_hi,polyline,confidence from ref.segment order by id"),
         "routes": records(conn, """
             select r.id,r.schedule_version_id,r.dist_src,v.train,t.name,t.class

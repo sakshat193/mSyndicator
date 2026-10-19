@@ -6,6 +6,7 @@ import json
 import math
 from pathlib import Path
 import re
+from statistics import quantiles
 import time
 
 from msynd.db import connect
@@ -13,6 +14,8 @@ from msynd.static.gtfs import haversine
 
 
 ESCAPE = re.compile(r"%([0-9a-fA-F]{1,6})%")
+# ponytail: one tolerance for all zooms; add a coarse low-zoom LOD if vertex counts hurt.
+SIMPLIFY_M = 15
 
 
 def decode(value):
@@ -140,7 +143,7 @@ def normalise(name):
                    if word not in {"junction", "jn", "halt", "station"})
 
 
-def anchor_stations(stations, osm_stations, points):
+def anchor_stations(stations, osm_stations, points, graph):
     station_points = {node: record[0] for node, record in osm_stations.items()}
     names = {node: normalise(record[1].get("name", "")) for node, record in osm_stations.items()}
     refs = defaultdict(list)
@@ -152,7 +155,8 @@ def anchor_stations(stations, osm_stations, points):
     station_grid, rail_grid = grid_index(station_points), grid_index(points)
     counts = dict.fromkeys(("ref", "name", "coord", "no_anchor"), 0)
     anchors = {}
-    for code, name, lat, lon in stations:
+    next_node = -1
+    for code, name, lat, lon in sorted(stations):
         own = (lon, lat)
         if not all(math.isfinite(value) for value in own):
             counts["no_anchor"] += 1
@@ -169,12 +173,36 @@ def anchor_stations(stations, osm_stations, points):
             tier, location = "coord", own
         else:
             location = station_points[matched[1]]
-        anchor = min(nearby(rail_grid, points, location, 1), default=None)
-        if anchor is None:
+        # ponytail: edges with both ends > 2 km away are missed; add an edge grid if no_anchor shows it.
+        edges = {tuple(sorted((node, neighbor)))
+                 for _, node in nearby(rail_grid, points, location, 2) for neighbor in graph[node]}
+        scale = 111195.08 * math.cos(math.radians(location[1]))
+        best = None
+        for a, b in edges:
+            x, y = (points[a][0] - location[0]) * scale, (points[a][1] - location[1]) * 111195.08
+            dx, dy = (points[b][0] - points[a][0]) * scale, (points[b][1] - points[a][1]) * 111195.08
+            length2 = dx * dx + dy * dy
+            fraction = min(1, max(0, -(x * dx + y * dy) / length2)) if length2 else 0
+            metres2 = (x + fraction * dx) ** 2 + (y + fraction * dy) ** 2
+            candidate = (metres2, a, b, fraction)
+            if metres2 <= 1000 * 1000 and (best is None or candidate < best):
+                best = candidate
+        if best is None:
             counts["no_anchor"] += 1
         else:
+            _, a, b, fraction = best
+            if fraction == 0 or fraction == 1:
+                node = a if fraction == 0 else b
+            else:
+                node, next_node = next_node, next_node - 1
+                foot = tuple(points[a][i] + fraction * (points[b][i] - points[a][i]) for i in (0, 1))
+                points[node] = foot
+                rail_grid[math.floor(foot[0] * 100), math.floor(foot[1] * 100)].append(node)
+                del graph[a][b], graph[b][a]
+                graph[node] = {a: distance(points[a], foot), b: distance(foot, points[b])}
+                graph[a][node], graph[b][node] = graph[node][a], graph[node][b]
             counts[tier] += 1
-            anchors[code] = (anchor[1], {"ref": 1., "name": .5, "coord": .3}[tier], own)
+            anchors[code] = (node, {"ref": 1., "name": .5, "coord": .3}[tier], own)
     return anchors, counts
 
 
@@ -199,7 +227,7 @@ def contract(graph, points, keep):
 
 
 def astar(graph, points, start, end, target):
-    limit = 1.3 * target
+    limit = max(1.3 * target, target + 1)
     remaining = distance(points[start], points[end])
     if remaining > limit:
         return None
@@ -231,7 +259,6 @@ def astar(graph, points, start, end, target):
 
 
 def simplify(points):
-    # ponytail: one 75 m tolerance for all zooms; add a coarse low-zoom LOD if vertex counts hurt.
     origin = points[0]
     scale = math.cos(math.radians((origin[1] + points[-1][1]) / 2))
     projected = [((lon - origin[0]) * 111195.08 * scale, (lat - origin[1]) * 111195.08)
@@ -242,7 +269,7 @@ def simplify(points):
         x, y = projected[first]
         dx, dy = projected[last][0] - x, projected[last][1] - y
         length2 = dx * dx + dy * dy
-        farthest, selected = 75 * 75, None
+        farthest, selected = SIMPLIFY_M * SIMPLIFY_M, None
         for i in range(first + 1, last):
             px, py = projected[i][0] - x, projected[i][1] - y
             fraction = min(1, max(0, (px * dx + py * dy) / length2)) if length2 else 0
@@ -259,7 +286,7 @@ def refresh(conn, opl):
     started = time.monotonic()
     points, graph, ends, osm_stations, skipped = parse_opl(opl)
     stations = conn.execute("select code,name,lat,lon from ref.station where lat is not null and lon is not null").fetchall()
-    anchors, station_counts = anchor_stations(stations, osm_stations, points)
+    anchors, station_counts = anchor_stations(stations, osm_stations, points, graph)
     graph = contract(graph, points, ends | {value[0] for value in anchors.values()})
     points = {node: points[node] for node in graph}
     del osm_stations, ends
@@ -273,7 +300,7 @@ def refresh(conn, opl):
     """).fetchall()
     failures = dict.fromkeys(("no_anchor", "no_path", "length"), 0)
     confidence_counts = dict.fromkeys(("1.0", "0.5", "0.3"), 0)
-    rows, vertices = [], 0
+    rows, vertices, snapped = [], 0, set()
     for lo, hi, target in targets:
         if lo not in anchors or hi not in anchors:
             failures["no_anchor"] += 1
@@ -282,26 +309,39 @@ def refresh(conn, opl):
             failures["length"] += 1
             continue
         a, b = anchors[lo], anchors[hi]
+        if a[0] == b[0]:
+            failures["no_path"] += 1
+            continue
         result = astar(graph, points, a[0], b[0], target)
         if result is None:
             failures["no_path"] += 1
             continue
         path, km = result
-        km += distance(a[2], points[a[0]]) + distance(b[2], points[b[0]])
-        if not .9 * target <= km <= 1.1 * target:
+        if abs(km - target) > max(.1 * target, 1):
             failures["length"] += 1
             continue
-        curve = simplify([a[2], *path, b[2]])
+        curve = simplify(path)
         confidence = min(a[1], b[1])
         rows.append((lo, hi, json.dumps(curve, separators=(",", ":"), allow_nan=False), confidence))
         confidence_counts[str(confidence)] += 1
         vertices += len(curve)
+        snapped.update((lo, hi))
+    station_rows, moves = [], []
+    for code in sorted(snapped):
+        node, _, own = anchors[code]
+        foot = tuple(round(value, 5) for value in points[node])
+        station_rows.append((code, *foot))
+        moves.append(1000 * distance(own, foot))
+    deciles = quantiles(moves, n=10, method="inclusive") if len(moves) > 1 else moves * 9
     with conn.transaction():
-        conn.execute("lock table ref.segment_osm in exclusive mode")
+        conn.execute("lock table ref.segment_osm,ref.station_osm in exclusive mode")
         conn.execute("delete from ref.segment_osm")
+        conn.execute("delete from ref.station_osm")
         with conn.cursor() as cursor:
             cursor.executemany("insert into ref.segment_osm(stn_lo,stn_hi,polyline,confidence) values (%s,%s,%s,%s)", rows)
+            cursor.executemany("insert into ref.station_osm(code,lon,lat) values (%s,%s,%s)", station_rows)
     return {"stations": station_counts, "segments": confidence_counts, "failures": failures,
+            "snapped": len(snapped), "move_m": {"p50": deciles[4] if deciles else None, "p90": deciles[8] if deciles else None},
             "vertices": vertices, "runtime_s": time.monotonic() - started, "skipped": skipped}
 
 

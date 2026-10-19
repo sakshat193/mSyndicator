@@ -134,3 +134,17 @@ def test_routes_include_train_identity(db, tmp_path):
     network, _, _ = exported(db, tmp_path)
     route = next(r for r in network["routes"] if r["stops"][1]["station"] == "D")
     assert (route["train"], route["name"], route["class"]) == ("00001", "Chain Express", "EXP")
+
+
+def test_export_uses_snapped_stations_for_chords_and_chains(db, tmp_path):
+    points = [[80, 20], [80.3, 20.05], [80.6, 20.05], [80.9, 20]]
+    chain_network(db, points)
+    db.execute("insert into ref.station_osm values ('A',80.001,20.001),('C',80.601,20.051)")
+    points[0], points[2] = [80.001, 20.001], [80.601, 20.051]
+    network, _, _ = exported(db, tmp_path)
+    stations = {s["code"]: [s["lon"], s["lat"]] for s in network["stations"]}
+    assert [stations[code] for code in "ABCD"] == points
+    assert chord(network)["polyline"] == points
+    short = next(s for s in network["segments"] if (s["stn_lo"], s["stn_hi"]) == ("A", "B"))
+    assert short["polyline"] is None
+    assert [stations[short["stn_lo"]], stations[short["stn_hi"]]] == points[:2]
