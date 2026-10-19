@@ -3095,6 +3095,46 @@ at z10 would regress too; the fine geometry has to be culled to the area in view
 
 ---
 
+### Task 99 (amendment 2026-10-19): link parallel tracks, keep stations off sidings, accept short direct paths
+
+**Why:** after Task 96 the user asked to fix what was left: straight chords (Bhokar–Hadgaon Road, Sirpur Town, Kangra
+Mandir–Samloti), ~2.2k hairpins where segments join at stations, and station snaps onto sidings. The monitor reproduced the
+VM refresh locally (Oct 12 OPL, live stations and targets) and traced three causes:
+- Double lines mapped as two ways with no crossover in OSM: each station snaps to a different track and the path detours to
+  a far junction or fails (SKZR–SRUR: shortest path 94.8 km for 18 km).
+- ~1.7k stations (~21 %) snap onto `service=siding|yard|spur|crossover` edges. A dead-end siding makes an in-and-out spur.
+- Timetable km overstates track km on short hops: 630 of 1,064 length failures have a path shorter than the target, most
+  of them direct (BOKR–HDGR target 22.5 km, track 18.0, straight 14.5).
+
+Measured on that copy (today's rules → all three): ok 13,055 → 14,362, plus 645 short direct; no_path 2,353 → 1,103;
+length 1,064 → 362; artefact station-join hairpins 2,162 → 1,334; join excursions > 300 m 1,704 → 950; chord route-km
+7.8 % → 2.9 %; runtime 35 → 70 s. Linking at 8 / 15 / 25 m gives 157k / 315k / 575k links and 1,415 / 1,334 / 1,214
+hairpins; 15 m takes most of the gain. Siding preference alone moves 1,690 feet, nearly all < 50 m, and loses 30 segments
+(WL moves onto an unconnected through track); with linking it loses 4 and wins 20. Most excursions left over 1 km are real
+reversals at terminals (VSKP, HWH).
+
+**Files:** `msynd/static/osm.py`, `tests/static/test_osm.py`.
+
+- `parse_opl` also returns the set of raw edges from ways tagged `service=*`, as sorted node pairs.
+- `anchor_stations` prefers a non-service edge within 1 km and falls back to a service edge only when none is in range.
+  Splitting a service edge keeps both halves service.
+- `link_parallel(points, graph)` runs after anchoring and before contraction. It joins two nodes within `LINK_M` = 15 m whose
+  local bearings differ by ≤ 20°, unless the track already joins them within max(3 × their distance, 50 m). The link weight is
+  the straight distance. Use a grid with cells of about `LINK_M` (not the 1 km `grid_index`). The report gains `links`.
+- `refresh` also accepts a path shorter than the target when it is ≤ 1.25 × the straight distance between the feet. Longer
+  paths and winding short ones stay length failures.
+- `# ponytail:` on `link_parallel`: 315k links double refresh runtime; thin to one link per node if that matters.
+- [ ] Tests first: `parse_opl` returns service edges. A station 20 m from a siding and 60 m from the main line snaps to the
+  main line; with only a siding in range it snaps to the siding. Two parallel ways 6 m apart get links, a way crossing at
+  90° gets none, and consecutive nodes of one way get none. With the DB, stations on different tracks of an unconnected
+  double line get a polyline. A short direct path is accepted; a short winding one is still a length failure.
+- [ ] `uv run pytest -q` green. Commit `task 99: link parallel tracks, keep stations off sidings, accept short direct paths`.
+- [ ] Monitor: with Task 98, rebuild the image (rollback `msynd:pre-t98`), rerun the OSM refresh and export on the VM
+  (rollback: delete the new network file). Compare the report with the numbers above. Rerun the blast counts. Screenshots at
+  Bhokar–Hadgaon Road, Sirpur Town, Kangra Mandir, Tharban and Gaya.
+
+---
+
 ## Spec coverage check
 
 | Spec section | Task(s) |
