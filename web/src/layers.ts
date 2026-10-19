@@ -37,6 +37,7 @@ const ADDITIVE = { blend: true, blendColorOperation: 'add', blendColorSrcFactor:
   blendColorDstFactor: 'one', blendAlphaOperation: 'add', blendAlphaSrcFactor: 'one',
   blendAlphaDstFactor: 'one', depthWriteEnabled: false } as const;
 const GLOW_SCALE = Math.sqrt(6.125 / 3.5);
+const DIM = 0.1, SELECTED_GLOW = 1.6;
 // Gaussian cross-section: thin white-hot core, soft hue halo; the halo narrows down the tail.
 const GLOW = `if (picking.isActive < 0.5) {
   float age = clamp((trips.currentTime - vTime) / trips.trailLength, 0.0, 1.0);
@@ -546,7 +547,7 @@ export function trainLayers(displays: Display[], trails: Trails, simTime: number
     timetableCache.set(trails, chunks);
     previousTimetable = chunks;
   }
-  const length = trailLength(zoom), opacity = selected === null ? 1 : 0.3;
+  const length = trailLength(zoom), opacity = selected === null ? 1 : DIM;
   // Dense India-wide views stay thin and dim; zoomed-in trails widen and brighten.
   const k = Math.min(1, Math.max(0, (zoom - 4) / 4));
   const comets = new GlowTrips<Trail>({ id: 'comets', data: trails.comets, dataComparator, opacity,
@@ -574,8 +575,8 @@ export function trainLayers(displays: Display[], trails: Trails, simTime: number
     const scheduled = display.run.state === 'schedule_only';
     const trail = (scheduled ? trails.timetable : trails.comets).find(t => t.runId === selected)!;
     layers.push((scheduled ? timetable[display.run.run_id % 16] : comets).clone({
-      id: 'selected-trail', data: [trail], opacity: scheduled ? 0.35 + 0.65 * k : 1 }),
-    dots.clone({ id: 'selected-head', data: [display], opacity: 0.45 + 0.55 * k }));
+      id: 'selected-trail', data: [trail], opacity: 1, widthScale: SELECTED_GLOW }),
+    dots.clone({ id: 'selected-head', data: [display], opacity: 1, radiusScale: SELECTED_GLOW }));
   }
   return layers;
 }

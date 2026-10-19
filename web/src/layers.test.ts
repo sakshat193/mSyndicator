@@ -6,6 +6,7 @@ import { indexNetwork, networkLayer, displayRun, trailData, trainLayers,
   nearestRun, dataComparator, glyphShift, glyphMetrics, padGlyphAlpha, type Network } from './layers';
 
 const GLOW_SCALE = Math.sqrt(6.125 / 3.5);
+const DIM = 0.1, SELECTED_GLOW = 1.6;
 const timetableIds = Array.from({ length: 16 }, (_, c) => `timetable-${c}`);
 
 function packQuantiles(quantiles: (number | null)[][]): Uint8Array {
@@ -699,13 +700,13 @@ it.each([4, 6, 8])('selection changes only opacity on the base train layers at z
     displayRun({ ...runFixture(8), run_id: i + 9, state }, network, 1300)!);
   const trails = trailData(displays, 1300), heads = new Map<number, [number, number]>();
   const first = trainLayers(displays, trails, 1300, zoom, null, heads, 7);
-  for (const selected of [9, 10, 11, null]) {
+  for (const selected of [9, 10, 11, null, 999]) {
     const layers = trainLayers(displays, trails, 1300, zoom, selected, heads, 7);
     for (const before of first) {
       const layer = layers.find(l => l.id === before.id)!;
       const { opacity, ...props } = layer.props;
       const { opacity: original, ...originalProps } = before.props;
-      expect(opacity).toBeCloseTo(original! * (selected === null ? 1 : 0.3));
+      expect(opacity).toBeCloseTo(original! * (selected === null ? 1 : DIM));
       for (const key of Object.keys(originalProps)) {
         const value = (props as any)[key], previous = (originalProps as any)[key];
         if (typeof previous !== 'function') expect(value).toEqual(previous);
@@ -733,27 +734,29 @@ it.each(['observed', 'stale', 'schedule_only'])('overlays only the selected %s c
     expect(layers.slice(0, base.length).map(l => l.id)).toEqual(base.map(l => l.id));
     expect(layers).toHaveLength(base.length + 2);
     const [trail, head] = layers.slice(base.length) as [TripsLayer, ScatterplotLayer];
-    const source = base.find(l => l.id === (state === 'schedule_only' ? 'timetable-9' : 'comets'))!;
+    const source = layers.find(l => l.id === (state === 'schedule_only' ? 'timetable-9' : 'comets'))!;
     const core = (state === 'schedule_only' ? trails.timetable : trails.comets).find(t => t.runId === 9)!;
     expect(trail).toBeInstanceOf(TripsLayer);
     expect(trail.constructor).toBe(source.constructor);
     expect(trail.props.data).toHaveLength(1);
     expect((trail.props.data as any[])[0]).toBe(core);
-    for (const key of ['currentTime', 'trailLength', 'fadeTrail', 'getWidth', 'widthUnits', 'widthScale', 'opacity', 'parameters'])
-      expect((trail.props as any)[key]).toEqual((source.props as any)[key]);
     expect((trail.props.getColor as Function)(core)).toEqual([...display.color, state === 'schedule_only' ? 190 : 255]);
     expect((trail.props.getPath as Function)(core)).toBe(core.path);
     expect((trail.props.getTimestamps as Function)(core)).toBe(core.timestamps);
     expect((layers.find(l => l.id === source.id)!.props.data as any[]).find(t => t.runId === 9)).toBe(core);
-    const originalHead = base.find(l => l.id === 'heads')!;
+    const originalHead = layers.find(l => l.id === 'heads')!;
     expect(head).toBeInstanceOf(ScatterplotLayer);
     expect(head.constructor).toBe(originalHead.constructor);
     expect(head.props.data).toEqual([display]);
     expect((head.props.data as any[])[0]).toBe(display);
     expect((head.props.getPosition as Function)(display)).toBe(heads.get(9));
     expect(head.props.updateTriggers!.getPosition).toBe(7);
-    expect(head.props.opacity).toBe(originalHead.props.opacity);
-    expect(head.props.parameters).toEqual(originalHead.props.parameters);
+    for (const [layer, original, scale] of [[trail, source, 'widthScale'], [head, originalHead, 'radiusScale']] as const) {
+      expect(layer.props.opacity).toBe(1);
+      expect((layer.props as any)[scale]).toBe(SELECTED_GLOW);
+      for (const key of Object.keys(original.props)) if (!['id', 'data', 'opacity', scale].includes(key))
+        expect((layer.props as any)[key]).toEqual((original.props as any)[key]);
+    }
     const next = trainLayers(displays, trails, 4901, zoom, 9, heads, 8).slice(base.length);
     expect((next[0].props.data as any[])[0]).toBe(core);
     expect(next[0].props.dataComparator!(next[0].props.data, trail.props.data)).toBe(true);
@@ -837,7 +840,7 @@ it('draws sixteen ordered timetable chunks with the same glow props and cached d
     expect(layer.props.fadeTrail).toBe(true);
     expect(layer.props.getWidth).toBe(6 * GLOW_SCALE);
     expect(layer.props.widthScale).toBe(0.75);
-    expect(layer.props.opacity).toBeCloseTo(0.675 * 0.3);
+    expect(layer.props.opacity).toBeCloseTo(0.675 * DIM);
     expect(layer.props.widthUnits).toBe('pixels');
     expect(layer.props.updateTriggers!.getColor).toBeUndefined();
     expect(layer.props.parameters).toEqual(layers[0].props.parameters);
