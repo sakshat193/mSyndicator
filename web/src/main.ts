@@ -288,7 +288,7 @@ function draw(tick: number) {
       }
       const background = networkLayer(network, selected);
       overlay.setProps({ layers: [region ? background.clone({ visible: false }) : background,
-        networkLayer(fine, selected).clone({ id: 'network-fine', visible: !!region }),
+        ...(region ? [networkLayer(fine, selected, region)] : []),
         ...(highlight ? selectionLayers(highlight, tick, simTime) : []),
         ...trainLayers(displays, trails, simTime, zoom, selected, drawnHeads, headsVersion),
         ...(labels ? [labels] : [])] });

@@ -6,6 +6,7 @@ import type { RunFrame } from './frames';
 import { pos } from './position';
 
 type Point = [number, number];
+type Bbox = [number, number, number, number];
 type Stop = { idx: number; station: string; halt: boolean; dist_km: number; sched_off: number | null };
 export interface Network {
   stations: { code: string; name?: string; lon: number | null; lat: number | null }[];
@@ -92,7 +93,10 @@ class GlowDots<D> extends ScatterplotLayer<D> {
     return { ...shaders, inject: { ...shaders.inject, 'fs:DECKGL_FILTER_COLOR': BLOB } };
   }
 }
-const networkLayers = new WeakMap<Network, { full: PathLayer<Point[]>; dimmed: PathLayer<Point[]> }>();
+type NetworkLayers = { full: PathLayer<Point[]>; dimmed: PathLayer<Point[]> };
+const networkLayers = new WeakMap<Network, NetworkLayers & {
+  paths: Point[][]; bboxes?: Bbox[]; regions: WeakMap<Bbox, NetworkLayers>;
+}>();
 const trailCache = new WeakMap<Display, { base: number; core: Trail; streaks: Trail[] }>();
 const timetableCache = new WeakMap<Trails, Trail[][]>();
 let previousTimetable: Trail[][] = [];
@@ -363,21 +367,41 @@ export function headAt({ stops, points, eventTimes: times, gaps }: Pick<Display,
   return head;
 }
 
-export function networkLayer(network: Network, selected: number | null = null) {
+export function networkLayer(network: Network, selected: number | null = null, region?: Bbox) {
   const key = selected === null ? 'full' : 'dimmed';
-  const existing = networkLayers.get(network);
+  let cached = networkLayers.get(network);
+  if (!cached) {
+    const index = indexNetwork(network);
+    // ponytail: hidden long chords remain only as train trails; Task 37 replaces them.
+    const paths = network.segments.flatMap(s => {
+      const a = index.stations.get(s.stn_lo), b = index.stations.get(s.stn_hi);
+      if (s.derived || !a || !b) return [];
+      return s.polyline ? [s.polyline] : greatCircle(a, b) <= 150 ? [[a, b]] : [];
+    });
+    const layer = new PathLayer<Point[]>({ id: 'network', data: paths, getPath: p => p,
+      getColor: [0, 200, 255, 36], getWidth: 1.5, widthUnits: 'pixels' });
+    cached = { full: layer, dimmed: layer.clone({ opacity: DIM }), paths, regions: new WeakMap() };
+    networkLayers.set(network, cached);
+  }
+  if (!region) return cached[key];
+  const existing = cached.regions.get(region);
   if (existing) return existing[key];
-  const index = indexNetwork(network);
-  // ponytail: hidden long chords remain only as train trails; Task 37 replaces them.
-  const paths = network.segments.flatMap(s => {
-    const a = index.stations.get(s.stn_lo), b = index.stations.get(s.stn_hi);
-    if (s.derived || !a || !b) return [];
-    return s.polyline ? [s.polyline] : greatCircle(a, b) <= 150 ? [[a, b]] : [];
+  const bboxes = cached.bboxes ??= cached.paths.map(path => {
+    const bbox: Bbox = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const [lon, lat] of path) {
+      bbox[0] = Math.min(bbox[0], lon); bbox[1] = Math.min(bbox[1], lat);
+      bbox[2] = Math.max(bbox[2], lon); bbox[3] = Math.max(bbox[3], lat);
+    }
+    return bbox;
   });
-  const layer = new PathLayer<Point[]>({ id: 'network', data: paths, getPath: p => p,
-    getColor: [0, 200, 255, 36], getWidth: 1.5, widthUnits: 'pixels' });
+  // ponytail: per-path bbox test on each region change; add a spatial index if it shows in profiles.
+  const paths = cached.paths.filter((_, i) => {
+    const bbox = bboxes[i];
+    return bbox[0] <= region[2] && bbox[2] >= region[0] && bbox[1] <= region[3] && bbox[3] >= region[1];
+  });
+  const layer = cached.full.clone({ id: 'network-fine', data: paths });
   const layers = { full: layer, dimmed: layer.clone({ opacity: DIM }) };
-  networkLayers.set(network, layers);
+  cached.regions.set(region, layers);
   return layers[key];
 }
 

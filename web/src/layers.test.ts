@@ -71,6 +71,7 @@ it('indexes stations, routes and stops with the same results as linear lookup', 
 
 it('builds one network layer and geometry array per network', () => {
   const layer = networkLayer(network);
+  expect(layer.id).toBe('network');
   expect(layer.props.data).toEqual([[[70, 20], [72, 22]]]);
   expect(networkLayer(network)).toBe(layer);
   expect(networkLayer(network).props.data).toBe(layer.props.data);
@@ -90,6 +91,37 @@ it.each([9, 0, 999])('dims the cached network without changing geometry for sele
   expect(dimmed.props.widthUnits).toBe(layer.props.widthUnits);
   expect(networkLayer(drawing, selected)).toBe(dimmed);
   expect(networkLayer(drawing, null)).toBe(layer);
+  expect(layer.props.opacity).toBe(1);
+});
+
+it('keeps crossing and touching network paths while culling bboxes outside the region', () => {
+  const paths: [number, number][][] = [
+    [[70, 20], [72, 22]], [[70, 23], [72, 24]], [[70, 18], [72, 19]],
+    [[73, 20], [74, 22]], [[68, 20], [69, 22]], [[71.5, 21.5], [72, 23]],
+    [[73, 23], [71, 21], [73, 23]],
+  ];
+  const drawing = { ...network, segments: paths.map((polyline, id) => ({ ...network.segments[0], id, polyline })) };
+  const layer = networkLayer(drawing, null, [70.5, 20.5, 71.5, 21.5]);
+  expect(layer.id).toBe('network-fine');
+  expect(layer.props.data).toEqual([paths[0], paths[5], paths[6]]);
+  expect(networkLayer(drawing).props.data).toEqual(paths);
+});
+
+it('caches full and dimmed regional layers per network and region', () => {
+  const drawing = { ...network }, region: [number, number, number, number] = [70.5, 20.5, 71.5, 21.5];
+  const layer = networkLayer(drawing, null, region);
+  expect(networkLayer(drawing, null, region)).toBe(layer);
+  expect(networkLayer(drawing, null, region).props.data).toBe(layer.props.data);
+  const elsewhere = networkLayer(drawing, null, [80, 20, 81, 21]);
+  expect(elsewhere.props.data).toEqual([]);
+  expect(elsewhere.props.data).not.toBe(layer.props.data);
+  expect(networkLayer({ ...drawing }, null, region)).not.toBe(layer);
+  const dimmed = networkLayer(drawing, 0, region);
+  expect(dimmed.id).toBe('network-fine');
+  expect(dimmed.props.opacity).toBe(DIM);
+  expect(dimmed.props.data).toBe(layer.props.data);
+  expect(networkLayer(drawing, 9, region)).toBe(dimmed);
+  expect(networkLayer(drawing, null, region)).toBe(layer);
   expect(layer.props.opacity).toBe(1);
 });
 
