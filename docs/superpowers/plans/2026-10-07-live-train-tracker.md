@@ -3084,14 +3084,29 @@ at z10 would regress too; the fine geometry has to be culled to the area in view
     current display.
   - `trainLayers` skips `selected-trail` when the selected run has no trail (today `find(...)!`).
   - `# ponytail:` on the region: a whole-route bbox test, a spatial index if rebuilds show in profiles.
-- [ ] Tests first: `simplify` (the Python fixtures at 75 m; a straight line keeps its ends); `overview`; `trainLayers` with a
+- [x] Tests first: `simplify` (the Python fixtures at 75 m; a straight line keeps its ends); `overview`; `trainLayers` with a
   selected run that has no trail; in `main.test.ts` a curved polyline draws simplified at z4, fine at z11 (network and trail),
   still fine at z9.7, coarse at z9.4; a run outside the region keeps its head but has no trail; leaving the region rebuilds.
-- [ ] `uv run pytest -q` (osm tests) and `npm --prefix web test` green. Commit `task 98: fine geometry past z10`.
-- [ ] Monitor: deploy web/dist first (it works with the 75 m file), then rebuild the image (rollback `msynd:pre-t98`) and rerun
+- [x] `uv run pytest -q` (osm tests) and `npm --prefix web test` green. Commit `task 98: fine geometry past z10`.
+- [x] Follow-up (monitor, 2026-10-19): the first build's z9 → z11 crossing peaked at 645 / 382 / 389 ms (Delhi / Mumbai /
+  Kolkata; old code 90–187). Timers in `draw` put 65–220 ms in the region test (every point pair of every run, on every
+  rebuild) and ~120 ms in re-tessellating the shared `network` id on each background swap. Fixes: a per-display bbox in a
+  WeakMap (a miss skips the pair test); both backgrounds mounted with stable ids `network` / `network-fine`, toggled by
+  `visible`; entering detail mode and recomputing the region only while `!map.isMoving()` (leaving below 9.5 stays immediate).
+  (210 web tests, build passes; the T98 commit includes it.)
+- [x] Monitor: deploy web/dist first (it works with the 75 m file), then rebuild the image (rollback `msynd:pre-t98`) and rerun
   the OSM refresh and export on the VM (rollback: delete the new network file). Measure gz size, heap, India-zoom frames
   (budget: within 10 % of 34.7 ms p50), z11 ↔ z12.5 frames against the A/B above, the hitch at the z10 crossing, and
   screenshots at z11–13 at Tharban, Gaya and Tripal Halt.
+  (2026-10-19: 9197b72; deployed with Task 99 in one image and one refresh, see there; web `index-Blk5cjAR.js`, `web/dist.old`
+  the Task 97 build. The 15 m file is 6,754,645 bytes gz (75 m was 5,362,214; it also carries Task 99's 1,949 new segments).
+  India rAF p50 / p90 / p99: 15 m file 34.6 / 35.1 / 55.6, live 34.7 / 41.7 / 62.7, within budget. Crossing z9 → z11 worst
+  frame 375 / 229 / 194 ms (15 m file), live 381 / 291 / 244, a one-time pause when the zoom settles (fine decode of the
+  regional runs); zoom-out 97–132 ms. Heap after GC: India 284 MB, after detail regions 352–366 MB. z11 ↔ z12.5, same
+  machine and minute (rAF on a 144 Hz display, 6.9 ms steps): 75 m everywhere p50 27.8–28, the LOD 42.1–48.5, the LOD with
+  the coarse background swapped in 34.2–34.7, so the whole-India fine background costs 1–2 vsyncs: Task 100. Screenshots
+  `reports/t99-after-{bhokar,tripal,gaya,gayajn}.png` (Tharban is in the Bhokar view): smooth curves, no 75 m corners.
+  Selection (Task 97) still dims the fine background: `reports/t98-select-{overview,z8,z11}.png` with 12301.)
 
 ---
 
@@ -3124,14 +3139,51 @@ reversals at terminals (VSKP, HWH).
 - `refresh` also accepts a path shorter than the target when it is ≤ 1.25 × the straight distance between the feet. Longer
   paths and winding short ones stay length failures.
 - `# ponytail:` on `link_parallel`: 315k links double refresh runtime; thin to one link per node if that matters.
-- [ ] Tests first: `parse_opl` returns service edges. A station 20 m from a siding and 60 m from the main line snaps to the
+- [x] Tests first: `parse_opl` returns service edges. A station 20 m from a siding and 60 m from the main line snaps to the
   main line; with only a siding in range it snaps to the siding. Two parallel ways 6 m apart get links, a way crossing at
   90° gets none, and consecutive nodes of one way get none. With the DB, stations on different tracks of an unconnected
   double line get a polyline. A short direct path is accepted; a short winding one is still a length failure.
-- [ ] `uv run pytest -q` green. Commit `task 99: link parallel tracks, keep stations off sidings, accept short direct paths`.
-- [ ] Monitor: with Task 98, rebuild the image (rollback `msynd:pre-t98`), rerun the OSM refresh and export on the VM
+- [x] `uv run pytest -q` green. Commit `task 99: link parallel tracks, keep stations off sidings, accept short direct paths`.
+  (2026-10-19: 4867a90 on top of 9197b72; full suite 956 passed, 1 skipped; `tests/static` 128 on impl/v1. The local copy
+  gives 13,469 / 180 / 1,358 segments, exactly the prototype's 15,007, no_path 1,105, length 362, 314,979 links, 70 s.)
+- [x] Monitor: with Task 98, rebuild the image (rollback `msynd:pre-t98`), rerun the OSM refresh and export on the VM
   (rollback: delete the new network file). Compare the report with the numbers above. Rerun the blast counts. Screenshots at
   Bhokar–Hadgaon Road, Sirpur Town, Kangra Mandir, Tharban and Gaya.
+  (2026-10-19: `msynd:local` 815c215ae72d, DB dump `/data/backups/pre-t99-segment_osm.dump`, live
+  `network-9ef62a1ed75d.json.gz`, 6,754,645 bytes (previous `809975913a4b`). Stations ref 7,699, name 103, coord 704,
+  no_anchor 44; snapped 8,388, move p50 76 m, p90 1,310 m. Segments 1.0 / 0.5 / 0.3: 13,467 / 180 / 1,358 (15,005, was
+  13,056); failures no_anchor 1,384, no_path 1,109, length 362. Vertices 364,905 (15 m), links 314,979, 79.5 s, max RSS
+  863 MB. Blast on the live files, old → new: artefact station-join hairpins 2,163 → 1,342; join excursions > 100 m
+  2,153 → 1,329, > 300 m 1,705 → 959, > 1 km 339 → 319 (largest PRR–TATA–CKP 6.36 km, a terminal reversal); chord
+  route-km 6.8 % → 2.9 % (local copy). Screenshots `reports/t99-{before,after}-{bhokar,sirpur,gaya,gayajn,tripal,kangra}.png`:
+  Bhokar–Hadgaon Road (via Tharban), SRUR–SKZR and Kangra Mandir–Samloti follow the track; Dehri, Son Nagar and Gaya Jn are
+  smooth single lines. MKDI–SRUR stays a chord: its timetable km (11.2) is shorter than the straight line (17.3 km), so a
+  station coordinate or the timetable is wrong.)
+
+---
+
+### Task 100 (amendment 2026-10-19): fine background only in the region
+
+**Why:** Task 98's high-zoom check (z11 ↔ z12.5, same machine and minute) gave p50 42.1–48.5 ms with the LOD against 27.8–28
+with 75 m everywhere. Swapping the coarse background in brings it to 34.2–34.7. In detail mode the background draws every
+fine path in India (~370k vertices), though only the region (3 × 3 viewports) can be in view. The step that remains is the
+fine regional trails, the smoothness itself.
+
+**Files:** `web/src/layers.ts`, `web/src/layers.test.ts`, `web/src/main.ts`, `web/src/main.test.ts`.
+
+- `networkLayer(network, selected, region?)`: with a region, the data is only the paths whose bbox meets the region. Each
+  path's bbox is computed once per network. Layers are cached per network and region (nested WeakMaps), so one region keeps
+  one data reference across draws, with the full and dimmed variants as now. The id is `network-fine`. Without a region,
+  behaviour is unchanged.
+- `main.ts`: in detail mode the background is `networkLayer(fine, selected, region)`, and the overview stays mounted and
+  hidden as now. Outside detail mode there is no `network-fine` layer. A new region re-tessellates only its subset.
+- `# ponytail:` on the filter: a per-path bbox test on each region change; a spatial index if it shows in profiles.
+- [ ] Tests first: with a region, a fine path outside it is not in the background's data and one crossing it is. The data is
+  the same reference across draws in one region and changes with the region. A selection dims the regional layer. At z4
+  there is no `network-fine` layer (adjust Task 98's "both layers present" test to this).
+- [ ] `npm --prefix web test` green, build passes. Commit `task 100: fine background only in the region`.
+- [ ] Monitor: z11 ↔ z12.5 frames (target: p50 at the coarse-background figure, ~35 ms), the crossing hitch, India frames,
+  a z12 screenshot, then deploy web/dist (keep `web/dist.old`, restart caddy).
 
 ---
 
