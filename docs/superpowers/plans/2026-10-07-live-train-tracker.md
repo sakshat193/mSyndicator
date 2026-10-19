@@ -2998,6 +2998,33 @@ km and `ref.station` coordinates.
   - Rollback: delete the new network file; the API serves the newest by mtime.
   - Watch for snaps onto dead-end sidings or yards (residual hairpins); excluding `service=siding|yard|spur` from snap
     candidates is the follow-up if they show.
+- [ ] Budget follow-up (monitor, 2026-10-19): India zoom p50 frame time, same network re-simplified: old 34.7 ms, 75 m 34.7,
+  30 m 41.8–48.9 (+20–41 %), 15 m 55.5–56 (+60 %). The cost is vertices, not the 578 extra routes, and the 30 m fallback still
+  breaks the budget, so `SIMPLIFY_M` goes back to 75 m. The snap fixes stay. The `# ponytail:` note gains the measurement:
+  smoother curves need a zoom LOD (a fine polyline only past ~z10). Tests: `simplify` keeps a 100 m bump and drops a 50 m bump.
+  Commit `task 96: simplify at 75 m (frame budget)`; rerun refresh and export on the VM.
+
+---
+
+### Task 97 (amendment 2026-10-19): a selected train outshines the rest (user request)
+
+**Why:** the user asked, with a screenshot of 17631 selected at India zoom: "when i select a train, i need all other glows (of
+other trains) to dim down, and increase the glow of the train selected". Since Task 90 the other trains dim to × 0.3, but ~2,500
+additive trails still sum to near white in dense corridors, and the selected trail and head copy their source layer's
+zoom-scaled width and opacity (a timetable trail at z4: width × 0.5, opacity 0.35), so the selected train is no brighter than
+any other.
+
+**Files:** `web/src/layers.ts`, `web/src/layers.test.ts`.
+
+- With a train selected, the comets, streaks, timetable chunks and heads dim through layer `opacity` × `DIM` = 0.1 (was 0.3);
+  colours, data and triggers unchanged (Task 90).
+- `selected-trail` draws at opacity 1 and `widthScale` `SELECTED_GLOW` = 1.6 at every zoom; `selected-head` at opacity 1 and
+  `radiusScale` 1.6. Everything else is cloned from the source layer as now. Both are module constants.
+- [ ] Tests first: rework "selection changes only opacity" to × `DIM`; the selected trail (comet and timetable) and head have
+  opacity 1 and scale 1.6 at zoom 4, 6 and 8, other props as the source layer.
+- [ ] `npm --prefix web test` green. Commit `task 97: a selected train outshines the rest`.
+- [ ] Monitor: screenshots of a selected train at India zoom and z8 before and after; frame times with a selection; deploy
+  web/dist (keep `web/dist.old`, restart caddy).
 
 ---
 
