@@ -91,7 +91,7 @@ class GlowDots<D> extends ScatterplotLayer<D> {
     return { ...shaders, inject: { ...shaders.inject, 'fs:DECKGL_FILTER_COLOR': BLOB } };
   }
 }
-const networkLayers = new WeakMap<Network, PathLayer<Point[]>>();
+const networkLayers = new WeakMap<Network, { full: PathLayer<Point[]>; dimmed: PathLayer<Point[]> }>();
 const trailCache = new WeakMap<Display, { base: number; core: Trail; streaks: Trail[] }>();
 const timetableCache = new WeakMap<Trails, Trail[][]>();
 let previousTimetable: Trail[][] = [];
@@ -333,9 +333,10 @@ export function headAt({ stops, points, eventTimes: times, gaps }: Pick<Display,
   return head;
 }
 
-export function networkLayer(network: Network) {
+export function networkLayer(network: Network, selected: number | null = null) {
+  const key = selected === null ? 'full' : 'dimmed';
   const existing = networkLayers.get(network);
-  if (existing) return existing;
+  if (existing) return existing[key];
   const index = indexNetwork(network);
   // ponytail: hidden long chords remain only as train trails; Task 37 replaces them.
   const paths = network.segments.flatMap(s => {
@@ -345,8 +346,9 @@ export function networkLayer(network: Network) {
   });
   const layer = new PathLayer<Point[]>({ id: 'network', data: paths, getPath: p => p,
     getColor: [0, 200, 255, 36], getWidth: 1.5, widthUnits: 'pixels' });
-  networkLayers.set(network, layer);
-  return layer;
+  const layers = { full: layer, dimmed: layer.clone({ opacity: DIM }) };
+  networkLayers.set(network, layers);
+  return layers[key];
 }
 
 function greatCircle(a: Point, b: Point): number {

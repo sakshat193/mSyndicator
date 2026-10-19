@@ -55,6 +55,20 @@ it('builds one network layer and geometry array per network', () => {
   expect(layer.props.getWidth).toBe(1.5);
 });
 
+it.each([9, 0, 999])('dims the cached network without changing geometry for selection %s', selected => {
+  const drawing = { ...network }, dimmed = networkLayer(drawing, selected), layer = networkLayer(drawing);
+  expect(dimmed.id).toBe(layer.id);
+  expect(dimmed.props.opacity).toBe(DIM);
+  expect(dimmed.props.data).toBe(layer.props.data);
+  expect(dimmed.props.getPath).toBe(layer.props.getPath);
+  expect(dimmed.props.getColor).toBe(layer.props.getColor);
+  expect(dimmed.props.getWidth).toBe(layer.props.getWidth);
+  expect(dimmed.props.widthUnits).toBe(layer.props.widthUnits);
+  expect(networkLayer(drawing, selected)).toBe(dimmed);
+  expect(networkLayer(drawing, null)).toBe(layer);
+  expect(layer.props.opacity).toBe(1);
+});
+
 it('uses indexed geometry when decoding the existing P50 fixture', () => {
   const run = { run_id: 9, versions: { route: 7 }, origin_ts: 1000, base_ts: 1000,
     path_shape: [2, 2, 2] as [number, number, number],

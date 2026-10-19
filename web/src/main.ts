@@ -244,7 +244,7 @@ function draw(tick: number) {
         labelZoom = bucket;
         labels = stationLabelLayer(labelStations(network, bucket), bucket);
       }
-      overlay.setProps({ layers: [background, ...(highlight ? selectionLayers(highlight, tick, simTime) : []),
+      overlay.setProps({ layers: [networkLayer(network, selected), ...(highlight ? selectionLayers(highlight, tick, simTime) : []),
         ...trainLayers(displays, trails, simTime, zoom, selected, drawnHeads, headsVersion),
         ...(labels ? [labels] : [])] });
     }
