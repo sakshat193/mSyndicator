@@ -3025,6 +3025,11 @@ any other.
 - [ ] `npm --prefix web test` green. Commit `task 97: a selected train outshines the rest`.
 - [ ] Monitor: screenshots of a selected train at India zoom and z8 before and after; frame times with a selection; deploy
   web/dist (keep `web/dist.old`, restart caddy).
+- [ ] Follow-up (monitor, 2026-10-19): after 91fd712 the India view still looked bright. Isolating layers showed the trains do
+  dim; the cyan web is the static `network` layer (15,895 paths, alpha 36), which ignores the selection. With a train selected
+  the network also draws at opacity × `DIM`. Its data and the cached per-network instance are unchanged (a dimmed clone, no
+  attribute rebuild). Tests first in `web/src/layers.test.ts` (and `main.test.ts` if the wiring is tested there). Commit
+  `task 97: the network dims with the other trains`.
 
 ---
 
