@@ -3287,19 +3287,29 @@ the weekly schedule and the promotion gates stay as they are. Spec §8.6 "Early 
 - Held-out screening only: §8.6 promotion and the prospective A3/A4 acceptance are separate.
 
 **Tests first** (see each fail first):
-- [ ] Labels: eligibility (unfinished, immature, unparsed exception, expiry receipt, rescheduling, repeated station) and
+- [x] Labels: eligibility (unfinished, immature, unparsed exception, expiry receipt, rescheduling, repeated station) and
   equality with the pre-change SQL (kept in the test as an oracle) for current and frozen boundaries; `run_ids` None/empty/subset.
-- [ ] Features: training-only fold accepted, empty train weeks rejected; one read per identical `(run, receipt)`; different
+- [x] Features: training-only fold accepted, empty train weeks rejected; one read per identical `(run, receipt)`; different
   receipts of one run stay isolated; output and encoders equal the ungrouped path.
-- [ ] Shadow: thresholds unchanged (same constants objects), below-floor roles skipped, preflight writes no row or file and
+- [x] Shadow: thresholds unchanged (same constants objects), below-floor roles skipped, preflight writes no row or file and
   fails on a breached threshold or timing; advisory lock refuses a second job.
-- [ ] Freeze: artifact and encoder round trips, baseline copies match the source (hash and predictions), provisional copy
+- [x] Freeze: artifact and encoder round trips, baseline copies match the source (hash and predictions), provisional copy
   for a missing role, rows inactive with the manifest, active ids unchanged, failure before commit leaves no row or file.
-- [ ] Score: future-only cases, frozen baselines survive a later promotion, stale ETA excluded only from the B2 subset,
+- [x] Score: future-only cases, frozen baselines survive a later promotion, stale ETA excluded only from the B2 subset,
   empty window `awaiting_data`, partial marking, CI only at ≥ 7 dates, tampered hash / foreign id / feature mismatch rejected.
-- [ ] Focused tests, `uv run pytest -q` and `npm --prefix web test` green. Commit `task 102: start collector-data training today`.
-- [ ] Monitor: pinned image from the task commit, `preflight` on the VM, then `fit` (`MSYND_LIVE=0`); record phase timings,
+- [x] Focused tests, `uv run pytest -q` and `npm --prefix web test` green. Commit `task 102: start collector-data training today`.
+- [x] Monitor: pinned image from the task commit, `preflight` on the VM, then `fit` (`MSYND_LIVE=0`); record phase timings,
   candidate ids and the image tag; check the active `ml.model` ids are unchanged; keep the image until scoring is done.
+
+**Results (2026-10-21):** commit ba77e91. Review dropped Codex's evidence-loader switch (b3_active already overwrites the
+loaded versions) and a calendar stub (parity uses the lock session); the full suite has 998 passed and 1 skipped, and 212 web tests pass.
+VM image `msynd:t102-ba77e91` (01620019949a, kept), run by `/opt/msynd/deploy-backups/shadow.sh`. Preflight `ready`:
+8,007 runs, 2,919 trains, 13 dates, 348,372 rows; provenance harvest-only 7,451, poll-only 556; labels 11.1 s, probe 1.27 s.
+Fit at 09:32–09:34Z: cutoff 09:32:13Z; labels 10.8 s, probe 1.25 s, extraction 55.0 s, training 23.7 s, freeze 0.66 s.
+Candidates **3** (run, lgbm_quantile), **4** (dwell), **5** (origin), all inactive, with no role skipped, in
+`/data/models/shadow-d6b51c03a2a34cc388b7117f372fb6a1/`; baselines are copies of 2 (run), 1 (origin) and the provisional dwell. Train
+window `[10-08,10-21)`, validation `[10-22,11-05)`, N 10,000 / K 32. Active ids are still 1 and 2. `score --model-id 3`
+returns `awaiting_data` with matching hashes; a future `--until` is rejected.
 
 ### Monitor status (2026-10-21)
 
@@ -3313,6 +3323,8 @@ the weekly schedule and the promotion gates stay as they are. Spec §8.6 "Early 
   passes on 3,004 keys, the full daily scope (Task 81 table). Polling stays at 7,500: it uses ~4.3k a day, so the 9,500
   step is not taken (spec §18).
 - Unused `ops`/`import` extras removed in Task 101; the image shrinks by ~0.55 GB at its next rebuild.
+- **Early shadow candidate** (Task 102): ids 3/4/5 frozen 2026-10-21 09:33Z on 8,007 runs, all inactive. Score after the
+  window: `shadow.sh score --model-id 3` (partial runs allowed earlier). The 11-02 weekly fit and the §8.6 gates are unchanged.
 
 ## Spec coverage check
 

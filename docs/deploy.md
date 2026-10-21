@@ -145,6 +145,17 @@ Nothing promotes automatically. Promote a candidate only after the Phase 3 exit 
 docker compose --profile ops run --rm --no-deps -e PYTHONPATH=/app ops python -c 'import os, sys, psycopg; from msynd.models import registry
 with psycopg.connect(os.environ["DATABASE_URL"]) as c: registry.promote(c, int(sys.argv[1]))' MODEL_ID
 ```
+Early shadow candidate (Task 102; spec §8.6): run on an image pinned to the task commit, never `msynd:local`, and keep it
+until scoring is finished. `deploy-backups/shadow.sh` (VM only, mode 700) exports `DATABASE_URL` from `.env`, so the password
+stays out of argv, then runs `docker run --rm --network msynd_default -v /data:/data -e DATABASE_URL -e MSYND_LIVE=0
+${SHADOW_IMAGE:-msynd:t102-ba77e91} python -m msynd.ops.shadow "$@"`:
+```sh
+docker build -q -t msynd:t102-<sha> .
+deploy-backups/shadow.sh preflight --models-dir /data/models   # read-only checks, no writes
+deploy-backups/shadow.sh fit --models-dir /data/models         # inactive rows plus /data/models/shadow-<uuid>/
+deploy-backups/shadow.sh score --model-id 3 [--until YYYY-MM-DD]
+```
+Each prints one JSON report as its last line and exits nonzero on a failed check, a held lock or a rejection.
 An empty `BACKUP_REMOTE` means local-only backups with two retained copies.
 Local backups retain evidence; when enabled, off-site dumps exclude obs. No raw source export is approved.
 Never use `docker compose down -v`: it deletes the database volume.
