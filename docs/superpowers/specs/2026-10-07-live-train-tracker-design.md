@@ -684,9 +684,11 @@ Not in the v1 baseline: anything about other trains (C1, C2 in §4.4) and OSM at
 - Labels come only from matured revisions.
 
 ### 8.4 Models
-- **Baseline, on the VM CPU.** LightGBM quantile models for R, W and O (and C if used), converted to CDFs per §3.4. This is always retrained weekly on the VM, so a working model exists without Kaggle.
-  - O and W start as *empirical* tables (per class and scheduled-dwell bucket) until there are enough labels for LightGBM.
-- **Neural candidate, on Kaggle GPU** (gated by G1/G6):
+- **Baseline, on the VM CPU.** LightGBM quantile models for R, W and O (and C if used), converted to CDFs per §3.4. A candidate is
+  fitted weekly on the VM and scored against the active model (§8.6), so a working model exists without Kaggle.
+  - O and W start as *empirical* tables (per class and scheduled-dwell bucket) until there are enough labels for LightGBM. The
+    weekly job fits them that way today.
+- **Neural candidate, on Kaggle GPU** (gated by G1/G6; closed while the §18 no-export rule stands, see §8.5):
   - **Inputs:** the §8.2 features plus the run's observed sequence of segment deltas (up to 8, through a small GRU or transformer), plus *d*.
   - **Head:** 302-way (R/O) or 181-way (W) softmax. Loss is cross-entropy on a Gaussian-smoothed target (σ = 1.5 bins) plus 0.5 × CRPS.
   - **Training:** AdamW, cosine schedule, mixed precision.
@@ -695,10 +697,12 @@ Not in the v1 baseline: anything about other trains (C1, C2 in §4.4) and OSM at
 - **Distillation.** Only if measured ONNX inference breaks A6.
 
 ### 8.5 Kaggle GPU workflow (gated: G1 must allow the export, G6 must pass)
+**Status: not running.** The §18 decisions keep raw data on the PC/VM with no export, and training personal and local, so
+nothing below is built. It needs a new decision to reopen. The weekly job that does run is the VM evaluate in §8.6.
 - **Export** (`msynd.ops.export`): month-partitioned Parquet of revisions, runs, versions and models, plus a zip of the `msynd` package so feature code is identical. As-of features are built on Kaggle from the revisions.
   - The dataset is private, and its privacy is verified through the API after each version.
   - **This is not the backup** (§12).
-- **Weekly job** (`msynd.ops.weekly`, Sunday 02:00 IST):
+- **Weekly job** (would extend `msynd.ops.weekly`, Monday 02:00 IST):
   1. `kaggle datasets version`.
   2. `kaggle kernels push`. The kernel does feature build, sweep (about 12 configs), final training and offline evaluation, then outputs ONNX and `metrics.json`.
   3. Check status every 5 min, giving up after 12 h. This is an external job, so polling is the only option.
@@ -741,10 +745,21 @@ Buckets are 30 min, 2 h, 6 h and 12 h, each ±25 %. A case falls in at most one 
 | B2 | NTES ETA (≤ 30 min old at *t*) |
 | B3 | The active model |
 
-**Promotion** (weekly). Validate on the most recent 2 full weeks. The candidate must show:
+**Weekly candidate** (`msynd.ops.weekly evaluate`, cron Monday 02:00 IST).
+- Validation is the most recent 2 complete IST Monday–Sunday weeks. Training is every earlier week, with labels frozen at the
+  run time, so the candidate never sees a validation row.
+- It fits only with ≥ 1,000 matured training runs across ≥ 7 service dates; otherwise it reports `insufficient`.
+- Per-class floors: R ≥ 100 runs; W ≥ 100 runs and ≥ 30 per scheduled-dwell bucket; O ≥ 200 origins. A role whose classes
+  are all below their floor keeps the active model.
+- R is LightGBM; W and O are empirical tables (§8.4).
+- Each candidate is saved inactive in `ml.model` with its support, scores and promotion decision.
+
+**Promotion.** Decided on the same 2 validation weeks and identical eligible cases. The candidate must show:
 - CRPS ≥ 2 % better than the active model, with the CI lower bound > 0
 - coverage within ±5 points of nominal
 - no class worse by > 5 % CRPS
+
+The weekly job only records the decision. Promotion is manual (`registry.promote`) until the Phase 3 exit (§15).
 
 **Acceptance (A3/A4).** Prospective only, from `sim.forecast_issue` rows of a model frozen for 4 weeks. That period is never used for selection.
 
@@ -979,11 +994,13 @@ A burst larger than that (a model change, a restart) is excluded from A6 and mea
 
 **Compose.** arm64 images, `restart: unless-stopped`, health checks, JSON logs (10 MB × 5). Volumes: `/data/{pg,models,backups,tiles}`.
 
-**Secrets.** Kept in `.env` with mode 600: Kaggle token, basic-auth hash, DuckDNS token, OCI configuration, rates. `.env.example` is committed.
+**Secrets.** Kept in `.env` with mode 600: database password, basic-auth hash, DuckDNS token, the rclone backup remote and
+config directory (§12), rates and budgets. `.env.example` is committed.
 
 **Dependencies.** Locked with `uv`:
-- Python 3.12, `httpx`, `selectolax`, `zstandard`, `psycopg[binary,pool]`, `numpy`, `numba`, `lightgbm`, `onnxruntime`, `pyarrow`, `fastapi`, `uvicorn`, `websockets`, `msgpack`, `kaggle`
-- `osmium-tool` and `networkx` for the import
+- Python 3.12, `httpx`, `selectolax`, `zstandard`, `psycopg[binary,pool]`, `numpy`, `numba`, `lightgbm`, `onnxruntime`, `pyarrow`, `fastapi`, `uvicorn`, `websockets`, `msgpack`
+- `osmium-tool` for the import (paths use the package's own A*)
+- Declared but unused: the `ops` extra (`kaggle`, `oci-cli`, for §8.5 and the old OCI backup) and the `import` extra (`networkx`)
 - G5 smoke-tests the **pinned** image on the actual A1 VM.
 
 **Storage budget.** These are estimates; G5 and Phase 2 replace them with measurements. The review measured uncompressed NTES pages at 0.4–1.4 MB.
@@ -1082,6 +1099,9 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
 - Features with the causal rules, LightGBM R/W/O, the empirical fallbacks, and C if G4 passes.
 - The §8.6 harness with B0–B2. The Monte Carlo error curve picks *N*. Delay-level interpolation error measured.
 - **Exit** (needs ≥ 4 weeks of live data): R/W beat B1 on CRPS at the 2 h horizon (CI > 0), with coverage within ±5 points.
+- **Timeline** (measured 2026-10-19): the nightly leg bias has trained every night since 2026-10-13. The first weekly candidate
+  that can clear the §8.6 support gate is Monday 2026-11-02 (training before 10-19: 3,328 matured runs over 11 dates; the
+  10-26 run would train on 4 dates only). The exit review can start around 2026-11-08.
 
 ### Phase 4 — Engine (≈ 1–2 weeks; can start on the cold-start models)
 - Replay, block-wise conditioning (must pass G7), not-reported likelihood, dirty set, determinism, cache, summaries, frame log, poll priorities, issued forecasts, and a debug map.
@@ -1099,6 +1119,7 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
 ### Phase 6 — Kaggle GPU pipeline (≈ 1–2 weeks; gated by G1 and G6)
 - Export, neural candidate, sweeps, weekly automation, promotion.
 - **Exit:** two unattended weekly cycles, with the promotion decisions logged.
+- **Status:** not started; closed while the §18 no-export rule stands (§8.5).
 
 ### Phase 7 — Acceptance and coupling experiments (ongoing)
 - Prospective A3 and A4 on a model frozen for 4 weeks.

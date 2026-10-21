@@ -139,6 +139,12 @@ Daemon logs rotate at 10 MB × 5; ops is one-shot and has no db startup dependen
 Cron has no mail transport here, so each job appends to `/data/logs` (create it owned by the cron user).
 `/etc/logrotate.d/msynd-cron` rotates them: `/data/logs/cron-*.log { weekly rotate 8 compress missingok notifempty copytruncate }`.
 Weekly evaluation runs Monday 02:00 IST (Sunday 20:30 UTC).
+Its JSON report is the last line of `cron-weekly.log`; fitted candidates are inactive `ml.model` rows carrying the decision.
+Nothing promotes automatically. Promote a candidate only after the Phase 3 exit (spec §15), by id:
+```sh
+docker compose --profile ops run --rm --no-deps -e PYTHONPATH=/app ops python -c 'import os, sys, psycopg; from msynd.models import registry
+with psycopg.connect(os.environ["DATABASE_URL"]) as c: registry.promote(c, int(sys.argv[1]))' MODEL_ID
+```
 An empty `BACKUP_REMOTE` means local-only backups with two retained copies.
 Local backups retain evidence; when enabled, off-site dumps exclude obs. No raw source export is approved.
 Never use `docker compose down -v`: it deletes the database volume.

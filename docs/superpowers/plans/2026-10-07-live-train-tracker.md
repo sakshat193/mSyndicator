@@ -3194,6 +3194,19 @@ kangra}.png`: background fills each new region. Deployed: bundle index-DVnxGxbf.
 
 ---
 
+### Monitor status (2026-10-21)
+
+- Spec synced to the code: §7.6 and §11 (b2e64e7); §8.4–8.6, §13 and §15 Phases 3 and 6 (this commit). §11's Timeline
+  and Train panel parts were not re-audited.
+- **Training timeline confirmed** (read-only label count, 2026-10-19 ~13:55Z): 3,328 matured runs with start_date < 10-19
+  over 11 dates (10-08…10-18). The Mon 10-26 evaluate would train on start_date < 10-12 only: 1,004 runs over 4 dates, so
+  it reports `insufficient`. The first weekly candidate fit is the **Mon 2026-11-02 02:00 IST** cron. Backfilling
+  10-05…10-07 is the only way to pull it to 10-26 (MMT lookback for those dates unverified; the user's call).
+- **Ramp:** harvest 3,700/day live since 2026-10-19 18:30:40Z (timer `msynd-ramp-3700`). IST 10-20: 3,700 attempts,
+  2,343 `ok`. The 10-20 gate report (`report ramp --day 2026-10-20`) is not yet run. Polling stays at 7,500; the step to
+  9,500 is undecided.
+- Declared but unused dependencies: the `ops` extra (`kaggle`, `oci-cli`) and the `import` extra (`networkx`).
+
 ## Spec coverage check
 
 | Spec section | Task(s) |
@@ -3209,18 +3222,19 @@ kangra}.png`: background fills each new region. Deployed: bundle index-DVnxGxbf.
 | §4.4 Coupling | 40 (C1 hook); C2 deferred |
 | §5 Architecture | 24 |
 | §6 Data model | 2 |
-| §7.1 Dispatcher | 3, 8 |
-| §7.2 Admission | 22, 32 |
+| §7.1 Dispatcher | 3, 8, 75, 80, 93 |
+| §7.2 Admission | 22, 32, 79 |
 | §7.3 Lifecycle | 20, 21 |
 | §7.4 Parsing | 8, 10 |
 | §7.5 Backfill | none approved; RSTGCN one-off import 42 |
-| §7.6 Static | 4, 5, 37, 96 |
-| §8 Learning | 26–30, 38, 39, 41–43 |
+| §7.6 Static | 4, 5, 37, 61, 63, 96, 99 |
+| §8 Learning | 26–30, 38, 39, 41–43, 50 |
 | §9 Engine | 13–17, 19, 27, 31, 32 |
 | §10 API | 34 |
-| §11 Dashboard | 35, 36 |
-| §12 Nightly | 23, 38 |
-| §13 Ops | 23, 24, CP-3 |
+| §11 Dashboard | 35, 36, 56–58, 60, 62, 64, 65, 67–71, 74, 82–92, 94, 97, 98, 100 |
+| §12 Nightly | 23, 38, 77, 95 |
+| §13 Ops | 23, 24, CP-3, 77, 78, 95 |
+| §18 Training data | 50, 79–81 |
 | §14 Testing | Each row is pinned in its owning task: Clock (12), Identity (16, 20), Leakage (16, 26), Late data (16, 31), Dirty set (31), Determinism (17, 31), G7 (18), As-of (2), NTES baseline (20), Rescheduling (12, 18), Frame latency (31), Format (14), Dispatcher (3), Validation (10), WS (34), pos parity (15, 35), Restore (CP-3), Replay day (33), Model gate (29, 38) |
 
 **Skipped on purpose:** the separate Phase 4 "debug map", because the Task 36 dashboard covers it. Add one only if the dashboard lags behind engine work.
