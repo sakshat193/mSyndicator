@@ -32,9 +32,11 @@ class Fold:
 
     def __post_init__(self):
         for weeks in (self.train_weeks, self.valid_weeks):
-            if not weeks or len(set(weeks)) != len(weeks) or any(w.weekday() != 0 for w in weeks):
-                raise ValueError("weeks must be distinct Monday dates, with nonempty train and validation")
-        if max(self.train_weeks) >= min(self.valid_weeks):
+            if len(set(weeks)) != len(weeks) or any(w.weekday() != 0 for w in weeks):
+                raise ValueError("weeks must be distinct Monday dates")
+        if not self.train_weeks:
+            raise ValueError("training weeks must be nonempty")
+        if self.valid_weeks and max(self.train_weeks) >= min(self.valid_weeks):
             raise ValueError("validation weeks must follow all training weeks")
 
 
@@ -180,30 +182,41 @@ class FoldEncoders:
         return pa.Table.from_pylist(result, schema=schema)
 
 
-def training_frame(conn, fold: Fold, asof):
+def training_frame(conn, fold: Fold, asof, *, run_ids=None):
     """Frozen running labels, departure-receipt features, week-cross-fitted training rows."""
-    labels = {(r["run_id"], r["idx"]): r["value"] for r in
-              build_live_labels(conn, asof - timedelta(hours=6), asof).to_pylist() if r["role"] == "run"}
+    labels = build_live_labels(conn, asof - timedelta(hours=6), asof, run_ids=run_ids)
+    return _frame_from_labels(conn, fold, asof, labels)
+
+
+def _frame_from_labels(conn, fold, asof, labels):
+    labels = {(r["run_id"], r["idx"]): r["value"] for r in labels.to_pylist() if r["role"] == "run"}
     departures = conn.execute("""
         SELECT r.id,r.start_date,s.idx,s.dep_off,d.actual_ts,d.received_at
         FROM obs.run r JOIN ref.schedule_stop s ON s.version_id=r.schedule_version_id
         JOIN obs.event_asof(%s) d ON d.run_id=r.id AND d.station=s.station AND d.occ=s.occ AND d.kind='dep'
+        WHERE r.id=ANY(%s)
         ORDER BY r.start_date,r.id,s.idx
-    """, (asof,)).fetchall()
-    rows = []
-    # ponytail: per-departure queries; batch receipt cutoffs if weekly training becomes slow.
+    """, (asof, sorted({run for run, idx in labels}))).fetchall() if labels else []
+    groups, ordered = {}, []
     for run, start, idx, scheduled, actual, received in departures:
         week = start - timedelta(days=start.weekday())
         split = "train" if week in fold.train_weeks else "valid" if week in fold.valid_weeks else None
         if split is None or (run, idx) not in labels:
             continue
-        queries = segment_queries(conn, run, received)
-        selected = queries.filter(pc.equal(queries["idx"], idx))
         d = (actual-datetime.combine(start, time(), IST)).total_seconds()/60-scheduled
-        row = with_delay(conn, selected, d).to_pylist()[0]
-        value = labels[(run, idx)]
-        rows.append(row | {"split": split, "value": value,
-                           "observed_running": row["sched_run"]+value})
+        groups.setdefault((run, received), []).append((idx, d, split))
+        ordered.append((run, idx))
+    built = {}
+    for (run, received), members in groups.items():
+        queries = segment_queries(conn, run, received)
+        indices = {idx: i for i, idx in enumerate(queries["idx"].to_pylist())}
+        selected = queries.take(pa.array([indices[idx] for idx, d, split in members]))
+        delayed = with_delay(conn, selected, [d for idx, d, split in members])
+        for row, (idx, d, split) in zip(delayed.to_pylist(), members):
+            value = labels[(run, idx)]
+            built[run, idx] = row | {"split": split, "value": value,
+                                     "observed_running": row["sched_run"]+value}
+    rows = [built[key] for key in ordered]
     schema = _SCHEMA.append(pa.field("d", pa.float64())).append(pa.field("split", pa.string()))
     raw = pa.Table.from_pylist(rows, schema=schema.append(pa.field("value", pa.float64()))
                               .append(pa.field("observed_running", pa.float64())))

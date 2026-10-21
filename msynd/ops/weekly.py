@@ -36,6 +36,24 @@ def _support(rows):
     }
 
 
+def _label_metadata(conn, labels):
+    metadata = {
+        (run, idx): (train, start, name, dwell)
+        for run, idx, train, start, name, dwell in conn.execute("""
+            SELECT r.id,s.idx,r.train,r.start_date,t.class,s.dep_off-s.arr_off
+            FROM obs.run r JOIN ref.train t ON t.number=r.train
+            JOIN ref.schedule_stop s ON s.version_id=r.schedule_version_id
+            WHERE r.id=ANY(%s)
+        """, (list({r['run_id'] for r in labels}),))
+    }
+    for row in labels:
+        train, start, name, dwell = metadata[row['run_id'], row['idx']]
+        row.update(train=train, start_date=start, **{'class': name})
+        if row['role'] == 'dwell':
+            row['sched_dwell'] = dwell
+    return labels
+
+
 def fit_empirical_live(conn, models_dir, now) -> dict[str, int]:
     directory = Path(models_dir).resolve()
     directory.mkdir(parents=True, exist_ok=True)
@@ -43,20 +61,7 @@ def fit_empirical_live(conn, models_dir, now) -> dict[str, int]:
     try:
         with conn.transaction():
             labels = build_live_labels(conn, now - timedelta(hours=6)).to_pylist()
-            metadata = {
-                (run, idx): (train, start, name, dwell)
-                for run, idx, train, start, name, dwell in conn.execute("""
-                    SELECT r.id,s.idx,r.train,r.start_date,t.class,s.dep_off-s.arr_off
-                    FROM obs.run r JOIN ref.train t ON t.number=r.train
-                    JOIN ref.schedule_stop s ON s.version_id=r.schedule_version_id
-                    WHERE r.id=ANY(%s)
-                """, (list({r['run_id'] for r in labels}),))
-            }
-            for row in labels:
-                train, start, name, dwell = metadata[row['run_id'], row['idx']]
-                row.update(train=train, start_date=start, **{'class': name})
-                if row['role'] == 'dwell':
-                    row['sched_dwell'] = dwell
+            _label_metadata(conn, labels)
             for role in ('run', 'dwell', 'origin'):
                 rows = [r for r in labels if r['role'] == role]
                 if not rows:
@@ -121,24 +126,7 @@ def evaluate_week(conn, models_dir, now) -> dict:
     try:
         with conn.transaction():
             labels = build_live_labels(conn, now - timedelta(hours=6), now).to_pylist()
-            metadata = {
-                (run, idx): (train, start, name, dwell)
-                for run, idx, train, start, name, dwell in conn.execute("""
-                    SELECT r.id,s.idx,r.train,r.start_date,t.class,s.dep_off-s.arr_off
-                    FROM obs.run r JOIN ref.train t ON t.number=r.train
-                    JOIN ref.schedule_stop s ON s.version_id=r.schedule_version_id
-                    WHERE r.id=ANY(%s)
-                """, (list({r['run_id'] for r in labels}),))
-            }
-            training = []
-            for row in labels:
-                train, start, name, dwell = metadata[row['run_id'], row['idx']]
-                if start >= validation_start:
-                    continue
-                row.update(train=train, start_date=start, **{'class': name})
-                if row['role'] == 'dwell':
-                    row['sched_dwell'] = dwell
-                training.append(row)
+            training = [row for row in _label_metadata(conn, labels) if row['start_date'] < validation_start]
             weeks = tuple(sorted({r['start_date'] - timedelta(days=r['start_date'].weekday())
                                   for r in training}))
             report = _support(training) | {

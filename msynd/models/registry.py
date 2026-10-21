@@ -4,16 +4,20 @@ from msynd.models.empirical import ModelArtifact as EmpiricalArtifact, provision
 from msynd.models.lgbm import ModelArtifact as QuantileArtifact
 
 
+def load_artifact(role, kind, path):
+    loader = {"empirical": EmpiricalArtifact, "lgbm_quantile": QuantileArtifact}.get(kind)
+    if loader is None or role not in {"run", "dwell", "origin"}:
+        raise ValueError(f"unsupported model {role}/{kind}")
+    model = loader.load(path)
+    if model.role != role:
+        raise ValueError("artifact role differs from registry")
+    return model
+
+
 def active(conn):
     result = {role: (None, model) for role, model in provisional_models().items()}
     for id, role, kind, path in conn.execute("SELECT id,role,kind,path FROM ml.model WHERE active"):
-        loader = {"empirical": EmpiricalArtifact, "lgbm_quantile": QuantileArtifact}.get(kind)
-        if loader is None or role not in result:
-            raise ValueError(f"unsupported active model {role}/{kind}")
-        model = loader.load(path)
-        if model.role != role:
-            raise ValueError("artifact role differs from registry")
-        result[role] = (id, model)
+        result[role] = (id, load_artifact(role, kind, path))
     return result
 
 
