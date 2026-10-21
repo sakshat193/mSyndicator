@@ -761,6 +761,16 @@ Buckets are 30 min, 2 h, 6 h and 12 h, each ±25 %. A case falls in at most one 
 
 The weekly job only records the decision. Promotion is manual (`registry.promote`) until the Phase 3 exit (§15).
 
+**Early shadow candidate** (`msynd.ops.shadow`, Task 102, user 2026-10-21). One fit on every eligible matured run at a single
+receipt boundary: a training-only fold with partial weeks, the weekly support gate and floors, R as LightGBM, W and O
+empirical. `preflight` needs the label extraction and a 100-run feature probe to take ≤ 60 s each and writes nothing.
+`fit` saves the candidates and copies of the active (or provisional) baselines under `/data/models/shadow-<uuid>/` and
+registers the candidates inactive, with a manifest in `ml.model.metrics`: hashes, baselines, feature version, replay
+parameters, support, data cutoff and freeze time. `score` replays the 14 IST service dates after the freeze date with frozen
+parameters and zero bias: the candidate against the frozen baseline, B1 and B0 on identical cases, with B2 on its own subset.
+It gives CIs only with ≥ 7 service dates and reports `awaiting_data` or `partial` until the window has matured. That window
+is never used to refit or tune. This is held-out screening, not promotion; A3/A4 stay prospective.
+
 **Acceptance (A3/A4).** Prospective only, from `sim.forecast_issue` rows of a model frozen for 4 weeks. That period is never used for selection.
 
 ---
@@ -1190,6 +1200,9 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
   - **Limits:** at most 13,200 attempts/day including retries, at 0.2 req/s with one owner.
   - **Ramp from 2026-10-16:** finished-run fetches go 512 → 1,500 → 3,700/day, and polling goes 5,000 → 9,500. Each step requires the previous batch to pass: ≥ 300 due keys, ≥ 80 % usable runs, ≥ 90 % of R/W pairs present, no major class below 70 % (n ≥ 30), zero challenges. Bulk work pauses at ≥ 80 % disk.
   - **Ramp status (2026-10-21):** finished-run fetches reached 3,700/day on IST 10-20 and pass on the full scope (3,004 keys, 89.3 % usable). Polling stays at 7,500: it uses ~4.3k a day, so the 9,500 step would change nothing. Raise it only if polling becomes budget-bound.
+  - **Early training (2026-10-21, user):** a read-only count found 7,984 eligible matured runs over 13 service dates, so a
+    shadow candidate is fitted now (§8.6, Task 102) and frozen. It is validated later by replaying histories collected after
+    the freeze, with no live forecast recorder. Thresholds, the Mon 02:00 IST weekly job and the promotion gates are unchanged.
   - **Probe and backfill:** the lookback probe is 4 jobs at ages 8/10/14/30 days, ≤ 20 attempts. Backfill covers 2026-10-09…15 only, oldest first, using residual capacity; a date stops below 50 % yield over ≥ 50 keys. Going further back is a separate decision.
   - **Use and exit:** personal local training only. The Phase 3 gate (≥ 4 weeks live, genuine validation) is unchanged.
   - **Amendment (2026-10-17, user):** the gate's due keys exclude runs MMT answered with HTTP 400 "not running" (not operated, so not a collection failure). PASS leaves harvest (0.8 % usable on 10-15); polling scope is unchanged. Admission skips a run when the latest answered same-weekday run of that train within 28 days got "not running" (Task 79). Invalid answers count toward the per-run cooldown (Task 80). The ramp stays at 512 until a batch passes under these rules.

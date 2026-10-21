@@ -3218,6 +3218,89 @@ the `ops` extra, so every container carries both CLIs.
   all 49 `msynd` modules import with no network; `pg_dump` 17.11 and rclone present; kaggle, oci, networkx, requests and
   yaml absent. The running services keep their image until the next deploy that needs a rebuild.
 
+### Task 102 (amendment 2026-10-21): start collector-data training today (user request)
+
+**Why:** the first weekly fit that clears the §8.6 support gate is the Mon 11-02 cron, but a read-only count on 10-21 found
+7,984 eligible matured runs over 13 service dates. Fit one inactive shadow candidate on everything eligible now and freeze it;
+later collected histories score it (user's pick: replay future histories, no live forecast recorder). Support thresholds,
+the weekly schedule and the promotion gates stay as they are. Spec §8.6 "Early shadow candidate", §18.
+
+**Files:** `msynd/labels.py`, `msynd/features/build.py`, `msynd/models/registry.py`, `msynd/ops/shadow.py` (new),
+`tests/test_labels.py`, `tests/features/test_features.py`, `tests/models/test_registry.py` (new),
+`tests/ops/test_shadow.py` (new).
+
+**1. Practical extraction, same meaning**
+- `build_live_labels`: replace the correlated destination-completion, `resched_min` and `exception_unparsed` checks with
+  set-based joins (or CTEs). Preserve the receipt cutoffs, six-hour maturity, `event_asof` revisions, destination-arrival
+  completion, the `expired_unknown` `updated_at` rule, `resched_min` received before the departure receipt, and `(station,
+  occ)` identity for repeated stations. Output rows and order are unchanged.
+- Keyword-only `run_ids=None` on `build_live_labels` and `training_frame`: `None` selects every eligible run; an empty
+  collection selects none (and issues no per-run queries).
+- `Fold` accepts empty `valid_weeks` (training-only). `train_weeks` stays nonempty, distinct Mondays; the ordering check
+  applies only when validation weeks exist.
+- `training_frame`: one `segment_queries` read and one batched `with_delay` per distinct `(run_id, departure received_at)`.
+  Different receipt times of one run stay separate reads. Output order, week cross-fitted training encodings and the
+  validation (serving) encoders are unchanged.
+
+**2. `python -m msynd.ops.shadow`** (`MSYND_LIVE` is never read or set)
+- `preflight --models-dir DIR`: eligible support at one receipt boundary (labels matured 6 h before it), reported with the
+  weekly helpers (`MIN_RUNS`, `MIN_SERVICE_DATES`, `FLOORS`, `_support`, `_role_support`; import them, do not copy).
+  Timed phases: the complete label extraction and a deterministic 100-run feature probe (eligible run ids sorted, evenly
+  spaced) must each finish in ≤ 60 s. Collection provenance per eligible run, from the `obs.fetch.mode` of its event
+  revisions: `poll_only`, `harvest_only`, `mixed` (≥ 2 known modes), `unknown` (no linked fetch, or only probe/backfill).
+  Prints one JSON report and exits nonzero on any failed threshold or timing. No `ml.model` row, file or directory is written.
+- `fit --models-dir DIR`: holds one session advisory lock (`pg_try_advisory_lock`; a held lock exits nonzero). Opens a
+  repeatable-read, read-only extraction transaction, captures the receipt boundary once, runs the preflight checks in it
+  (stops on failure) and reuses that label extraction. Training-only fold over every training week, partial weeks included.
+  The same snapshot reads the active baselines and the replay parameters. The transaction ends before CPU training.
+  Fits R with the existing `train_lgbm` (single thread, nine quantiles, encoders saved) and W/O with `fit_empirical`; a role
+  whose classes are all below floor is skipped and reported, as in the weekly job.
+- `score --model-id ID [--until YYYY-MM-DD]`: see 4.
+
+**3. Freeze and register**
+- New directory `DIR/shadow-<uuid4 hex>/`: candidate artifacts plus copies of all three baselines (the active artifact's file
+  bytes, or a saved `provisional_models()` artifact for a role with no active row). Reload each, check serving parity through
+  the engine's `_predict` on probe queries (exact equality with the in-memory model), and record sha256 hashes, all before
+  registration. `registry` gains one loader with the kind/role checks; `active()` and shadow both use it.
+- One short transaction inserts the candidates with `active=false`. Each candidate row's `metrics` = its role support plus
+  `shadow`: candidate ids/paths/hashes/kinds per role, baseline source ids (null for provisional), paths and hashes,
+  `FEATURE_VER`, `MODEL_FEATURES`, replay parameters (`n`, `k`, `v_max`, `ess_min`, S tables, `params_hash`, `bias_gen` 0),
+  support and floors, skipped roles, data cutoff, matured-before, the actual freeze time (after verification), the last
+  training start date, the validation window and the phase timings.
+- Success is printed only after commit. A failure before commit removes the new directory. If commit itself fails, check on a
+  fresh connection; remove the files only when that confirms no row references them, otherwise keep them and say so.
+- The provisional priors are code (`_prior`), so the image that fitted the candidate is kept for scoring (monitor).
+
+**4. Future validation (`score`)**
+- Window: 14 IST service dates starting the day after the freeze date (a 10-21 freeze scores 10-22…11-04), stored in the manifest.
+- Loads the exact candidate and copied baseline files; rejects a model id not in its manifest, a missing role, a hash
+  mismatch, or a `FEATURE_VER`/feature-column mismatch. The current active rows are never read.
+- `--until` is exclusive and defaults to the earlier of today (IST) and the window end; later explicit dates are rejected.
+  Issue times and service dates both lie in `[window start, until)`, so no case touches a training run.
+- Frozen replay parameters, zero leg bias. Candidate, frozen baseline, B1 and B0 on identical eligible cases. B2 (fresh
+  provider ETA, `b2_eta`'s 30 min rule) is compared on its own subset, reusing the primary records, so a missing ETA never
+  drops a primary case.
+- Reports CRPS, P50 error, coverage, width, PIT, breakdowns by horizon, class and zone, and support (cases, runs, dates).
+  Block-bootstrap CIs of the paired CRPS gain only with ≥ 7 represented service dates.
+- Status `awaiting_data` with no scored case; `partial` until `--until` is the window end and every window run is terminal
+  with `updated_at` ≥ 6 h old; else `complete`. Never refits, tunes or promotes.
+- Held-out screening only: §8.6 promotion and the prospective A3/A4 acceptance are separate.
+
+**Tests first** (see each fail first):
+- [ ] Labels: eligibility (unfinished, immature, unparsed exception, expiry receipt, rescheduling, repeated station) and
+  equality with the pre-change SQL (kept in the test as an oracle) for current and frozen boundaries; `run_ids` None/empty/subset.
+- [ ] Features: training-only fold accepted, empty train weeks rejected; one read per identical `(run, receipt)`; different
+  receipts of one run stay isolated; output and encoders equal the ungrouped path.
+- [ ] Shadow: thresholds unchanged (same constants objects), below-floor roles skipped, preflight writes no row or file and
+  fails on a breached threshold or timing; advisory lock refuses a second job.
+- [ ] Freeze: artifact and encoder round trips, baseline copies match the source (hash and predictions), provisional copy
+  for a missing role, rows inactive with the manifest, active ids unchanged, failure before commit leaves no row or file.
+- [ ] Score: future-only cases, frozen baselines survive a later promotion, stale ETA excluded only from the B2 subset,
+  empty window `awaiting_data`, partial marking, CI only at ≥ 7 dates, tampered hash / foreign id / feature mismatch rejected.
+- [ ] Focused tests, `uv run pytest -q` and `npm --prefix web test` green. Commit `task 102: start collector-data training today`.
+- [ ] Monitor: pinned image from the task commit, `preflight` on the VM, then `fit` (`MSYND_LIVE=0`); record phase timings,
+  candidate ids and the image tag; check the active `ml.model` ids are unchanged; keep the image until scoring is done.
+
 ### Monitor status (2026-10-21)
 
 - Spec synced to the code: §7.6 and §11 (b2e64e7); §8.4–8.6, §13 and §15 Phases 3 and 6 (14f6a11); §11 Timeline,
@@ -3252,7 +3335,7 @@ the `ops` extra, so every container carries both CLIs.
 | §7.4 Parsing | 8, 10 |
 | §7.5 Backfill | none approved; RSTGCN one-off import 42 |
 | §7.6 Static | 4, 5, 37, 61, 63, 96, 99 |
-| §8 Learning | 26–30, 38, 39, 41–43, 50 |
+| §8 Learning | 26–30, 38, 39, 41–43, 50, 102 |
 | §9 Engine | 13–17, 19, 27, 31, 32 |
 | §10 API | 34 |
 | §11 Dashboard | 35, 36, 56–58, 60, 62, 64, 65, 67–71, 74, 82–92, 94, 97, 98, 100 |
