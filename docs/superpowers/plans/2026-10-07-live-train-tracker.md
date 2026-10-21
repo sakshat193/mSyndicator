@@ -49,7 +49,7 @@ If a step needs a decision the plan does not make, stop and start your final mes
 
 These are copied from the spec; every task implicitly includes them.
 
-- Python 3.12, with dependencies locked by `uv`. Runtime dependencies: `httpx selectolax zstandard psycopg[binary,pool] numpy numba lightgbm onnxruntime pyarrow fastapi uvicorn websockets msgpack`. Ops extras: `kaggle oci-cli`. Import extras: `networkx` plus the `osmium-tool` binary. Dev: `pytest`. **No new runtime dependency without a plan change.**
+- Python 3.12, with dependencies locked by `uv`. Runtime dependencies: `httpx selectolax zstandard psycopg[binary,pool] numpy numba lightgbm onnxruntime pyarrow fastapi uvicorn websockets msgpack`. Import: the `osmium-tool` binary. (The `kaggle oci-cli` and `networkx` extras were removed unused in Task 101.) Dev: `pytest`. **No new runtime dependency without a plan change.**
 - Postgres 16. Timestamps are UTC `timestamptz` and are displayed in IST. Offsets are run-clock minutes (float), counted from 00:00 IST on the origin start date. Migrations are numbered SQL files applied by `msynd/db/migrate.py`.
 - Deliberately absent: PostGIS, Redis, Kafka, persisted particle state, Rust.
 - HTTP: one Dispatcher per host. Request **starts** are spaced ≥ 1/rate apart, with no burst and one request in flight. Tokens, session pages and retries all count. `MMT_RATE=0.2` (live source, spec §18 2026-10-08); `NTES_RATE`/`ETRAIN_RATE` are unused (not approved). Changing a rate is the user's decision. The user agent is `m-syndicator/<ver> (personal research)`.
@@ -3211,9 +3211,12 @@ the `ops` extra, so every container carries both CLIs.
 - Dockerfile: `uv sync --frozen --no-dev --no-install-project`. The compose `ops` profile is unrelated and stays.
 - deploy.md: the image line no longer mentions ops extras.
 - Re-add `kaggle` with Phase 6 if the no-export rule is ever lifted.
-- [ ] `uv lock --check` and `uv run pytest -q` green. Commit `task 101: drop unused extras`.
-- [ ] Monitor: a throwaway arm64 build on the VM proves the image; the running services keep their image until the next
-  deploy that needs a rebuild.
+- [x] `uv lock --check` and `uv run pytest -q` green. Commit `task 101: drop unused extras`. (bdb7f71; 956 passed,
+  1 skipped. `uv.lock` lost 54 packages and nothing else; Codex reported BLOCKED only because its sandbox cannot reach the
+  test Postgres, so the monitor ran the full suite.)
+- [x] Monitor: throwaway arm64 build on the VM (`msynd:t101-test`, since removed): 1.31 GB vs 1.86 GB for `msynd:local`;
+  all 49 `msynd` modules import with no network; `pg_dump` 17.11 and rclone present; kaggle, oci, networkx, requests and
+  yaml absent. The running services keep their image until the next deploy that needs a rebuild.
 
 ### Monitor status (2026-10-21)
 
@@ -3226,7 +3229,7 @@ the `ops` extra, so every container carries both CLIs.
 - **Ramp complete:** harvest 3,700/day live since 2026-10-19 18:30:40Z (timer `msynd-ramp-3700`). The IST 10-20 gate
   passes on 3,004 keys, the full daily scope (Task 81 table). Polling stays at 7,500: it uses ~4.3k a day, so the 9,500
   step is not taken (spec §18).
-- Declared but unused dependencies: the `ops` extra (`kaggle`, `oci-cli`) and the `import` extra (`networkx`).
+- Unused `ops`/`import` extras removed in Task 101; the image shrinks by ~0.55 GB at its next rebuild.
 
 ## Spec coverage check
 

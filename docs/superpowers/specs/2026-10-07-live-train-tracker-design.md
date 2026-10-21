@@ -1000,7 +1000,7 @@ config directory (§12), rates and budgets. `.env.example` is committed.
 **Dependencies.** Locked with `uv`:
 - Python 3.12, `httpx`, `selectolax`, `zstandard`, `psycopg[binary,pool]`, `numpy`, `numba`, `lightgbm`, `onnxruntime`, `pyarrow`, `fastapi`, `uvicorn`, `websockets`, `msgpack`
 - `osmium-tool` for the import (paths use the package's own A*)
-- Declared but unused: the `ops` extra (`kaggle`, `oci-cli`, for §8.5 and the old OCI backup) and the `import` extra (`networkx`)
+- No optional extras. `kaggle` (§8.5) returns only if the no-export rule is lifted; `oci-cli` and `networkx` are gone for good (plan Task 101).
 - G5 smoke-tests the **pinned** image on the actual A1 VM.
 
 **Storage budget.** These are estimates; G5 and Phase 2 replace them with measurements. The review measured uncompressed NTES pages at 0.4–1.4 MB.
