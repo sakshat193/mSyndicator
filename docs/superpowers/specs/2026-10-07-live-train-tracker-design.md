@@ -930,33 +930,33 @@ A burst larger than that (a model change, a restart) is excluded from A6 and mea
   opacity and 1.6 × size, over the route coloured by speed with a pulse running from origin to destination every 3 s.
 - **Station labels** (`TextLayer`), decluttered on a screen grid, denser as you zoom in.
 
-**Timeline.** Pause, 0.25×, 1×, 10×, 60×, 300×, 1000×. The range is −24 h to +6 h, with a LIVE button. In LIVE mode `simTime = now − 15 s`.
+**Timeline.** None in the UI. The map is LIVE only, `simTime = now − 15 s`, with no pause, speed or scrubbing.
+`/api/replay` still serves past paths, but the dashboard does not call it. The Past/Recent/Future zones of the original
+design (plan Task 36) are not built or scheduled.
 
-| Zone | Source | Label |
-|---|---|---|
-| Past | `/api/replay` | "Station reports, motion reconstructed": one path per run, gaps shown |
-| Recent | In-browser buffer of received frames, up to 30 min. On a fresh load it falls back to replay data | "As shown live" or "reconstructed" |
-| Future | Display paths from the latest frames | "Forecast": streaks fan out |
+**Train panel** (`/api/run/{id}`, i.e. all N particles, not the display streaks)
+- Header: number and run date (IST), name, origin → destination, a delay chip ("On time" within ±2 min) and the
+  evidence ("Live · updated N min ago", "Stale · N min" or "Schedule only").
+- Next stop: P50, the scheduled time struck through when 2 min or more off, and the P10–P90 range.
+- Stops (IST): scheduled time; "Actual" for passed stops; P50 coloured by delay with P10–P90 for the rest; "2nd visit"
+  for a repeated station.
+- It collapses and closes (Esc too) and retries a failed load.
+- Not built: the P5–P95 and P25–P75 bands, NTES's ETA and the revision timeline.
 
-**Train panel**
-- Name and number with the run date.
-- Evidence state and last-report age.
-- Per-halt **quantile ribbon** (P5–P95, P10–P90, P25–P75, P50) next to the schedule and NTES's ETA (with age).
-- Revision timeline.
-- Rendering uses `/api/run/{id}`, i.e. all N particles, not the display streaks.
-
-**Status bar**
-- Coverage triple (A1).
-- Evidence-age percentiles.
-- NTES requests per minute.
-- Dispatcher state.
-- Active models and their age.
-- Last frame age.
+**Status bar** (the top glass card)
+- Train count; hover splits it into live and by timetable.
+- IST clock, connection state and search. The delay legend sits at the bottom.
+- Source age, "live data N ago", from `/api/health` (`source.poll_ok_at`, fetched every 60 s). It adds "paused" when the
+  dispatcher breaker is open and "stopped" when stopped. Fresh under 5 min, aging under 15 min, else old. Hover shows the
+  last frame and harvest ages.
+- H or the toggle button hides the overlays; the choice is kept per browser.
+- Not shown: the A1 triple, evidence-age percentiles, request rate and active models (ops reports only).
 
 **Performance**
-- Typed arrays.
-- Attributes are updated only for changed runs.
-- Drop to K = 8 if the frame rate is below 30 fps for 3 s.
+- `/api/live` sends full or delta generations with tombstones. A missing generation makes the client ask for a resync.
+- Display paths arrive as packed `Uint8Array`s, decoded once per run object and cached. Trails are rebuilt only on a new
+  generation or the hourly rebase that keeps float32 timestamps precise.
+- Every run draws 8 of its K streaks, so there is no frame-rate fallback.
 
 **Parity.** `web/src/position.ts` is a port of `pos()`, checked against the shared fixture `tests/fixtures/pos_cases.json`.
 
@@ -1189,6 +1189,7 @@ Each gate ends in pass, fail or unavailable, with fixtures or measurements and a
   - **Collection:** each finished run is fetched once (source stays `mmt_status`, and the collection mode is recorded on the fetch). The 6 h maturity is measured on the actual time, and each row uses its real receipt time, so the as-of contract is unchanged.
   - **Limits:** at most 13,200 attempts/day including retries, at 0.2 req/s with one owner.
   - **Ramp from 2026-10-16:** finished-run fetches go 512 → 1,500 → 3,700/day, and polling goes 5,000 → 9,500. Each step requires the previous batch to pass: ≥ 300 due keys, ≥ 80 % usable runs, ≥ 90 % of R/W pairs present, no major class below 70 % (n ≥ 30), zero challenges. Bulk work pauses at ≥ 80 % disk.
+  - **Ramp status (2026-10-21):** finished-run fetches reached 3,700/day on IST 10-20 and pass on the full scope (3,004 keys, 89.3 % usable). Polling stays at 7,500: it uses ~4.3k a day, so the 9,500 step would change nothing. Raise it only if polling becomes budget-bound.
   - **Probe and backfill:** the lookback probe is 4 jobs at ages 8/10/14/30 days, ≤ 20 attempts. Backfill covers 2026-10-09…15 only, oldest first, using residual capacity; a date stops below 50 % yield over ≥ 50 keys. Going further back is a separate decision.
   - **Use and exit:** personal local training only. The Phase 3 gate (≥ 4 weeks live, genuine validation) is unchanged.
   - **Amendment (2026-10-17, user):** the gate's due keys exclude runs MMT answered with HTTP 400 "not running" (not operated, so not a collection failure). PASS leaves harvest (0.8 % usable on 10-15); polling scope is unchanged. Admission skips a run when the latest answered same-weekday run of that train within 28 days got "not running" (Task 79). Invalid answers count toward the per-run cooldown (Task 80). The ramp stays at 512 until a batch passes under these rules.

@@ -2631,6 +2631,7 @@ read-only report that also records recovery yield.
   | 10-17 | 416 | 89 | 327 | 87.8 | 98.8 | 98.9 | — |
   | 10-18 | 427 | 34 | 393 | 87.5 | 98.3 | 98.6 | — |
   | 10-19 | 1229 | 162 | 1067 | 88.2 | 99.3 | 99.5 | — |
+  | 10-20 | 3004 | 415 | 2589 | 89.3 | 99.3 | 99.5 | — |
 
   Classes with n ≥ 30: EXP 83.7–87.2 %, SF 88.9–97.0 %. These days predate Task 79, so the ramp (decision 3a)
   waits for IST 10-18, the first batch with PASS out of the harvest.
@@ -2640,6 +2641,9 @@ read-only report that also records recovery yield.
   IST 10-19 ran 1,500 attempts on 1,229 keys in 18:30–21:24Z (~520/h; polling held 176–184/h, 0 breaker) and passes
   (EXP 86.1 %, SF 89.7 %, UNKNOWN 93.6 %, 0 challenges). Timer `msynd-ramp-3700` sets 3,700 at 18:30:30Z 10-19 (log
   `/data/logs/ramp-3700.log`, backup `.env.bak-20261020-ramp`); poll stays 7,500 (total 11,200 ≤ 13,200).
+  IST 10-20 at 3,700 covers 3,004 keys, the full daily scope, and passes (EXP 86.8 %, SF 90.2 %, UNKNOWN 94.4 %,
+  0 challenges). **The ramp is complete.** Polling used 4,036–4,358 of its 7,500 a day on 10-18…10-20, so the planned step
+  to 9,500 would change nothing and is not taken (spec §18 ramp status).
 
 ### Task 82 (amendment 2026-10-17): red selected route with a travelling pulse (user request)
 
@@ -3194,17 +3198,34 @@ kangra}.png`: background fills each new region. Deployed: bundle index-DVnxGxbf.
 
 ---
 
+### Task 101 (amendment 2026-10-21): drop the unused extras
+
+**Why:** nothing imports `kaggle`, `oci-cli` or `networkx`. Kaggle serves only Phase 6, closed under the §18 no-export
+rule; off-site backups use rclone (Task 95); the OSM routing uses stdlib `heapq` (Task 37 amendment). Yet the image installs
+the `ops` extra, so every container carries both CLIs.
+
+**Files:** `pyproject.toml`, `uv.lock`, `Dockerfile`, `docs/deploy.md`.
+
+- Remove the `ops` and `import` extras. `uv lock` drops only their packages and transitive deps nothing else needs; no
+  other version moves.
+- Dockerfile: `uv sync --frozen --no-dev --no-install-project`. The compose `ops` profile is unrelated and stays.
+- deploy.md: the image line no longer mentions ops extras.
+- Re-add `kaggle` with Phase 6 if the no-export rule is ever lifted.
+- [ ] `uv lock --check` and `uv run pytest -q` green. Commit `task 101: drop unused extras`.
+- [ ] Monitor: a throwaway arm64 build on the VM proves the image; the running services keep their image until the next
+  deploy that needs a rebuild.
+
 ### Monitor status (2026-10-21)
 
-- Spec synced to the code: §7.6 and §11 (b2e64e7); §8.4–8.6, §13 and §15 Phases 3 and 6 (this commit). §11's Timeline
-  and Train panel parts were not re-audited.
+- Spec synced to the code: §7.6 and §11 (b2e64e7); §8.4–8.6, §13 and §15 Phases 3 and 6 (14f6a11); §11 Timeline,
+  Train panel, Status bar and Performance re-audited and rewritten to what ships (this commit).
 - **Training timeline confirmed** (read-only label count, 2026-10-19 ~13:55Z): 3,328 matured runs with start_date < 10-19
   over 11 dates (10-08…10-18). The Mon 10-26 evaluate would train on start_date < 10-12 only: 1,004 runs over 4 dates, so
   it reports `insufficient`. The first weekly candidate fit is the **Mon 2026-11-02 02:00 IST** cron. Backfilling
   10-05…10-07 is the only way to pull it to 10-26 (MMT lookback for those dates unverified; the user's call).
-- **Ramp:** harvest 3,700/day live since 2026-10-19 18:30:40Z (timer `msynd-ramp-3700`). IST 10-20: 3,700 attempts,
-  2,343 `ok`. The 10-20 gate report (`report ramp --day 2026-10-20`) is not yet run. Polling stays at 7,500; the step to
-  9,500 is undecided.
+- **Ramp complete:** harvest 3,700/day live since 2026-10-19 18:30:40Z (timer `msynd-ramp-3700`). The IST 10-20 gate
+  passes on 3,004 keys, the full daily scope (Task 81 table). Polling stays at 7,500: it uses ~4.3k a day, so the 9,500
+  step is not taken (spec §18).
 - Declared but unused dependencies: the `ops` extra (`kaggle`, `oci-cli`) and the `import` extra (`networkx`).
 
 ## Spec coverage check
