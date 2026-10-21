@@ -18,10 +18,6 @@ dependencies = [
     "websockets>=17.2",
 ]
 
-[project.optional-dependencies]
-ops = ["kaggle", "oci-cli"]
-import = ["networkx"]
-
 [dependency-groups]
 dev = ["pytest"]
 

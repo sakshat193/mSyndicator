@@ -12,7 +12,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/app/.venv/bin:$PATH"
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --extra ops --no-install-project
+RUN uv sync --frozen --no-dev --no-install-project
 COPY msynd/ ./msynd/
 COPY data/params.json data/segment_overrides.csv data/holidays.csv data/static_sources.json ./data/
 RUN python -c "import lightgbm, onnxruntime, numba"

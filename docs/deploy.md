@@ -34,7 +34,7 @@ Caddy obtains TLS certificates automatically and retains them in `/data/caddy`.
 `docker buildx build --platform linux/arm64,linux/amd64 .`
 `docker compose --profile app --profile ops build`
 `docker compose --profile ops run --rm --no-deps ops python -c "import lightgbm, onnxruntime, numba"`
-The image uses frozen uv dependencies, ops extras, OpenMP libraries and a PostgreSQL dump client.
+The image uses frozen uv dependencies, OpenMP libraries and a PostgreSQL dump client.
 Its build context excludes local evidence, backups, secrets and Git metadata.
 The monitor must run the pinned-image smoke test on A1 and the measured G5 restore drill.
 
