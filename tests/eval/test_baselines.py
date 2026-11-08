@@ -31,6 +31,37 @@ def test_b3_active_replays_receipt_causal_evidence(db):
 
 
 @pytest.mark.db
+def test_alternating_forecasters_reuse_replay_across_halts(db, monkeypatch):
+    from msynd.engine import cache
+    from msynd.engine.replay import Params
+    from msynd.eval import baselines
+    from msynd.models.empirical import provisional_models
+
+    run = make_run(db, start="2026-09-21", halts=[("A", None, 540, 0),
+                   ("B", 660, 665, 100), ("C", 780, None, 200)])
+    models = [{r: (None, m) for r, m in provisional_models().items()} for _ in range(2)]
+    calls = []
+    replay = baselines.replay
+
+    def counted(*args):
+        calls.append(args)
+        return replay(*args)
+
+    monkeypatch.setattr(baselines, "replay", counted)
+    params = Params(n=128, k=32)
+    forecasts = [baselines.b3_active(db, models=m, params=params) for m in models]
+    cases = [case(run_id=run), case(run_id=run, halt_idx=2, station="C", sched_arr=780.)]
+    actual = [[forecast(c) for forecast in forecasts] for c in cases]
+    assert len(calls) == 2
+    # A cold replay must produce exactly the same particles, not just similar scores.
+    cache._cache.clear()
+    for i, c in enumerate(cases):
+        for j, m in enumerate(models):
+            fresh = baselines.b3_active(db, models=m, params=params)(c)
+            np.testing.assert_array_equal(actual[i][j], fresh)
+
+
+@pytest.mark.db
 @pytest.mark.parametrize("change", ["registry", "params"])
 def test_frozen_forecaster_ignores_later_registry_and_parameter_metadata(db, monkeypatch, change):
     from msynd.eval.baselines import b3_active

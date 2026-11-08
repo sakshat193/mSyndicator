@@ -134,11 +134,19 @@ Daemon logs rotate at 10 MB × 5; ops is one-shot and has no db startup dependen
 
 ```cron
 0 21 * * * cd /opt/msynd && docker compose --profile ops run --rm --no-deps ops python -m msynd.ops.nightly >> /data/logs/cron-nightly.log 2>&1
-30 20 * * 0 cd /opt/msynd && docker compose --profile ops run --rm --no-deps ops python -m msynd.ops.weekly evaluate --models-dir /data/models >> /data/logs/cron-weekly.log 2>&1
+30 20 * * 0 sh /opt/msynd/deploy/evaluate.sh msynd:training-recovery-20261108 weekly >> /data/logs/cron-weekly.log 2>&1
 ```
 Cron has no mail transport here, so each job appends to `/data/logs` (create it owned by the cron user).
 `/etc/logrotate.d/msynd-cron` rotates them: `/data/logs/cron-*.log { weekly rotate 8 compress missingok notifempty copytruncate }`.
 Weekly evaluation runs Monday 02:00 IST (Sunday 20:30 UTC).
+`deploy/evaluate.sh IMAGE weekly` and `deploy/evaluate.sh IMAGE shadow --model-id 3` share
+the host `/data/logs/evaluation.lock`. Use an immutable verified image ID in the installed cron.
+The launcher limits each evaluation to 24 hours, allows 60 seconds for termination, and
+removes its named container on exit. `/data/logs/evaluations.jsonl` records start/finish UTC,
+image ID and exit status (124 means timeout). After an interruption, verify the container
+and its database transaction are gone before retrying. Keep the weekly entry disabled
+during recovery until both shadow scoring and one weekly evaluation succeed; a timed-out
+recovery requires profiling before another attempt.
 Its JSON report is the last line of `cron-weekly.log`; fitted candidates are inactive `ml.model` rows carrying the decision.
 Nothing promotes automatically. Promote a candidate only after the Phase 3 exit (spec §15), by id:
 ```sh
@@ -155,6 +163,10 @@ deploy-backups/shadow.sh preflight --models-dir /data/models   # read-only check
 deploy-backups/shadow.sh fit --models-dir /data/models         # inactive rows plus /data/models/shadow-<uuid>/
 deploy-backups/shadow.sh score --model-id 3 [--until YYYY-MM-DD]
 ```
+For recovery scoring, use `sh deploy/evaluate.sh IMAGE shadow --model-id 3` so manual and
+scheduled evaluations take the same lock. Retain the original shadow image and derive
+the recovery image from its ID, replacing only `msynd/engine/cache.py`; preserve all frozen
+artifact hashes, validation boundaries, parameters and scoring rules.
 Each prints one JSON report as its last line and exits nonzero on a failed check, a held lock or a rejection.
 An empty `BACKUP_REMOTE` means local-only backups with two retained copies.
 Local backups retain evidence; when enabled, off-site dumps exclude obs. No raw source export is approved.

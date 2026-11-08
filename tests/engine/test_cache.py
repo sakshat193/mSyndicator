@@ -117,6 +117,36 @@ def test_cache_hit_on_same_v(db):
 
 
 @pytest.mark.db
+@pytest.mark.parametrize("registered", [False, True])
+def test_alternating_models_retain_tables(db, monkeypatch, registered):
+    from msynd.engine import cache
+    from msynd.engine.evidence import load_run_evidence
+    from msynd.models.empirical import provisional_models
+
+    run = make_run(db)
+    models = [{role: (i if registered else None, model)
+               for role, model in provisional_models().items()} for i in (10, 20)]
+    ev = load_run_evidence(db, run)
+    asof = datetime.now(timezone.utc)
+    calls = []
+    predict = cache._predict
+
+    def counted(*args, **kwargs):
+        calls.append(args[1])
+        return predict(*args, **kwargs)
+
+    monkeypatch.setattr(cache, "_predict", counted)
+    tables = [cache.tables_for(db, ev, m, None, asof=asof) for m in models]
+    assert tables[0] is not tables[1]
+    for m, expected in zip(models, tables):
+        assert cache.tables_for(db, ev, m, None, asof=asof) is expected
+    assert len(calls) == 6
+    for changed in (replace(ev, resched_min=30),
+                    replace(ev, events=(replace(ev.events[0], sched_off=1.), *ev.events[1:]))):
+        assert cache.tables_for(db, changed, models[0], None, asof=asof) is not tables[0]
+
+
+@pytest.mark.db
 def test_cache_batches_levels_bias_and_lgbm_tail_max(db):
     from msynd.engine import cache
     from msynd.engine.evidence import load_run_evidence

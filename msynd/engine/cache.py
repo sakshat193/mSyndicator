@@ -1,4 +1,4 @@
-"""Batched model inference; retain a bounded, latest CDF entry per run."""
+"""Batched model inference; retain a bounded, latest CDF entry per run/model set."""
 
 from collections import OrderedDict
 import json
@@ -32,13 +32,14 @@ def tables_for(conn, ev, active, bias_gen, asof=None):
     rows = shared.to_pylist()
     if not rows:
         raise ValueError("run has no scheduled segments")
+    # Unsaved candidates share id None with the provisional priors; the object tells them apart.
+    slot = (ev.run_id, tuple((role, active[role][0], id(active[role][1]))
+                            for role in ("run", "dwell", "origin")))
     key = (json.dumps(ev.versions, sort_keys=True), bias_gen,
-           # Unsaved candidates share id None with the provisional priors; the object tells them apart.
-           tuple((role, active[role][0], id(active[role][1])) for role in ("run", "dwell", "origin")),
            json.dumps(rows, sort_keys=True, default=str), ev.events, ev.resched_min)
-    cached = _cache.get(ev.run_id)
+    cached = _cache.get(slot)
     if cached is not None and cached[0] == key:
-        _cache.move_to_end(ev.run_id)
+        _cache.move_to_end(slot)
         return cached[1]
     r_model, w_model, o_model = (active[role][1] for role in ("run", "dwell", "origin"))
     r, r_lo, r_hi = _predict(conn, r_model, shared)
@@ -65,9 +66,9 @@ def tables_for(conn, ev, active, bias_gen, asof=None):
     tables = ModelTables(r, np.column_stack((r_lo.max(axis=1), r_hi.max(axis=1))), bias,
                          w, w_hi.max(axis=1), o[0, 0], np.array([o_lo[0, 0], o_hi[0, 0]]),
                          cold_start)
-    _cache[ev.run_id] = (key, tables)
-    _cache.move_to_end(ev.run_id)
-    # ponytail: retain 256 runs per process; increase only if measured eviction costs warrant the memory.
+    _cache[slot] = (key, tables)
+    _cache.move_to_end(slot)
+    # ponytail: retain 256 run/model entries per process; increase only if measured eviction costs warrant the memory.
     if len(_cache) > 256:
         _cache.popitem(last=False)
     return tables
