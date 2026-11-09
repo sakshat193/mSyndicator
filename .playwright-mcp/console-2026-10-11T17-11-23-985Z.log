@@ -1,0 +1,8 @@
+[     518ms] [ERROR] Error: Worker failed to load. Check that the worker URL is correct.
+    at Worker.<anonymous> (http://localhost:4173/assets/index-CU8m3sGl.js:2:438123) @ http://localhost:4173/assets/index-CU8m3sGl.js:1
+[     518ms] [ERROR] Error: Worker failed to load. Check that the worker URL is correct.
+    at Worker.<anonymous> (http://localhost:4173/assets/index-CU8m3sGl.js:2:438123) @ http://localhost:4173/assets/index-CU8m3sGl.js:1
+[     556ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:4173/favicon.ico:0
+[ 1613529ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/assets/index-CU8m3sGl.js:3823
+[ 1615540ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/assets/index-CU8m3sGl.js:3823
+[ 1619547ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/assets/index-CU8m3sGl.js:3823

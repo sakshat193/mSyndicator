@@ -1,0 +1,8 @@
+[     876ms] [ERROR] Error: Worker failed to load. Check that the worker URL is correct.
+    at Worker.<anonymous> (http://127.0.0.1:4174/assets/index-0vc6DqGG.js:2:438123) @ http://127.0.0.1:4174/assets/index-0vc6DqGG.js:1
+[     876ms] [ERROR] Error: Worker failed to load. Check that the worker URL is correct.
+    at Worker.<anonymous> (http://127.0.0.1:4174/assets/index-0vc6DqGG.js:2:438123) @ http://127.0.0.1:4174/assets/index-0vc6DqGG.js:1
+[     884ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:4174/favicon.ico:0
+[  240461ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:4174/api/live' failed: WebSocket opening handshake timed out @ http://127.0.0.1:4174/assets/index-0vc6DqGG.js:3823
+[  254681ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:4174/api/live' failed: Error during WebSocket handshake: net::ERR_CONNECTION_RESET @ http://127.0.0.1:4174/assets/index-0vc6DqGG.js:3823
+[  254682ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:4174/api/static/network:0

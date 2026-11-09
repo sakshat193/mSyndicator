@@ -1,0 +1,11 @@
+- main [ref=f1e2]:
+  - generic "India train map" [ref=f1e3]:
+    - region "Map" [ref=f1e4]
+    - group [ref=f1e5]:
+      - generic "Toggle attribution" [ref=f1e6] [cursor=pointer]
+      - generic [ref=f1e7]: © OpenStreetMap · Protomaps
+  - region "Live train tracker" [ref=f1e8]:
+    - generic [ref=f1e9]:
+      - strong [ref=f1e10]: LIVE
+      - generic [ref=f1e12]: Loading…
+      - button "Hide overlays" [pressed] [ref=f1e13] [cursor=pointer]

@@ -1,0 +1,9 @@
+[    1241ms] [ERROR] Error: Worker failed to load. Check that the worker URL is correct.
+    at Worker.<anonymous> (http://127.0.0.1:4173/assets/index-CJLJk4W1.js:2:438123) @ http://127.0.0.1:4173/assets/index-CJLJk4W1.js:1
+[    1242ms] [ERROR] Error: Worker failed to load. Check that the worker URL is correct.
+    at Worker.<anonymous> (http://127.0.0.1:4173/assets/index-CJLJk4W1.js:2:438123) @ http://127.0.0.1:4173/assets/index-CJLJk4W1.js:1
+[    1331ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:4173/favicon.ico:0
+[   23981ms] [ERROR] Error: Worker failed to load. Check that the worker URL is correct.
+    at Worker.<anonymous> (http://127.0.0.1:4173/assets/index-CJLJk4W1.js:2:438123) @ http://127.0.0.1:4173/assets/index-CJLJk4W1.js:1
+[   23982ms] [ERROR] Error: Worker failed to load. Check that the worker URL is correct.
+    at Worker.<anonymous> (http://127.0.0.1:4173/assets/index-CJLJk4W1.js:2:438123) @ http://127.0.0.1:4173/assets/index-CJLJk4W1.js:1

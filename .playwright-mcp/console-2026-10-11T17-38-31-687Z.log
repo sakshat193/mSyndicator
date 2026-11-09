@@ -1,0 +1,6 @@
+[  532356ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/assets/index-pXNy1um8.js:3823
+[  534363ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/assets/index-pXNy1um8.js:3823
+[  538387ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/assets/index-pXNy1um8.js:3823
+[  546393ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/assets/index-pXNy1um8.js:3823
+[  562402ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/assets/index-pXNy1um8.js:3823
+[  592413ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/assets/index-pXNy1um8.js:3823

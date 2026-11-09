@@ -1,0 +1,9 @@
+[     232ms] [ERROR] Error: Worker failed to load. Check that the worker URL is correct.
+    at Worker.<anonymous> (http://127.0.0.1:4174/assets/index-0vc6DqGG.js:2:438123) @ http://127.0.0.1:4174/assets/index-0vc6DqGG.js:1
+[     232ms] [ERROR] Error: Worker failed to load. Check that the worker URL is correct.
+    at Worker.<anonymous> (http://127.0.0.1:4174/assets/index-0vc6DqGG.js:2:438123) @ http://127.0.0.1:4174/assets/index-0vc6DqGG.js:1
+[  240159ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:4174/api/live' failed: WebSocket opening handshake timed out @ http://127.0.0.1:4174/assets/index-0vc6DqGG.js:3823
+[  404350ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:4174/api/live' failed: Connection closed before receiving a handshake response @ http://127.0.0.1:4174/assets/index-0vc6DqGG.js:3823
+[  404353ms] [ERROR] Failed to load resource: the server responded with a status of 502 (Bad Gateway) @ http://127.0.0.1:4174/api/static/network:0
+[  406359ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:4174/api/live' failed: Connection closed before receiving a handshake response @ http://127.0.0.1:4174/assets/index-0vc6DqGG.js:3823
+[  410368ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:4174/api/live' failed: Connection closed before receiving a handshake response @ http://127.0.0.1:4174/assets/index-0vc6DqGG.js:3823

@@ -1,0 +1,5 @@
+- generic [ref=e2]:
+  - region "Map" [ref=e3]
+  - group [ref=e4]:
+    - generic "Toggle attribution" [ref=e5] [cursor=pointer]
+    - generic [ref=e6]: © OpenStreetMap · Protomaps

@@ -1,0 +1,27 @@
+[  133375ms] [ERROR] WebSocket connection to 'ws://localhost:4174/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/assets/index-Dx5-6iRB.js:3823
+[  135384ms] [ERROR] WebSocket connection to 'ws://localhost:4174/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/assets/index-Dx5-6iRB.js:3823
+[  139388ms] [ERROR] WebSocket connection to 'ws://localhost:4174/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/assets/index-Dx5-6iRB.js:3823
+[  147400ms] [ERROR] WebSocket connection to 'ws://localhost:4174/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/assets/index-Dx5-6iRB.js:3823
+[  163407ms] [ERROR] WebSocket connection to 'ws://localhost:4174/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/assets/index-Dx5-6iRB.js:3823
+[  182560ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/tiles/india.pmtiles:0
+[  182561ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/tiles/india.pmtiles:0
+[  182561ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/tiles/india.pmtiles:0
+[  183943ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/tiles/india.pmtiles:0
+[  183949ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/tiles/india.pmtiles:0
+[  183949ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/tiles/india.pmtiles:0
+[  183950ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/tiles/india.pmtiles:0
+[  183950ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/tiles/india.pmtiles:0
+[  183950ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/tiles/india.pmtiles:0
+[  183950ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/tiles/india.pmtiles:0
+[  183950ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/tiles/india.pmtiles:0
+[  184002ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/tiles/india.pmtiles:0
+[  184004ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/tiles/india.pmtiles:0
+[  184004ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/tiles/india.pmtiles:0
+[  193412ms] [ERROR] WebSocket connection to 'ws://localhost:4174/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/assets/index-Dx5-6iRB.js:3823
+[  223418ms] [ERROR] WebSocket connection to 'ws://localhost:4174/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/assets/index-Dx5-6iRB.js:3823
+[  253435ms] [ERROR] WebSocket connection to 'ws://localhost:4174/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/assets/index-Dx5-6iRB.js:3823
+[  283445ms] [ERROR] WebSocket connection to 'ws://localhost:4174/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/assets/index-Dx5-6iRB.js:3823
+[  313452ms] [ERROR] WebSocket connection to 'ws://localhost:4174/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/assets/index-Dx5-6iRB.js:3823
+[  343464ms] [ERROR] WebSocket connection to 'ws://localhost:4174/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/assets/index-Dx5-6iRB.js:3823
+[  373476ms] [ERROR] WebSocket connection to 'ws://localhost:4174/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/assets/index-Dx5-6iRB.js:3823
+[  403484ms] [ERROR] WebSocket connection to 'ws://localhost:4174/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4174/assets/index-Dx5-6iRB.js:3823

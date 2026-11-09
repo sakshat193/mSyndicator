@@ -1,0 +1,6 @@
+[    1205ms] [ERROR] Error: Worker failed to load. Check that the worker URL is correct.
+    at Worker.<anonymous> (http://localhost:4173/assets/index-DtFeOcrf.js:2:438123) @ http://localhost:4173/assets/index-DtFeOcrf.js:1
+[    1206ms] [ERROR] Error: Worker failed to load. Check that the worker URL is correct.
+    at Worker.<anonymous> (http://localhost:4173/assets/index-DtFeOcrf.js:2:438123) @ http://localhost:4173/assets/index-DtFeOcrf.js:1
+[    1213ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:4173/favicon.ico:0
+[  652425ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/assets/index-DtFeOcrf.js:3823

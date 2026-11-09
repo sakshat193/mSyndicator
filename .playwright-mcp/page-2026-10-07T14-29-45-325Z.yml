@@ -1,0 +1,925 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e6]:
+      - generic [ref=e7]:
+        - link [ref=e8] [cursor=pointer]:
+          - /url: /
+        - list [ref=e10]:
+          - listitem [ref=e11] [cursor=pointer]:
+            - link "Flights" [ref=e12]:
+              - /url: /flights/
+          - listitem [ref=e16] [cursor=pointer]:
+            - link "Hotels" [ref=e17]:
+              - /url: /hotels/
+          - listitem [ref=e21] [cursor=pointer]:
+            - link "Trains" [ref=e22]:
+              - /url: /trains/
+          - listitem [ref=e26] [cursor=pointer]:
+            - link "Cabs" [ref=e27]:
+              - /url: /cars/
+          - listitem [ref=e31] [cursor=pointer]:
+            - link "Bus" [ref=e32]:
+              - /url: /bus/
+          - listitem [ref=e36] [cursor=pointer]:
+            - link "Holidays" [ref=e37]:
+              - /url: /giholidays/
+          - listitem [ref=e41] [cursor=pointer]:
+            - generic [ref=e42]: More
+        - generic [ref=e45]:
+          - link [ref=e46] [cursor=pointer]:
+            - /url: /travelhistory
+            - generic [ref=e49]:
+              - paragraph [ref=e50]: Manage Booking
+              - paragraph [ref=e51]: My Trips
+          - generic [ref=e52]:
+            - generic [ref=e53] [cursor=pointer]
+            - list [ref=e55] [cursor=pointer]:
+              - listitem [ref=e56]: Manage Your Trips
+              - listitem [ref=e57]: Login / Signup
+              - listitem [ref=e58]: Exclusive Offers
+              - listitem [ref=e59]: Earn goCash
+              - listitem [ref=e60]: Manage Your Trips
+              - listitem [ref=e61]: Login / Signup
+            - generic [ref=e62] [cursor=pointer]
+    - generic [ref=e75]:
+      - generic [ref=e76]:
+        - heading "Train Ticket Booking" [level=1] [ref=e77]
+        - generic [ref=e78]:
+          - img "Irctc text logo" [ref=e80]
+          - heading "IRCTC Authorized Partner" [level=2] [ref=e81]
+      - generic [ref=e83]:
+        - list [ref=e84]:
+          - listitem [ref=e85] [cursor=pointer]:
+            - generic [ref=e87]: Book Train tickets
+          - listitem [ref=e88] [cursor=pointer]:
+            - generic [ref=e90]: Check PNR Status
+          - listitem [ref=e91] [cursor=pointer]:
+            - heading "Live Trains Status" [level=2] [ref=e93]
+        - generic [ref=e96] [cursor=pointer]:
+          - paragraph [ref=e97]: Train number or name
+          - paragraph [ref=e98]: 12951 - NDLS TEJAS RAJ
+        - generic [ref=e99]: CHECK STATUS
+      - generic [ref=e102]:
+        - generic [ref=e103]:
+          - heading "1 million+ customers" [level=3] [ref=e104]
+          - paragraph [ref=e105]: book train tickets with us because
+        - list [ref=e106]:
+          - listitem [ref=e107]:
+            - img "benefits icon" [ref=e109]
+            - generic [ref=e110]:
+              - heading "No Cancellation Fee" [level=3] [ref=e111]
+              - paragraph [ref=e112]: You can opt for free cancellation & get full refund.
+              - link "learn more" [ref=e113] [cursor=pointer]:
+                - /url: https://www.goibibo.com/offers/free-train-cancellation/
+                - text: Learn more about cancellation
+          - listitem [ref=e114]:
+            - img "benefits icon" [ref=e116]
+            - generic [ref=e117]:
+              - heading "Alternate Trip" [level=3] [ref=e118]
+              - paragraph [ref=e119]: Get 2x refund if ticket doesn't get confirmed
+              - link "learn more" [ref=e120] [cursor=pointer]:
+                - /url: https://www.goibibo.com/offers/go-confirmed-trip-2x/
+                - text: Learn more about Alternate Trip
+          - listitem [ref=e121]:
+            - img "benefits icon" [ref=e123]
+            - generic [ref=e124]:
+              - heading "No PG Fee via UPI" [level=3] [ref=e125]
+              - paragraph [ref=e126]: Zero Payment Gateway Charges via UPI mode
+              - paragraph
+      - generic [ref=e128]:
+        - generic [ref=e129]: Offers
+        - generic [ref=e131]:
+          - heading "Trains offers for you" [level=2] [ref=e132]
+          - generic [ref=e134]:
+            - generic [ref=e136]:
+              - link "read more about offers" [ref=e138] [cursor=pointer]:
+                - /url: //www.goibibo.com/offers/train-festive/
+                - generic [ref=e139]:
+                  - img "offers icon" [ref=e141]
+                  - generic [ref=e142]:
+                    - paragraph [ref=e143]: Grab FLAT ₹100 OFF* on 1st train booking!
+                    - paragraph [ref=e144]: "Valid till: Limited Period"
+              - link "read more about offers" [ref=e146] [cursor=pointer]:
+                - /url: //www.goibibo.com/offers/train-feature/
+                - generic [ref=e147]:
+                  - img "offers icon" [ref=e149]
+                  - generic [ref=e150]:
+                    - paragraph [ref=e151]: Predict train ticket availability with just One Tap!
+                    - paragraph [ref=e152]: "Valid till: Know More"
+              - link "read more about offers" [ref=e154] [cursor=pointer]:
+                - /url: //www.goibibo.com/offers/summer-special-trains/
+                - generic [ref=e155]:
+                  - img "offers icon" [ref=e157]
+                  - generic [ref=e158]:
+                    - paragraph [ref=e159]: New Summer Special Trains Launched!
+                    - paragraph [ref=e160]: "Valid till: Limited Period"
+              - link "read more about offers" [ref=e162] [cursor=pointer]:
+                - /url: //www.goibibo.com/offers/train-seat-lock/
+                - generic [ref=e163]:
+                  - img "offers icon" [ref=e165]
+                  - generic [ref=e166]:
+                    - paragraph [ref=e167]: Pay 25% now, 75% later!
+                    - paragraph [ref=e168]: "Valid till: Limited Period"
+              - link "read more about offers" [ref=e170] [cursor=pointer]:
+                - /url: //www.goibibo.com/offers/train-aadhar-authentication/
+                - generic [ref=e171]:
+                  - img "offers icon" [ref=e173]
+                  - generic [ref=e174]:
+                    - paragraph [ref=e175]: Verify Aadhaar for faster Tatkal Train Bookings!
+                    - paragraph [ref=e176]: "Valid till: Limited Period"
+              - link "read more about offers" [ref=e178] [cursor=pointer]:
+                - /url: //www.goibibo.com/offers/free-train-cancellation/
+                - generic [ref=e179]:
+                  - img "offers icon" [ref=e181]
+                  - generic [ref=e182]:
+                    - paragraph [ref=e183]: Get a Full Refund on Cancelled Bookings*!
+                    - paragraph [ref=e184]: "Valid till: Limited Period"
+              - link "read more about offers" [ref=e186] [cursor=pointer]:
+                - /url: //www.goibibo.com/offers/chardham-yatra-train/
+                - generic [ref=e187]:
+                  - img "offers icon" [ref=e189]
+                  - generic [ref=e190]:
+                    - paragraph [ref=e191]: Up to Rs. 300 OFF* on Alternate Trip and more features on Trains!
+                    - paragraph [ref=e192]: "Valid till: Limited Period Offers"
+            - button [ref=e193] [cursor=pointer]
+            - button [ref=e194] [cursor=pointer]
+      - generic [ref=e196]:
+        - heading "Railways inquiry just a click away!" [level=3] [ref=e197]
+        - list [ref=e198]:
+          - listitem [ref=e199]:
+            - link "read more railway inquiry" [ref=e200] [cursor=pointer]:
+              - /url: https://www.goibibo.com/trains/check-train-running-status/
+              - heading "Live Train Status" [level=3] [ref=e201]
+              - paragraph [ref=e203]: Know the whereabouts of your train easily
+              - img "arrow icon right" [ref=e205]
+          - listitem [ref=e206]:
+            - link "read more railway inquiry" [ref=e207] [cursor=pointer]:
+              - /url: https://www.goibibo.com/trains/train-coach-position/
+              - heading "Coach & Seat Position" [level=3] [ref=e208]
+              - paragraph [ref=e210]: View coach & seat layout of the train you wish to
+              - img "arrow icon right" [ref=e212]
+          - listitem [ref=e213]:
+            - link "read more railway inquiry" [ref=e214] [cursor=pointer]:
+              - /url: https://www.goibibo.com/trains/check-pnr-status/
+              - heading "PNR Status" [level=3] [ref=e215]
+              - paragraph [ref=e217]: Check PNR Status effortlessly
+              - img "arrow icon right" [ref=e219]
+          - listitem [ref=e220]:
+            - link "read more railway inquiry" [ref=e221] [cursor=pointer]:
+              - /url: https://www.goibibo.com/trains/platform-locator/
+              - heading "Platform Locator" [level=3] [ref=e222]
+              - paragraph [ref=e224]: Know the platform for your train
+              - img "arrow icon right" [ref=e226]
+      - generic [ref=e228]:
+        - generic [ref=e229]:
+          - img "meals image" [ref=e230]
+          - generic [ref=e231]:
+            - heading "Book Meals for train journey" [level=3] [ref=e232]
+            - paragraph [ref=e233]: Order now & get food delivered at your seat
+        - link "read more about book meals" [ref=e234] [cursor=pointer]:
+          - /url: https://www.ecatering.irctc.co.in?utm_source=GOIBIBO_AFFILIATE
+          - text: Book Meals Now
+      - generic [ref=e236]:
+        - heading "IRCTC Settings" [level=3] [ref=e237]
+        - list [ref=e238]:
+          - listitem [ref=e239]:
+            - link "read more" [ref=e240] [cursor=pointer]:
+              - /url: https://www.goibibo.com/trains/irctc-forgot-password/
+              - generic [ref=e241]:
+                - img "irctc icon" [ref=e243]
+                - paragraph [ref=e244]: Forgot IRCTC Password
+          - listitem [ref=e245]:
+            - link "read more" [ref=e246] [cursor=pointer]:
+              - /url: https://www.goibibo.com/trains/irctc-forgot-userid/
+              - generic [ref=e247]:
+                - img "irctc icon" [ref=e249]
+                - paragraph [ref=e250]: Forgot IRCTC ID
+          - listitem [ref=e251]:
+            - link "read more" [ref=e252] [cursor=pointer]:
+              - /url: https://www.irctc.co.in/nget/profile/user-registration
+              - generic [ref=e253]:
+                - img "irctc icon" [ref=e255]
+                - paragraph [ref=e256]: Create IRCTC ID
+      - generic [ref=e259]:
+        - generic [ref=e261]:
+          - heading "Train Running Status:" [level=2] [ref=e262]
+          - paragraph [ref=e263]: The real time tracking of GPS enabled trains in Indian railways is known as train running status of the train. Basically, it gives information about the last reported location of the train with estimated arrival time and estimated departure time for next upcoming railway stations in the route of that respective train. This Spot your train feature also gives information about the platform number on which train will arrive. Train running status is pretty accurate & gives real time status of the train with usually delay upto maximum 5 minutes. Live train status can be checked for all Indian trains that run under Indian Railways Reservations system.
+          - paragraph [ref=e264]: "Checking Train running status is important for both kind of railway passengers: one who still have to board the train and the others who are already on their train journey. For first set, live train status is important as they want to be updated about the Estimated time of arrival of their train at their respective station, so that they can reach the station at the right time. For second set of passengers, train running status is critical as they want to be updated about that at what time they will reach there destination so that they can plan accordingly."
+          - paragraph [ref=e265]:
+            - strong [ref=e266]: "How to Spot your train or check Live Train Status:"
+          - paragraph [ref=e267]: Best way to check train running status is either from Goibibo website or mobile app. Goibibo in collaboration with Indian Railways and IRCTC offers quick and easy facility to check the live train running status of your respective train. As a first step, enter the train number or train name in the search box for which live train enquiry is required. Goibibo's quick auto-suggest feature helps in quickly suggesting the train for which user is intending to check Live train status, on just entering 2-3 characters. Next step in checking train running status is to select the date for which user wants to do live train enquiry. Basis the selected train, Goibibo also shows the list of stations which this respective train covers. Selecting a specific train station is optional and is recommended if the user wants to check the running status of the train for a particular station only. Once these details are entered, click on Get Status button to check the live train status of your train.
+          - paragraph [ref=e268]:
+            - strong [ref=e269]: "What all Details come on checking Live Train Running Status:"
+          - paragraph [ref=e270]: "From Live Train Running Status, you will get all details about the train including how much the train is delayed and estimated time of arrival to the upcoming station. Live Train Enquiry provides following information about the train journey:"
+          - list [ref=e271]:
+            - listitem [ref=e272]:
+              - paragraph [ref=e273]: It Shows all stations which the respective train covers in its complete journey. It shows the stations in the sequential order, starting with the Origin station and ending with the destination station
+            - listitem [ref=e274]:
+              - paragraph [ref=e275]: For each station, it shows the arrival time of the train on that station and also the departure time of the train from that station
+            - listitem [ref=e276]:
+              - paragraph [ref=e277]: It also shows the amount of time for which train halted at a particular station
+            - listitem [ref=e278]:
+              - paragraph [ref=e279]: Also, it shows the Delay time (if any) of all stations it has covered in its journey
+            - listitem [ref=e280]:
+              - paragraph [ref=e281]: For stations, which train is yet to cover, it shows the Estimated Time of Arrival and Estimated Time of Departure basis the current running status of the train
+          - paragraph [ref=e282]:
+            - strong [ref=e283]: "Popular Trains for checking Live Train Running Status:"
+          - paragraph [ref=e284]: "Some of the popular trains for which passengers usually track their running status are as follows:"
+          - list [ref=e285]:
+            - listitem [ref=e286]:
+              - paragraph [ref=e287]:
+                - text: 12561 running status (Jaynagar to New Delhi -
+                - link "Swatantra Senani Express" [ref=e288] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/swatantra-s-express-12561/
+                - text: )
+            - listitem [ref=e289]:
+              - paragraph [ref=e290]:
+                - text: 12506 running status (Delhi Anand Vihar to Kamakhya -
+                - link "North East Express" [ref=e291] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/north-east-express-12506/
+                - text: )
+            - listitem [ref=e292]:
+              - paragraph [ref=e293]:
+                - text: 14006 running status (Delhi Anand Vihar to Sitamarhi -
+                - link "Lichchavi Express" [ref=e294] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/lichchavi-express-14006/
+                - text: )
+            - listitem [ref=e295]:
+              - paragraph [ref=e296]:
+                - text: 12566 running status (New Delhi to Darbhanga -
+                - link "Bihar Sampark Kranti" [ref=e297] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/bihar-s-kranti-12566/
+                - text: )
+            - listitem [ref=e298]:
+              - paragraph [ref=e299]:
+                - text: 13009 running status (Kolkata Howrah to Haridwar -
+                - link "Doon Express" [ref=e300] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/doon-express-13009/
+                - text: )
+            - listitem [ref=e301]:
+              - paragraph [ref=e302]:
+                - text: 12802 running status (New Delhi to Puri -
+                - link "Purshottam Express" [ref=e303] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/purshottam-express-12802/
+                - text: )
+          - paragraph [ref=e304]:
+            - text: Apart from Spot your train or Live Train Running Status feature, Goibibo offers other utility features of Indian Railways like
+            - link "Train Ticket Booking" [ref=e305] [cursor=pointer]:
+              - /url: https://www.goibibo.com/trains/
+            - text: ", Checking"
+            - link "PNR Status" [ref=e306] [cursor=pointer]:
+              - /url: https://www.goibibo.com/trains/check-pnr-status/
+            - text: ","
+            - link "IRCTC Create User ID" [ref=e307] [cursor=pointer]:
+              - /url: https://www.goibibo.com/trains/irctc-create-userid/
+            - text: ","
+            - link "IRCTC Forgot Password" [ref=e308] [cursor=pointer]:
+              - /url: https://www.goibibo.com/trains/irctc-forgot-password/
+            - text: etc., so it is recommended to use Goibibo for all these useful features.
+        - heading "FAQs about Live Train Running Status" [level=2] [ref=e310]
+        - generic [ref=e311] [cursor=pointer]:
+          - checkbox "What is Live Train Running Status? ❯" [checked] [ref=e312]
+          - generic [ref=e313]:
+            - paragraph [ref=e315]:
+              - strong [ref=e316]: What is Live Train Running Status?
+            - text: ❯
+          - paragraph [ref=e319]: Live train status is a means to track the train running status, to check its current location, its estimated arrival and departure at any station en-route. Through this, you can also check the real-time delay of the train. Through live train status, you would be able to analyze whether your train is running on time or not or would there be any delay in reaching for your train to your destination. For Live train status and train ticket booking use Goibibo.
+        - generic [ref=e320] [cursor=pointer]:
+          - checkbox "Why it is beneficial to check Live Train running status? ❯" [checked] [ref=e321]
+          - generic [ref=e322]:
+            - paragraph [ref=e324]:
+              - strong [ref=e325]: Why it is beneficial to check Live Train running status?
+            - text: ❯
+          - paragraph [ref=e328]: The status of running trains usually changes because of any delay or halt. So instead of running back and forth to the helpdesk of the crowded railway station, you can now easily do the train enquiry on your phone via app or Goibibo website. With the help of Live Train Status, you can easily spot your train & can know the arrival and departure time of your train. You must frequently check the updates before boarding the train and as the arrival time comes nearer, you will be able to locate your train more accurately.
+        - generic [ref=e329] [cursor=pointer]:
+          - checkbox "How to check the live train running status on phone or via SMS? ❯" [checked] [ref=e330]
+          - generic [ref=e331]:
+            - paragraph [ref=e333]:
+              - strong [ref=e334]: How to check the live train running status on phone or via SMS?
+            - text: ❯
+          - paragraph [ref=e337]: "If you want to check the live train running status on your phone via SMS then you all you need is your train number and the STD code of the station. Type AD XXXXX YYYY and send it to 139. XXXXX five-digit train number and YYYY is your STD code. E.g.: AD 12434 0592 Remember, this SMS service is run by the Indian railways and is not free. You will be charged a very small amount if you use it."
+        - generic [ref=e338] [cursor=pointer]:
+          - checkbox "What could be the possible reasons for not getting the information on train running status? ❯" [checked] [ref=e339]
+          - generic [ref=e340]:
+            - paragraph [ref=e342]:
+              - strong [ref=e343]: What could be the possible reasons for not getting the information on train running status?
+            - text: ❯
+          - generic [ref=e345]:
+            - paragraph [ref=e346]: "Sometimes, Spot your train feature does not gives you the required information. This could be due to any of the following reasons:"
+            - list [ref=e347]:
+              - listitem [ref=e348]:
+                - paragraph [ref=e349]: Specified train number or train name is not valid and hence train running status is not available
+              - listitem [ref=e350]:
+                - paragraph [ref=e351]: Specified Train does not run on the selected date
+              - listitem [ref=e352]:
+                - paragraph [ref=e353]: Sometimes due to network issue or congestion, information is not fetched from the Indian Railways system
+              - listitem [ref=e354]:
+                - paragraph [ref=e355]: If you are checking train running status through your mobile or laptop via internet connection, then due to low or no internet network on your device, this information is not fetched
+        - generic [ref=e356] [cursor=pointer]:
+          - checkbox "How can I check Live Train running status on Goibibo? ❯" [checked] [ref=e357]
+          - generic [ref=e358]:
+            - paragraph [ref=e360]:
+              - strong [ref=e361]: How can I check Live Train running status on Goibibo?
+            - text: ❯
+          - paragraph [ref=e364]: You can easily check your train running status on Goibibo. First of all, go to the Goibibo website or open the app. Next, click on the tab of IRCTC Trains and on the right side, you will see the tab of Train Running Status. After clicking on it, you will get three columns to fill, respectively, train number, station and the start date of the train. Once you fill these columns, you can click on the Check Status. You will be directed to the page containing the train's schedule, the expected arrival and departure time from any particular station along with the halt time. Once the train departs, you can easily check live train running status on the app or the website after a few minutes.
+    - contentinfo [ref=e365]:
+      - generic [ref=e366]:
+        - generic [ref=e367]:
+          - generic [ref=e368]:
+            - paragraph [ref=e369]: Our Products
+            - list [ref=e370]:
+              - listitem [ref=e371]:
+                - link "read more about hotels" [ref=e372] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/hotels/
+                  - text: Domestic Hotels
+              - listitem [ref=e373]:
+                - link "read more about hotels-international" [ref=e374] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/hotels-international/
+                  - text: International Hotels
+              - listitem [ref=e375]:
+                - link "read more about flights" [ref=e376] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/flights/
+                  - text: Domestic Flights
+              - listitem [ref=e377]:
+                - link "read more about international-flights" [ref=e378] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/international-flights/
+                  - text: International Flights
+              - listitem [ref=e379]:
+                - link "read more about bus" [ref=e380] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/bus/
+                  - text: Bus Booking
+              - listitem [ref=e381]:
+                - link "read more about cars" [ref=e382] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/cars/
+                  - text: Cab Booking
+              - listitem [ref=e383]:
+                - link "read more about trains" [ref=e384] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/
+                  - text: Train Ticket Booking
+              - listitem [ref=e385]:
+                - link "read more about routeplanner" [ref=e386] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/routeplanner/
+                  - text: Route Planner
+              - listitem [ref=e387]:
+                - link "read more about destinations" [ref=e388] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/destinations/
+                  - text: Destination Planner
+              - listitem [ref=e389]:
+                - link "read more about solutions" [ref=e390] [cursor=pointer]:
+                  - /url: https://advertising.goibibo.com/ad/solutions/
+                  - text: Goibibo Advertising Solutions
+          - generic [ref=e391]:
+            - paragraph [ref=e392]: Company
+            - list [ref=e393]:
+              - listitem [ref=e394]:
+                - link "read more about aboutus" [ref=e395] [cursor=pointer]:
+                  - /url: /aboutus/
+                  - text: About Us
+              - listitem [ref=e396]:
+                - link "read more about terms-of-services" [ref=e397] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/info/terms-of-services/
+                  - text: Terms of Services
+              - listitem [ref=e398]:
+                - link "read more about user-agreement" [ref=e399] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/info/user-agreement/
+                  - text: User Agreement
+              - listitem [ref=e400]:
+                - link "read more about privacy" [ref=e401] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/info/privacy/
+                  - text: Privacy
+              - listitem [ref=e402]:
+                - link "read more about customerHelp" [ref=e403] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/mysupport/customerHelp/
+                  - text: Customer Support
+              - listitem [ref=e404]:
+                - link "read more about careers" [ref=e405] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/careers/
+                  - text: Careers
+              - listitem [ref=e406]:
+                - link "read more about corporate-social-responsibility" [ref=e407] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/info/corporate-social-responsibility/
+                  - text: Corporate Social Responsibility
+              - listitem [ref=e408]:
+                - link "read more about mobile" [ref=e409] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/mobile/
+                  - text: Goibibo on Mobile
+              - listitem [ref=e410]:
+                - link "read more about goibibo" [ref=e411] [cursor=pointer]:
+                  - /url: https://www.youtube.com/user/goibibo
+                  - text: Goibibo TV Advertisement
+              - listitem [ref=e412]:
+                - link "read more about tech" [ref=e413] [cursor=pointer]:
+                  - /url: https://tech.goibibo.com/
+                  - text: Technology@Goibibo
+          - generic [ref=e414]:
+            - paragraph [ref=e415]: Travel Resources
+            - list [ref=e416]:
+              - listitem [ref=e417]:
+                - link "read more about bus-routes" [ref=e418] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/bus/bus-routes/
+                  - text: Popular Bus Routes
+              - listitem [ref=e419]:
+                - link "read more about airport-cabs" [ref=e420] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/cars/airport-cabs/
+                  - text: Airport Cabs
+              - listitem [ref=e421]:
+                - link "read more about hotels in india" [ref=e422] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/hotels/india/
+                  - text: Hotels in India
+              - listitem [ref=e423]:
+                - link "read more about airlines" [ref=e424] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/airlines/
+                  - text: Popular Airlines
+              - listitem [ref=e425]:
+                - link "read more about offers" [ref=e426] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/offers/
+                  - text: Goibibo Offers
+              - listitem [ref=e427]:
+                - link "read more about airports" [ref=e428] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/airports/
+                  - text: International Airports
+              - listitem [ref=e429]:
+                - link "read more about city-to-city-airlines" [ref=e430] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/flights/city-to-city-airlines/
+                  - text: City Airline Routes
+              - listitem [ref=e431]:
+                - link "read more about destinations" [ref=e432] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/destinations/intl/
+                  - text: International Travel Guide
+          - generic [ref=e433]:
+            - paragraph [ref=e434]: More Links
+            - list [ref=e435]:
+              - listitem [ref=e436]:
+                - link "read more about cheap-flights" [ref=e437] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/flights/cheap-flights/
+                  - text: Cheap Flights
+              - listitem [ref=e438]:
+                - link "read more about check-pnr-status" [ref=e439] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/check-pnr-status/
+                  - text: PNR Status
+              - listitem [ref=e440]:
+                - link "read more about check-train-running-status" [ref=e441] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/check-train-running-status/
+                  - text: Live Train Status
+              - listitem [ref=e442]:
+                - link "read more about flight-schedule" [ref=e443] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/flight-schedule/
+                  - text: Flight Schedule
+              - listitem [ref=e444]:
+                - link "read more about gostays" [ref=e445] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/gostays/
+                  - text: Go Stays
+              - listitem [ref=e446]:
+                - link "read more about city-buses" [ref=e447] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/bus/city-buses/
+                  - text: Popular Bus Cities
+              - listitem [ref=e448]:
+                - link "read more about airports-in-india" [ref=e449] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/airports/airports-in-india/
+                  - text: Airports in India
+              - listitem [ref=e450]:
+                - link "read more about chain" [ref=e451] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/hotels/chain/
+                  - text: Popular Hotel Chains
+              - listitem [ref=e452]:
+                - link "read more about hotels-near-me" [ref=e453] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/info/hotels-near-me/
+                  - text: Hotels Near Me
+              - listitem [ref=e454]:
+                - link "read more about covid-trains" [ref=e455] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/home/covid-trains/
+                  - text: COVID Special Trains
+              - listitem [ref=e456]:
+                - link "read more about covid-epass" [ref=e457] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/cars/covid-epass/
+                  - text: Epass Assistance
+              - listitem [ref=e458]:
+                - link "read more about tatkal-railway-reservation" [ref=e459] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/tatkal-railway-reservation/
+                  - text: Tatkal Ticket Booking
+              - listitem [ref=e460]:
+                - link "read more about solutions" [ref=e461] [cursor=pointer]:
+                  - /url: https://advertising.goibibo.com/ad/solutions/
+                  - text: Advertise with Us
+        - generic [ref=e462]:
+          - generic [ref=e463]:
+            - paragraph [ref=e464]: Top Trains
+            - list [ref=e465]:
+              - listitem [ref=e466]:
+                - link "KOTA Janshtbdi (12060)" [ref=e467] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/kota-janshtbdi-12060/
+                - text: "|"
+              - listitem [ref=e468]:
+                - link "DEE Double Dcker (12985)" [ref=e469] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/dee-double-dcker-12985/
+                - text: "|"
+              - listitem [ref=e470]:
+                - link "NDLS Shatabdi (12001)" [ref=e471] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/ndls-shatabdi-12001/
+                - text: "|"
+              - listitem [ref=e472]:
+                - link "Purushottam Express (12801)" [ref=e473] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/purushottam-express-12801/
+                - text: "|"
+              - listitem [ref=e474]:
+                - link "LJN Swran Shtbd (12003)" [ref=e475] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/ljn-swran-shtbd-12003/
+                - text: "|"
+              - listitem [ref=e476]:
+                - link "KURJ UDZ Express (19665)" [ref=e477] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/kurj-udz-express-19665/
+                - text: "|"
+              - listitem [ref=e478]:
+                - link "Konark Express (11020)" [ref=e479] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/konark-express-11020/
+                - text: "|"
+              - listitem [ref=e480]:
+                - link "Intercity Express (12466)" [ref=e481] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/intercity-express-12466/
+                - text: "|"
+              - listitem [ref=e482]:
+                - link "Karnavati Express (12933)" [ref=e483] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/karnavati-express-12933/
+                - text: "|"
+              - listitem [ref=e484]:
+                - link "AF AII Intercity (12195)" [ref=e485] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/af-aii-intercity-12195/
+                - text: "|"
+              - listitem [ref=e486]:
+                - link "UDZ KURJ Express (19666)" [ref=e487] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/udz-kurj-express-19666/
+                - text: "|"
+              - listitem [ref=e488]:
+                - link "Shatabdi Express (12010)" [ref=e489] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/shatabdi-express-12010/
+                - text: "|"
+              - listitem [ref=e490]:
+                - link "ADI Double Deckr (12931)" [ref=e491] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/adi-double-deckr-12931/
+                - text: "|"
+              - listitem [ref=e492]:
+                - link "Shane Punjab (12498)" [ref=e493] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/shane-punjab-12498/
+                - text: "|"
+              - listitem [ref=e494]:
+                - link "Taj Express (12279)" [ref=e495] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/taj-express-12279/
+                - text: "|"
+              - listitem [ref=e496]:
+                - link "Amritsar Shatabdi (12014)" [ref=e497] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/amritsar-shatabdi-12014/
+                - text: "|"
+              - listitem [ref=e498]:
+                - link "Taj Express (12280)" [ref=e499] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/taj-express-12280/
+                - text: "|"
+              - listitem [ref=e500]:
+                - link "NZM JAN Shatabdi (12059)" [ref=e501] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/nzm-jan-shatabdi-12059/
+                - text: "|"
+              - listitem [ref=e502]:
+                - link "Gujarat Express (22953)" [ref=e503] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/gujarat-express-22953/
+                - text: "|"
+              - listitem [ref=e504]:
+                - link "Mewar Express (12964)" [ref=e505] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/mewar-express-12964/
+                - text: "|"
+          - generic [ref=e506]:
+            - paragraph [ref=e507]: Top Train Routes
+            - list [ref=e508]:
+              - listitem [ref=e509]:
+                - link "Jaipur to Jodhpur Trains" [ref=e510] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/jaipur-to-jodhpur-trains/
+                - text: "|"
+              - listitem [ref=e511]:
+                - link "Delhi to Chandigarh Trains" [ref=e512] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/delhi-to-chandigarh-trains/
+                - text: "|"
+              - listitem [ref=e513]:
+                - link "Delhi to Lucknow Trains" [ref=e514] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/delhi-to-lucknow-trains/
+                - text: "|"
+              - listitem [ref=e515]:
+                - link "Chandigarh to Delhi Trains" [ref=e516] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/chandigarh-to-delhi-trains/
+                - text: "|"
+              - listitem [ref=e517]:
+                - link "Jodhpur to Jaipur Trains" [ref=e518] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/jodhpur-to-jaipur-trains/
+                - text: "|"
+              - listitem [ref=e519]:
+                - link "Delhi to Ahmedabad Trains" [ref=e520] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/delhi-to-ahmedabad-trains/
+                - text: "|"
+              - listitem [ref=e521]:
+                - link "Ahmedabad to Delhi Trains" [ref=e522] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/ahmedabad-to-delhi-trains/
+                - text: "|"
+              - listitem [ref=e523]:
+                - link "Hyderabad to Visakhapatnam Trains" [ref=e524] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/hyderabad-to-visakhapatnam-trains/
+                - text: "|"
+              - listitem [ref=e525]:
+                - link "Lucknow to Delhi Trains" [ref=e526] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/lucknow-to-delhi-trains/
+                - text: "|"
+              - listitem [ref=e527]:
+                - link "Delhi to Kanpur Trains" [ref=e528] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/delhi-to-kanpur-trains/
+                - text: "|"
+              - listitem [ref=e529]:
+                - link "Delhi to Patna Trains" [ref=e530] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/delhi-to-patna-trains/
+                - text: "|"
+              - listitem [ref=e531]:
+                - link "Patna to Delhi Trains" [ref=e532] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/patna-to-delhi-trains/
+                - text: "|"
+              - listitem [ref=e533]:
+                - link "Delhi to Jaipur Trains" [ref=e534] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/delhi-to-jaipur-trains/
+                - text: "|"
+              - listitem [ref=e535]:
+                - link "Visakhapatnam to Hyderabad Trains" [ref=e536] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/visakhapatnam-to-hyderabad-trains/
+                - text: "|"
+              - listitem [ref=e537]:
+                - link "Delhi to Jodhpur Trains" [ref=e538] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/delhi-to-jodhpur-trains/
+                - text: "|"
+              - listitem [ref=e539]:
+                - link "Delhi to Mumbai Trains" [ref=e540] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/delhi-to-mumbai-trains/
+                - text: "|"
+              - listitem [ref=e541]:
+                - link "Mumbai to Delhi Trains" [ref=e542] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/mumbai-to-delhi-trains/
+                - text: "|"
+              - listitem [ref=e543]:
+                - link "Bangalore to Mysore Trains" [ref=e544] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/bangalore-to-mysore-trains/
+                - text: "|"
+              - listitem [ref=e545]:
+                - link "Delhi to Goa Trains" [ref=e546] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/delhi-to-goa-trains/
+                - text: "|"
+              - listitem [ref=e547]:
+                - link "Kalka to Shimla Trains" [ref=e548] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/kalka-to-shimla-trains/
+                - text: "|"
+              - listitem [ref=e549]:
+                - link "Pune to Goa Trains" [ref=e550] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/pune-to-goa-trains/
+                - text: "|"
+              - listitem [ref=e551]:
+                - link "Delhi to Agra Trains" [ref=e552] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/delhi-to-agra-trains/
+                - text: "|"
+              - listitem [ref=e553]:
+                - link "Delhi to Lucknow Trains" [ref=e554] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/delhi-to-lucknow-trains/
+                - text: "|"
+              - listitem [ref=e555]:
+                - link "Chennai to Delhi Trains" [ref=e556] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/chennai-to-delhi-trains/
+                - text: "|"
+              - listitem [ref=e557]:
+                - link "Bangalore to Hyderabad Trains" [ref=e558] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/bangalore-to-hyderabad-trains/
+                - text: "|"
+              - listitem [ref=e559]:
+                - link "Mumbai to Ahmedabad Trains" [ref=e560] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/mumbai-to-ahmedabad-trains/
+                - text: "|"
+              - listitem [ref=e561]:
+                - link "Ahmedabad to Goa Trains" [ref=e562] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/ahmedabad-to-goa-trains/
+                - text: "|"
+              - listitem [ref=e563]:
+                - link "Chennai to Hyderabad Trains" [ref=e564] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/chennai-to-hyderabad-trains/
+                - text: "|"
+              - listitem [ref=e565]:
+                - link "Hyderabad to Bangalore Trains" [ref=e566] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/hyderabad-to-bangalore-trains/
+                - text: "|"
+              - listitem [ref=e567]:
+                - link "Goa to Mumbai Trains" [ref=e568] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/goa-to-mumbai-trains/
+                - text: "|"
+              - listitem [ref=e569]:
+                - link "Indore to Jaipur Trains" [ref=e570] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/indore-to-jaipur-trains/
+                - text: "|"
+              - listitem [ref=e571]:
+                - link "Patna to Bangalore Trains" [ref=e572] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/patna-to-bangalore-trains/
+                - text: "|"
+          - generic [ref=e573]:
+            - paragraph [ref=e574]: Top Train Stations
+            - list [ref=e575]:
+              - listitem [ref=e576]:
+                - link "Kolkata Sealdah Railway Station" [ref=e577] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/kolkata-sealdah-railway-station-sdah/
+                - text: "|"
+              - listitem [ref=e578]:
+                - link "Chandigarh Railway Station" [ref=e579] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/chandigarh-railway-station-cdg/
+                - text: "|"
+              - listitem [ref=e580]:
+                - link "Lucknow Junction" [ref=e581] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/lucknow-junction-ljn/
+                - text: "|"
+              - listitem [ref=e582]:
+                - link "Vijayawada Junction" [ref=e583] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/vijayawada-junction-bza/
+                - text: "|"
+              - listitem [ref=e584]:
+                - link "Mumbai Borivali Railway Station" [ref=e585] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/mumbai-borivali-railway-station-bvi/
+                - text: "|"
+              - listitem [ref=e586]:
+                - link "New Delhi Railway Station" [ref=e587] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/new-delhi-railway-station-ndls/
+                - text: "|"
+              - listitem [ref=e588]:
+                - link "Old Delhi Railway Station" [ref=e589] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/old-delhi-railway-station-dli/
+                - text: "|"
+              - listitem [ref=e590]:
+                - link "Mumbai Bandra Terminus Railway Station" [ref=e591] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/mumbai-bandra-terminus-railway-station-bdts/
+                - text: "|"
+              - listitem [ref=e592]:
+                - link "Ahmedabad Junction" [ref=e593] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/ahmedabad-junction-adi/
+                - text: "|"
+              - listitem [ref=e594]:
+                - link "Indore Junction Bg" [ref=e595] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/indore-junction-bg-indb/
+                - text: "|"
+              - listitem [ref=e596]:
+                - link "Coimbatore Main Junction" [ref=e597] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/coimbatore-main-junction-cbe/
+                - text: "|"
+              - listitem [ref=e598]:
+                - link "Chennai Central Railway Station" [ref=e599] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/chennai-central-railway-station-mas/
+                - text: "|"
+              - listitem [ref=e600]:
+                - link "Raipur Railway Station" [ref=e601] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/raipur-railway-station-r/
+                - text: "|"
+              - listitem [ref=e602]:
+                - link "Bhubaneswar Railway Station" [ref=e603] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/bhubaneswar-railway-station-bbs/
+                - text: "|"
+              - listitem [ref=e604]:
+                - link "Guwahati Railway Station" [ref=e605] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/guwahati-railway-station-ghy/
+                - text: "|"
+              - listitem [ref=e606]:
+                - link "Nagpur Junction" [ref=e607] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/nagpur-junction-ngp/
+                - text: "|"
+              - listitem [ref=e608]:
+                - link "Kolkata Howrah Junction" [ref=e609] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/kolkata-howrah-junction-hwh/
+                - text: "|"
+              - listitem [ref=e610]:
+                - link "Jabalpur Junction" [ref=e611] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/jabalpur-junction-jbp/
+                - text: "|"
+              - listitem [ref=e612]:
+                - link "Visakhapatnam Railway Station" [ref=e613] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/visakhapatnam-railway-station-vskp/
+                - text: "|"
+              - listitem [ref=e614]:
+                - link "Jaipur Railway Station" [ref=e615] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/trains/jaipur-railway-station-jp/
+                - text: "|"
+          - generic [ref=e616]:
+            - paragraph [ref=e617]: Other Useful Links
+            - list [ref=e618]:
+              - listitem [ref=e619]:
+                - link "Flight Offers" [ref=e620] [cursor=pointer]:
+                  - /url: " https://www.goibibo.com/offers/flight-offers/"
+                - text: "|"
+              - listitem [ref=e621]:
+                - link "Popular Airports" [ref=e622] [cursor=pointer]:
+                  - /url: " https://www.goibibo.com/airports/"
+                - text: "|"
+              - listitem [ref=e623]:
+                - link "Popular Airlines" [ref=e624] [cursor=pointer]:
+                  - /url: " https://www.goibibo.com/airlines/"
+                - text: "|"
+              - listitem [ref=e625]:
+                - link "Cabs from Chennai Airport" [ref=e626] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/cars/cabs-from-chennai-airport/
+                - text: "|"
+              - listitem [ref=e627]:
+                - link "Cabs from Bangalore Airport" [ref=e628] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/cars/cabs-from-bangalore-airport/
+                - text: "|"
+              - listitem [ref=e629]:
+                - link "Cabs from Hyderabad Airport" [ref=e630] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/cars/cabs-from-hyderabad-airport/
+                - text: "|"
+              - listitem [ref=e631]:
+                - link "Cabs from Delhi Airport" [ref=e632] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/cars/cabs-from-delhi-airport/
+                - text: "|"
+              - listitem [ref=e633]:
+                - link "Mumbai to Pune Cab" [ref=e634] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/cars/mumbai-to-pune-cabs/
+                - text: "|"
+              - listitem [ref=e635]:
+                - link "Delhi to Jaipur Cab" [ref=e636] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/cars/delhi-to-jaipur-cabs/
+                - text: "|"
+              - listitem [ref=e637]:
+                - link "Mumbai to Shirdi Cab" [ref=e638] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/cars/mumbai-to-shirdi-cabs/
+                - text: "|"
+              - listitem [ref=e639]:
+                - link "Delhi to Agra Cab" [ref=e640] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/cars/delhi-to-agra-cabs/
+                - text: "|"
+              - listitem [ref=e641]:
+                - link "Cabs from Delhi" [ref=e642] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/cars/cab-from-delhi/
+                - text: "|"
+              - listitem [ref=e643]:
+                - link "Cabs from Bangalore" [ref=e644] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/cars/cab-from-bangalore/
+                - text: "|"
+              - listitem [ref=e645]:
+                - link "UPSRTC Bus" [ref=e646] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/bus/upsrtc-uttar-pradesh-state-road-transport-corporation-bus-booking/
+                - text: "|"
+              - listitem [ref=e647]:
+                - link "APSRTC Bus" [ref=e648] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/bus/apsrtc-andhra-pradesh-state-road-transport-corporation-bus-booking/
+                - text: "|"
+              - listitem [ref=e649]:
+                - link "GSRTC Bus" [ref=e650] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/bus/gsrtc-gujarat-state-road-transport-corporation-bus-booking/
+                - text: "|"
+              - listitem [ref=e651]:
+                - link "Bangalore to Hyderabad Bus" [ref=e652] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/bus/bangalore-to-hyderabad-bus-tickets/
+                - text: "|"
+              - listitem [ref=e653]:
+                - link "Pune to Bangalore Bus" [ref=e654] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/bus/pune-to-bangalore-bus-tickets/
+                - text: "|"
+              - listitem [ref=e655]:
+                - link "Mumbai to Pune Bus" [ref=e656] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/bus/mumbai-to-pune-bus-tickets/
+                - text: "|"
+              - listitem [ref=e657]:
+                - link "Bangalore to Chennai Bus" [ref=e658] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/bus/bangalore-to-chennai-bus-tickets/
+                - text: "|"
+              - listitem [ref=e659]:
+                - link "Delhi to Manali Bus" [ref=e660] [cursor=pointer]:
+                  - /url: https://www.goibibo.com/bus/delhi-to-manali-bus-tickets/
+                - text: "|"
+        - generic [ref=e661]:
+          - generic [ref=e662]:
+            - paragraph [ref=e663]: Follow Us
+            - generic [ref=e664]:
+              - generic [ref=e665]:
+                - link "read more about our Facebook page" [ref=e666] [cursor=pointer]:
+                  - /url: http://facebook.com/goibibo
+                - paragraph [ref=e668]: Facebook
+              - generic [ref=e669]:
+                - link "read more about our Twitter page" [ref=e670] [cursor=pointer]:
+                  - /url: http://twitter.com/goibibo
+                - paragraph [ref=e672]: Twitter
+          - generic [ref=e673]:
+            - paragraph [ref=e674]: Download our App
+            - generic [ref=e675]:
+              - generic [ref=e676]:
+                - link "read more about our app" [ref=e677] [cursor=pointer]:
+                  - /url: http://app.appsflyer.com/com.goibibo?pid=mobile_site&c=m_header
+                - paragraph [ref=e679]: Rated 4.4
+                - paragraph [ref=e680]: 8.5+ Lakh reviews
+                - paragraph [ref=e681]: 5 Crore+ downloads
+              - generic [ref=e682]:
+                - link "read more" [ref=e683] [cursor=pointer]:
+                  - /url: https://itunes.apple.com/in/app/goibibo-flight-bus-hotel-booking/id631927169?mt=8
+                - paragraph [ref=e685]: Rated 4.4
+                - paragraph [ref=e686]: 8.5+ Lakh reviews
+          - paragraph [ref=e688]: Easy payment options
+      - generic [ref=e698]:
+        - generic [ref=e699]:
+          - paragraph [ref=e700]: Our other affiliated brands
+          - generic [ref=e701]:
+            - link "visit makemytrip" [ref=e702] [cursor=pointer]:
+              - /url: http://www.makemytrip.com/
+            - link "visit redbus" [ref=e704] [cursor=pointer]:
+              - /url: http://www.redbus.in/
+        - paragraph
+  - alert [ref=e706]

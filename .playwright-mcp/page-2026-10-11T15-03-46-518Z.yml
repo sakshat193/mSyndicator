@@ -1,0 +1,16 @@
+- main [ref=e2]:
+  - generic "India train map" [ref=e3]:
+    - region "Map" [ref=e4]
+    - generic:
+      - generic [ref=e5]:
+        - button "Zoom in" [ref=e6] [cursor=pointer]
+        - button "Zoom out" [ref=e8] [cursor=pointer]
+        - button "Drag to rotate map, click to reset north" [ref=e10]
+      - group [ref=e12]:
+        - generic "Toggle attribution" [ref=e13] [cursor=pointer]
+        - link "MapLibre" [ref=e15] [cursor=pointer]:
+          - /url: https://maplibre.org/
+  - generic [ref=e16]:
+    - strong [ref=e17]: LIVE
+    - text: · now − 15 s
+    - status [ref=e18]: Loading network…

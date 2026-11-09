@@ -1,0 +1,39 @@
+[ 6075409ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Connection closed before receiving a handshake response @ :4
+[ 6077470ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Connection closed before receiving a handshake response @ :4
+[ 6081575ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Connection closed before receiving a handshake response @ :4
+[ 6089633ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Connection closed before receiving a handshake response @ :4
+[ 6099500ms] [ERROR] Failed to load resource: the server responded with a status of 502 (Bad Gateway) @ http://localhost:4173/api/health:0
+[ 6105724ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Connection closed before receiving a handshake response @ :4
+[ 6135782ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Connection closed before receiving a handshake response @ :4
+[ 6159566ms] [ERROR] Failed to load resource: the server responded with a status of 502 (Bad Gateway) @ http://localhost:4173/api/health:0
+[ 6165852ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Connection closed before receiving a handshake response @ :4
+[ 6195912ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Connection closed before receiving a handshake response @ :4
+[ 6219515ms] [ERROR] Failed to load resource: the server responded with a status of 502 (Bad Gateway) @ http://localhost:4173/api/health:0
+[ 6226008ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Connection closed before receiving a handshake response @ :4
+[ 6243827ms] [ERROR] Failed to load resource: the server responded with a status of 502 (Bad Gateway) @ http://localhost:4173/api/run/1817866:0
+[ 6255402ms] [ERROR] Failed to load resource: the server responded with a status of 502 (Bad Gateway) @ http://localhost:4173/api/run/1817866:0
+[ 6256113ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Connection closed before receiving a handshake response @ :4
+[ 6279494ms] [ERROR] Failed to load resource: the server responded with a status of 502 (Bad Gateway) @ http://localhost:4173/api/health:0
+[ 6286144ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ :4
+[ 6316191ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ :4
+[ 6342598ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/api/health:0
+[ 6346287ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ :4
+[ 6376295ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ :4
+[ 6399469ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/api/health:0
+[ 6406310ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ :4
+[ 6436326ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ :4
+[ 6459474ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/api/health:0
+[ 6466350ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ :4
+[ 6496365ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ :4
+[ 6519462ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/api/health:0
+[ 6526376ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ :4
+[ 6556396ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ :4
+[ 6579466ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/api/health:0
+[ 6586405ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ :4
+[ 6616440ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ :4
+[ 6639471ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/api/health:0
+[ 6646450ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ :4
+[ 6676462ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ :4
+[ 6699490ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4173/api/health:0
+[ 6706484ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ :4
+[ 6736514ms] [ERROR] WebSocket connection to 'ws://localhost:4173/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ :4

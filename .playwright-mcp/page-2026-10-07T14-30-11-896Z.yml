@@ -1,0 +1,69 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e2]:
+    - banner [ref=f5e6]:
+      - generic [ref=f5e7]:
+        - link [ref=f5e8] [cursor=pointer]:
+          - /url: /
+        - list [ref=f5e10]:
+          - listitem [ref=f5e11] [cursor=pointer]:
+            - link "Flights" [ref=f5e12]:
+              - /url: /flights/
+          - listitem [ref=f5e16] [cursor=pointer]:
+            - link "Hotels" [ref=f5e17]:
+              - /url: /hotels/
+          - listitem [ref=f5e21] [cursor=pointer]:
+            - link "Trains" [ref=f5e22]:
+              - /url: /trains/
+          - listitem [ref=f5e26] [cursor=pointer]:
+            - link "Cabs" [ref=f5e27]:
+              - /url: /cars/
+          - listitem [ref=f5e31] [cursor=pointer]:
+            - link "Bus" [ref=f5e32]:
+              - /url: /bus/
+          - listitem [ref=f5e36] [cursor=pointer]:
+            - link "Holidays" [ref=f5e37]:
+              - /url: /giholidays/
+          - listitem [ref=f5e41] [cursor=pointer]:
+            - generic [ref=f5e42]: More
+        - generic [ref=f5e45]:
+          - link [ref=f5e46] [cursor=pointer]:
+            - /url: /travelhistory
+            - generic [ref=f5e49]:
+              - paragraph [ref=f5e50]: Manage Booking
+              - paragraph [ref=f5e51]: My Trips
+          - generic [ref=f5e52]:
+            - generic [ref=f5e53] [cursor=pointer]
+            - list [ref=f5e55] [cursor=pointer]:
+              - listitem [ref=f5e56]: Manage Your Trips
+              - listitem [ref=f5e57]: Login / Signup
+              - listitem [ref=f5e58]: Exclusive Offers
+              - listitem [ref=f5e59]: Earn goCash
+              - listitem [ref=f5e60]: Manage Your Trips
+              - listitem [ref=f5e61]: Login / Signup
+            - generic [ref=f5e62] [cursor=pointer]
+    - generic [ref=f5e65]:
+      - generic [ref=f5e66]:
+        - link "Goibibo" [ref=f5e67] [cursor=pointer]:
+          - /url: /
+        - img "breadcrumb separator" [ref=f5e68]
+        - link "Trains" [ref=f5e69] [cursor=pointer]:
+          - /url: /trains
+        - img "breadcrumb separator" [ref=f5e70]
+        - link "Check train running status" [ref=f5e71] [cursor=pointer]:
+          - /url: /trains/check-train-running-status/
+        - img "breadcrumb separator" [ref=f5e72]
+        - generic [ref=f5e73] [cursor=pointer]: 12951 -
+      - generic [ref=f5e74]:
+        - img "Train icon" [ref=f5e76]
+        - paragraph [ref=f5e77]: 12951 - Live Running Status
+      - generic [ref=f5e78]:
+        - generic [ref=f5e79]: Fetching Live Train Status
+        - generic [ref=f5e84]:
+          - generic [ref=f5e86]:
+            - generic [ref=f5e87]: Arrival
+            - generic [ref=f5e88]: Station Name
+            - generic [ref=f5e89]: Platform
+            - generic [ref=f5e90]: Halt
+            - generic [ref=f5e91]: Departure
+          - generic [ref=f5e92]: Fetching Live Train Status
+  - alert [ref=f5e95]

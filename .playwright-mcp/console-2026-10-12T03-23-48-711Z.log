@@ -1,0 +1,1 @@
+[ 2453121ms] [ERROR] WebSocket connection to 'ws://localhost:5179/api/live' failed: Connection closed before receiving a handshake response @ http://localhost:5179/src/frames.ts:42

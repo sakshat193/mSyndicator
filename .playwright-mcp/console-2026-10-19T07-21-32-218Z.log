@@ -1,0 +1,62 @@
+[ 2879242ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:5174/@fs/B:/m-syndicator/web/node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2:0
+[ 2933200ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:5174/@fs/B:/m-syndicator/web/node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2:0
+[ 3310171ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3312181ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3316196ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3320865ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 3324229ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3340238ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3370247ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3380640ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 3400255ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3430287ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3440631ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 3460323ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3490342ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3500632ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 3520349ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3550357ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3560641ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 3580365ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3610374ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3620655ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 3640383ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3670392ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3680636ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 3700407ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3730432ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3740655ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 3760452ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3790462ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3800636ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 3820471ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3850485ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3860677ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 3880500ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3910542ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3920738ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 3940567ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3970578ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 3980650ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 4000626ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 4030675ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 4040687ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 4060697ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 4090741ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 4100654ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 4120771ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 4150786ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 4160663ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 4180888ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 4210928ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 4220649ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 4240981ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 4271042ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 4280645ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 4301061ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 4331082ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 4340639ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 4361100ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 4391122ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823
+[ 4400664ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/api/health:0
+[ 4421147ms] [ERROR] WebSocket connection to 'ws://localhost:5175/api/live' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:5175/assets/index-ISQSpKxx.js:3823

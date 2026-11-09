@@ -1,0 +1,27 @@
+- main [ref=e2]:
+  - generic "India train map" [ref=e3]:
+    - region "Map" [ref=e4]
+    - generic:
+      - generic:
+        - generic [ref=e5]:
+          - button "Zoom in" [ref=e6] [cursor=pointer]
+          - button "Zoom out" [ref=e8] [cursor=pointer]
+        - group [ref=e10]:
+          - generic "Toggle attribution" [ref=e11] [cursor=pointer]
+          - generic [ref=e12]: © OpenStreetMap · Protomaps
+  - region "Live train tracker" [ref=e13]:
+    - generic [ref=e14]:
+      - strong [ref=e15]: LIVE
+      - generic [ref=e17]: Loading…
+      - button "Hide overlays" [ref=e18] [cursor=pointer]
+    - generic [ref=e22]:
+      - time [ref=e23]: 22:26:01
+      - status [ref=e24]: Loading network…
+    - generic [ref=e25]:
+      - generic [ref=e26]: Train number or name
+      - combobox "Train number or name" [ref=e27]
+  - region "Train delay legend" [ref=e28]:
+    - generic [ref=e30]:
+      - generic [ref=e31]: On time
+      - generic [ref=e32]: 15 min
+      - generic [ref=e33]: 60+ min late
